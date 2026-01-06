@@ -1,0 +1,605 @@
+# Copyright (C) 2024 ePark Team
+# This file is distributed under the GPL v2 or later.
+msgid ""
+msgstr ""
+"Project-Id-Version: Apprenticeship Connect 1.1.2\n"
+"Report-Msgid-Bugs-To: https://epark.ir\n"
+"POT-Creation-Date: 2024-01-01 12:00+0000\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"PO-Revision-Date: 2024-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+
+#: apprenticeship-connect.php:89
+msgid "Vacancies"
+msgstr ""
+
+#: apprenticeship-connect.php:90
+msgid "Vacancy"
+msgstr ""
+
+#: apprenticeship-connect.php:91
+msgid "Vacancies"
+msgstr ""
+
+#: apprenticeship-connect.php:92
+msgid "Vacancy"
+msgstr ""
+
+#: apprenticeship-connect.php:93
+msgid "Vacancy Archives"
+msgstr ""
+
+#: apprenticeship-connect.php:94
+msgid "Vacancy Attributes"
+msgstr ""
+
+#: apprenticeship-connect.php:95
+msgid "Parent Vacancy:"
+msgstr ""
+
+#: apprenticeship-connect.php:96
+msgid "All Vacancies"
+msgstr ""
+
+#: apprenticeship-connect.php:97
+msgid "Add New Vacancy"
+msgstr ""
+
+#: apprenticeship-connect.php:98
+msgid "Add New"
+msgstr ""
+
+#: apprenticeship-connect.php:99
+msgid "New Vacancy"
+msgstr ""
+
+#: apprenticeship-connect.php:100
+msgid "Edit Vacancy"
+msgstr ""
+
+#: apprenticeship-connect.php:101
+msgid "Update Vacancy"
+msgstr ""
+
+#: apprenticeship-connect.php:102
+msgid "View Vacancy"
+msgstr ""
+
+#: apprenticeship-connect.php:103
+msgid "View Vacancies"
+msgstr ""
+
+#: apprenticeship-connect.php:104
+msgid "Search Vacancy"
+msgstr ""
+
+#: apprenticeship-connect.php:105
+msgid "Not found"
+msgstr ""
+
+#: apprenticeship-connect.php:106
+msgid "Not found in Trash"
+msgstr ""
+
+#: apprenticeship-connect.php:107
+msgid "Featured Image"
+msgstr ""
+
+#: apprenticeship-connect.php:108
+msgid "Set featured image"
+msgstr ""
+
+#: apprenticeship-connect.php:109
+msgid "Remove featured image"
+msgstr ""
+
+#: apprenticeship-connect.php:110
+msgid "Use as featured image"
+msgstr ""
+
+#: apprenticeship-connect.php:111
+msgid "Insert into vacancy"
+msgstr ""
+
+#: apprenticeship-connect.php:112
+msgid "Uploaded to this vacancy"
+msgstr ""
+
+#: apprenticeship-connect.php:113
+msgid "Vacancies list"
+msgstr ""
+
+#: apprenticeship-connect.php:114
+msgid "Vacancies list navigation"
+msgstr ""
+
+#: apprenticeship-connect.php:115
+msgid "Filter vacancies list"
+msgstr ""
+
+#: apprenticeship-connect.php:118
+msgid "Vacancy"
+msgstr ""
+
+#: apprenticeship-connect.php:119
+msgid "Apprenticeship Vacancies from external API"
+msgstr ""
+
+#: includes/class-apprenticeship-connect-admin.php:45
+msgid "Apprenticeship Connect"
+msgstr ""
+
+#: includes/class-apprenticeship-connect-admin.php:46
+msgid "Apprenticeship Connect"
+msgstr ""
+
+#: includes/class-apprenticeship-connect-admin.php:54
+msgid "Settings"
+msgstr ""
+
+#: includes/class-apprenticeship-connect-admin.php:55
+msgid "Settings"
+msgstr ""
+
+#: includes/class-apprenticeship-connect-admin.php:62
+msgid "Vacancies"
+msgstr ""
+
+#: includes/class-apprenticeship-connect-admin.php:63
+msgid "Vacancies"
+msgstr ""
+
+#: includes/class-apprenticeship-connect-admin.php:89
+msgid "API Configuration"
+msgstr ""
+
+#: includes/class-apprenticeship-connect-admin.php:95
+msgid "API Base URL"
+msgstr ""
+
+#: includes/class-apprenticeship-connect-admin.php:103
+msgid "API Subscription Key"
+msgstr ""
+
+#: includes/class-apprenticeship-connect-admin.php:111
+msgid "UKPRN (Optional)"
+msgstr ""
+
+#: includes/class-apprenticeship-connect-admin.php:119
+msgid "Display Settings"
+msgstr ""
+
+#: includes/class-apprenticeship-connect-admin.php:125
+msgid "Default Display Count"
+msgstr ""
+
+#: includes/class-apprenticeship-connect-admin.php:133
+msgid "Show Employer"
+msgstr ""
+
+#: includes/class-apprenticeship-connect-admin.php:141
+msgid "Show Location"
+msgstr ""
+
+#: includes/class-apprenticeship-connect-admin.php:149
+msgid "Show Closing Date"
+msgstr ""
+
+#: includes/class-apprenticeship-connect-admin.php:157
+msgid "Show Apply Button"
+msgstr ""
+
+#: includes/class-apprenticeship-connect-admin.php:165
+msgid "Configure your API credentials to connect to the UK Government Apprenticeship service."
+msgstr ""
+
+#: includes/class-apprenticeship-connect-admin.php:170
+msgid "Configure how vacancies are displayed on your website."
+msgstr ""
+
+#: includes/class-apprenticeship-connect-admin.php:175
+msgid "The base URL for the API endpoint."
+msgstr ""
+
+#: includes/class-apprenticeship-connect-admin.php:182
+msgid "Your API subscription key from the UK Government Apprenticeship service. This is required."
+msgstr ""
+
+#: includes/class-apprenticeship-connect-admin.php:189
+msgid "UKPRN for your provider (optional). Leave blank to show all vacancies."
+msgstr ""
+
+#: includes/class-apprenticeship-connect-admin.php:196
+msgid "Default number of vacancies to display."
+msgstr ""
+
+#: includes/class-apprenticeship-connect-admin.php:203
+msgid "Show employer name in vacancy listings"
+msgstr ""
+
+#: includes/class-apprenticeship-connect-admin.php:210
+msgid "Show location in vacancy listings"
+msgstr ""
+
+#: includes/class-apprenticeship-connect-admin.php:217
+msgid "Show closing date in vacancy listings"
+msgstr ""
+
+#: includes/class-apprenticeship-connect-admin.php:224
+msgid "Show apply button in vacancy listings"
+msgstr ""
+
+#: includes/class-apprenticeship-connect-admin.php:235
+msgid "Status"
+msgstr ""
+
+#: includes/class-apprenticeship-connect-admin.php:238
+msgid "API Configured:"
+msgstr ""
+
+#: includes/class-apprenticeship-connect-admin.php:242
+msgid "Total Vacancies:"
+msgstr ""
+
+#: includes/class-apprenticeship-connect-admin.php:245
+msgid "Last Sync:"
+msgstr ""
+
+#: includes/class-apprenticeship-connect-admin.php:247
+msgid "Never"
+msgstr ""
+
+#: includes/class-apprenticeship-connect-admin.php:252
+msgid "Manual Sync"
+msgstr ""
+
+#: includes/class-apprenticeship-connect-admin.php:255
+msgid "Test API"
+msgstr ""
+
+#: includes/class-apprenticeship-connect-admin.php:261
+msgid "Shortcode"
+msgstr ""
+
+#: includes/class-apprenticeship-connect-admin.php:262
+msgid "Use this shortcode to display vacancies on any page:"
+msgstr ""
+
+#: includes/class-apprenticeship-connect-admin.php:265
+msgid "Parameters"
+msgstr ""
+
+#: includes/class-apprenticeship-connect-admin.php:267
+msgid "Number of vacancies to display"
+msgstr ""
+
+#: includes/class-apprenticeship-connect-admin.php:269
+msgid "Show employer name"
+msgstr ""
+
+#: includes/class-apprenticeship-connect-admin.php:271
+msgid "Show location"
+msgstr ""
+
+#: includes/class-apprenticeship-connect-admin.php:273
+msgid "Show closing date"
+msgstr ""
+
+#: includes/class-apprenticeship-connect-admin.php:275
+msgid "Show apply button"
+msgstr ""
+
+#: includes/class-apprenticeship-connect-admin.php:278
+msgid "Example:"
+msgstr ""
+
+#: includes/class-apprenticeship-connect-admin.php:285
+msgid "You do not have permission to perform this action."
+msgstr ""
+
+#: includes/class-apprenticeship-connect-admin.php:292
+msgid "Sync completed successfully!"
+msgstr ""
+
+#: includes/class-apprenticeship-connect-admin.php:294
+msgid "Sync failed. Please check your API configuration."
+msgstr ""
+
+#: includes/class-apprenticeship-connect-admin.php:302
+msgid "API credentials not configured."
+msgstr ""
+
+#: includes/class-apprenticeship-connect-admin.php:315
+msgid "API connection failed: "
+msgstr ""
+
+#: includes/class-apprenticeship-connect-admin.php:321
+msgid "Invalid API response format."
+msgstr ""
+
+#: includes/class-apprenticeship-connect-admin.php:325
+msgid "API connection successful! Found "
+msgstr ""
+
+#: includes/class-apprenticeship-connect-admin.php:325
+msgid " vacancies."
+msgstr ""
+
+#: includes/class-apprenticeship-connect-admin.php:327
+msgid "API response does not contain expected data."
+msgstr ""
+
+#: includes/class-apprenticeship-connect-setup-wizard.php:45
+msgid "Setup Wizard"
+msgstr ""
+
+#: includes/class-apprenticeship-connect-setup-wizard.php:46
+msgid "Setup Wizard"
+msgstr ""
+
+#: includes/class-apprenticeship-connect-setup-wizard.php:58
+msgid "Apprenticeship Connect needs to be configured. "
+msgstr ""
+
+#: includes/class-apprenticeship-connect-setup-wizard.php:59
+msgid "Run Setup Wizard"
+msgstr ""
+
+#: includes/class-apprenticeship-connect-setup-wizard.php:70
+msgid "Apprenticeship Connect Setup Wizard"
+msgstr ""
+
+#: includes/class-apprenticeship-connect-setup-wizard.php:75
+msgid "Welcome"
+msgstr ""
+
+#: includes/class-apprenticeship-connect-setup-wizard.php:76
+msgid "API Configuration"
+msgstr ""
+
+#: includes/class-apprenticeship-connect-setup-wizard.php:77
+msgid "Display Settings"
+msgstr ""
+
+#: includes/class-apprenticeship-connect-setup-wizard.php:78
+msgid "Create Page"
+msgstr ""
+
+#: includes/class-apprenticeship-connect-setup-wizard.php:79
+msgid "Complete"
+msgstr ""
+
+#: includes/class-apprenticeship-connect-setup-wizard.php:87
+msgid "Welcome to Apprenticeship Connect!"
+msgstr ""
+
+#: includes/class-apprenticeship-connect-setup-wizard.php:90
+msgid "This wizard will help you configure Apprenticeship Connect to display apprenticeship vacancies on your website."
+msgstr ""
+
+#: includes/class-apprenticeship-connect-setup-wizard.php:92
+msgid "What you'll need:"
+msgstr ""
+
+#: includes/class-apprenticeship-connect-setup-wizard.php:94
+msgid "API subscription key from the UK Government Apprenticeship service"
+msgstr ""
+
+#: includes/class-apprenticeship-connect-setup-wizard.php:95
+msgid "Your UKPRN (if you want to filter by provider)"
+msgstr ""
+
+#: includes/class-apprenticeship-connect-setup-wizard.php:96
+msgid "A page where you want to display the vacancies"
+msgstr ""
+
+#: includes/class-apprenticeship-connect-setup-wizard.php:98
+msgid "What this plugin does:"
+msgstr ""
+
+#: includes/class-apprenticeship-connect-setup-wizard.php:100
+msgid "Connects to the official UK Government apprenticeship API"
+msgstr ""
+
+#: includes/class-apprenticeship-connect-setup-wizard.php:101
+msgid "Automatically syncs vacancy data daily"
+msgstr ""
+
+#: includes/class-apprenticeship-connect-setup-wizard.php:102
+msgid "Displays vacancies using a simple shortcode"
+msgstr ""
+
+#: includes/class-apprenticeship-connect-setup-wizard.php:103
+msgid "Keeps your site updated with the latest opportunities"
+msgstr ""
+
+#: includes/class-apprenticeship-connect-setup-wizard.php:108
+msgid "Get Started"
+msgstr ""
+
+#: includes/class-apprenticeship-connect-setup-wizard.php:115
+msgid "API Configuration"
+msgstr ""
+
+#: includes/class-apprenticeship-connect-setup-wizard.php:125
+msgid "API Base URL"
+msgstr ""
+
+#: includes/class-apprenticeship-connect-setup-wizard.php:129
+msgid "The base URL for the API endpoint."
+msgstr ""
+
+#: includes/class-apprenticeship-connect-setup-wizard.php:135
+msgid "API Subscription Key"
+msgstr ""
+
+#: includes/class-apprenticeship-connect-setup-wizard.php:139
+msgid "Your API subscription key from the UK Government Apprenticeship service. This is required."
+msgstr ""
+
+#: includes/class-apprenticeship-connect-setup-wizard.php:145
+msgid "UKPRN (Optional)"
+msgstr ""
+
+#: includes/class-apprenticeship-connect-setup-wizard.php:149
+msgid "UKPRN for your provider (optional). Leave blank to show all vacancies."
+msgstr ""
+
+#: includes/class-apprenticeship-connect-setup-wizard.php:155
+msgid "Previous"
+msgstr ""
+
+#: includes/class-apprenticeship-connect-setup-wizard.php:157
+msgid "Next"
+msgstr ""
+
+#: includes/class-apprenticeship-connect-setup-wizard.php:165
+msgid "Display Settings"
+msgstr ""
+
+#: includes/class-apprenticeship-connect-setup-wizard.php:175
+msgid "Default Display Count"
+msgstr ""
+
+#: includes/class-apprenticeship-connect-setup-wizard.php:179
+msgid "Default number of vacancies to display."
+msgstr ""
+
+#: includes/class-apprenticeship-connect-setup-wizard.php:185
+msgid "Display Options"
+msgstr ""
+
+#: includes/class-apprenticeship-connect-setup-wizard.php:188
+msgid "Show employer name"
+msgstr ""
+
+#: includes/class-apprenticeship-connect-setup-wizard.php:192
+msgid "Show location"
+msgstr ""
+
+#: includes/class-apprenticeship-connect-setup-wizard.php:196
+msgid "Show closing date"
+msgstr ""
+
+#: includes/class-apprenticeship-connect-setup-wizard.php:200
+msgid "Show apply button"
+msgstr ""
+
+#: includes/class-apprenticeship-connect-setup-wizard.php:207
+msgid "Previous"
+msgstr ""
+
+#: includes/class-apprenticeship-connect-setup-wizard.php:209
+msgid "Next"
+msgstr ""
+
+#: includes/class-apprenticeship-connect-setup-wizard.php:217
+msgid "Create Vacancies Page"
+msgstr ""
+
+#: includes/class-apprenticeship-connect-setup-wizard.php:219
+msgid "Would you like us to create a page to display your vacancies?"
+msgstr ""
+
+#: includes/class-apprenticeship-connect-setup-wizard.php:227
+msgid "Create Page"
+msgstr ""
+
+#: includes/class-apprenticeship-connect-setup-wizard.php:229
+msgid "Create a new page to display vacancies"
+msgstr ""
+
+#: includes/class-apprenticeship-connect-setup-wizard.php:235
+msgid "Page Title"
+msgstr ""
+
+#: includes/class-apprenticeship-connect-setup-wizard.php:241
+msgid "Page Slug"
+msgstr ""
+
+#: includes/class-apprenticeship-connect-setup-wizard.php:245
+msgid "The URL slug for the page (e.g., yoursite.com/apprenticeship-vacancies)"
+msgstr ""
+
+#: includes/class-apprenticeship-connect-setup-wizard.php:251
+msgid "Previous"
+msgstr ""
+
+#: includes/class-apprenticeship-connect-setup-wizard.php:253
+msgid "Next"
+msgstr ""
+
+#: includes/class-apprenticeship-connect-setup-wizard.php:261
+msgid "Setup Complete!"
+msgstr ""
+
+#: includes/class-apprenticeship-connect-setup-wizard.php:264
+msgid "Congratulations! Apprenticeship Connect has been successfully configured."
+msgstr ""
+
+#: includes/class-apprenticeship-connect-setup-wizard.php:266
+msgid "What happens next:"
+msgstr ""
+
+#: includes/class-apprenticeship-connect-setup-wizard.php:268
+msgid "The plugin will automatically sync vacancies daily"
+msgstr ""
+
+#: includes/class-apprenticeship-connect-setup-wizard.php:269
+msgid "You can manually sync from the main plugin page"
+msgstr ""
+
+#: includes/class-apprenticeship-connect-setup-wizard.php:270
+msgid "Use the shortcode [apprco_vacancies] to display vacancies anywhere"
+msgstr ""
+
+#: includes/class-apprenticeship-connect-setup-wizard.php:272
+msgid "Shortcode Examples:"
+msgstr ""
+
+#: includes/class-apprenticeship-connect-setup-wizard.php:274
+msgid "Display default number of vacancies"
+msgstr ""
+
+#: includes/class-apprenticeship-connect-setup-wizard.php:276
+msgid "Display 5 vacancies"
+msgstr ""
+
+#: includes/class-apprenticeship-connect-setup-wizard.php:278
+msgid "Hide employer names"
+msgstr ""
+
+#: includes/class-apprenticeship-connect-setup-wizard.php:283
+msgid "Go to Plugin Settings"
+msgstr ""
+
+#: includes/class-apprenticeship-connect-setup-wizard.php:285
+msgid "View Vacancies"
+msgstr ""
+
+#: includes/class-apprenticeship-connect-setup-wizard.php:295
+msgid "Security check failed."
+msgstr ""
+
+#: includes/class-apprenticeship-connect-setup-wizard.php:325
+msgid "Apprenticeship Vacancies"
+msgstr ""
+
+#: apprenticeship-connect.php:280
+msgid "No vacancies found at the moment."
+msgstr ""
+
+#: apprenticeship-connect.php:295
+msgid "Employer:"
+msgstr ""
+
+#: apprenticeship-connect.php:305
+msgid "Closing Date:"
+msgstr ""
+
+#: apprenticeship-connect.php:308
+msgid "Apply on Apprenticeships Website »"
+msgstr "" 
