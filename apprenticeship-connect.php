@@ -37,6 +37,9 @@ require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-core.php';
 require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-admin.php';
 require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-setup-wizard.php';
 require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-elementor.php';
+require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-meta-box.php';
+require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-rest-api.php';
+require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-shortcodes.php';
 
 /**
  * Main plugin class
@@ -112,7 +115,14 @@ class Apprco_Connector {
         if ( is_admin() ) {
             new Apprco_Admin();
             new Apprco_Setup_Wizard();
+            Apprco_Meta_Box::get_instance();
         }
+
+        // Initialize REST API (extended endpoints)
+        Apprco_REST_API::get_instance();
+
+        // Initialize shortcodes and templating
+        Apprco_Shortcodes::get_instance();
 
         // Register custom post type
         $this->register_vacancy_cpt();
@@ -123,11 +133,17 @@ class Apprco_Connector {
         // Add shortcode
         add_shortcode( 'apprco_vacancies', array( $this, 'vacancies_shortcode' ) );
 
-        // Enqueue frontend styles
+        // Enqueue frontend styles and scripts
         add_action( 'wp_enqueue_scripts', array( $this, 'enqueue_frontend_styles' ) );
+        add_action( 'wp_enqueue_scripts', array( $this, 'enqueue_frontend_scripts' ) );
 
         // Add REST API endpoints
         add_action( 'rest_api_init', array( $this, 'register_rest_routes' ) );
+
+        // AJAX handlers for frontend forms
+        add_action( 'wp_ajax_apprco_frontend_edit', array( $this, 'ajax_frontend_edit' ) );
+        add_action( 'wp_ajax_apprco_search_vacancies', array( $this, 'ajax_search_vacancies' ) );
+        add_action( 'wp_ajax_nopriv_apprco_search_vacancies', array( $this, 'ajax_search_vacancies' ) );
     }
 
     /**
@@ -161,6 +177,202 @@ class Apprco_Connector {
             array(),
             APPRCO_PLUGIN_VERSION
         );
+    }
+
+    /**
+     * Enqueue frontend scripts
+     */
+    public function enqueue_frontend_scripts(): void {
+        wp_register_script(
+            'apprco-frontend',
+            APPRCO_PLUGIN_URL . 'assets/js/frontend.js',
+            array( 'jquery' ),
+            APPRCO_PLUGIN_VERSION,
+            true
+        );
+
+        wp_localize_script( 'apprco-frontend', 'apprcoFrontend', array(
+            'ajaxurl'  => admin_url( 'admin-ajax.php' ),
+            'restUrl'  => rest_url( 'apprco/v1/' ),
+            'nonce'    => wp_create_nonce( 'wp_rest' ),
+            'strings'  => array(
+                'loading'   => __( 'Loading...', 'apprenticeship-connect' ),
+                'saving'    => __( 'Saving...', 'apprenticeship-connect' ),
+                'saved'     => __( 'Saved!', 'apprenticeship-connect' ),
+                'error'     => __( 'An error occurred.', 'apprenticeship-connect' ),
+                'noResults' => __( 'No vacancies found.', 'apprenticeship-connect' ),
+            ),
+        ) );
+
+        // Enqueue on vacancy pages and pages with shortcodes
+        if ( is_singular( 'apprco_vacancy' ) || is_post_type_archive( 'apprco_vacancy' ) ) {
+            wp_enqueue_script( 'apprco-frontend' );
+        }
+    }
+
+    /**
+     * AJAX handler for frontend vacancy editing
+     */
+    public function ajax_frontend_edit(): void {
+        // Verify nonce
+        if ( ! isset( $_POST['apprco_edit_nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['apprco_edit_nonce'] ) ), 'apprco_frontend_edit' ) ) {
+            wp_send_json_error( __( 'Security check failed.', 'apprenticeship-connect' ) );
+        }
+
+        // Check permissions
+        if ( ! current_user_can( 'edit_posts' ) ) {
+            wp_send_json_error( __( 'Permission denied.', 'apprenticeship-connect' ) );
+        }
+
+        $vacancy_id = isset( $_POST['vacancy_id'] ) ? absint( $_POST['vacancy_id'] ) : 0;
+        $is_new     = empty( $vacancy_id );
+
+        // Prepare post data
+        $post_data = array(
+            'post_type'   => 'apprco_vacancy',
+            'post_status' => 'publish',
+            'post_title'  => isset( $_POST['post_title'] ) ? sanitize_text_field( wp_unslash( $_POST['post_title'] ) ) : '',
+            'post_author' => get_current_user_id(),
+        );
+
+        if ( empty( $post_data['post_title'] ) ) {
+            wp_send_json_error( __( 'Title is required.', 'apprenticeship-connect' ) );
+        }
+
+        if ( $is_new ) {
+            $vacancy_id = wp_insert_post( $post_data, true );
+        } else {
+            // Check edit permission for existing post
+            if ( ! current_user_can( 'edit_post', $vacancy_id ) ) {
+                wp_send_json_error( __( 'Permission denied.', 'apprenticeship-connect' ) );
+            }
+            $post_data['ID'] = $vacancy_id;
+            $result = wp_update_post( $post_data, true );
+            if ( is_wp_error( $result ) ) {
+                wp_send_json_error( $result->get_error_message() );
+            }
+        }
+
+        if ( is_wp_error( $vacancy_id ) ) {
+            wp_send_json_error( $vacancy_id->get_error_message() );
+        }
+
+        // Save meta fields
+        if ( isset( $_POST['meta'] ) && is_array( $_POST['meta'] ) ) {
+            $meta_fields = Apprco_Elementor::get_vacancy_meta_fields();
+            $meta_data   = array_map( 'wp_unslash', $_POST['meta'] );
+
+            foreach ( $meta_data as $key => $value ) {
+                $full_key = '_apprco_' . sanitize_key( $key );
+
+                if ( ! isset( $meta_fields[ $full_key ] ) ) {
+                    continue;
+                }
+
+                $field_type = $meta_fields[ $full_key ]['type'];
+
+                // Sanitize based on type
+                switch ( $field_type ) {
+                    case 'url':
+                        $value = esc_url_raw( $value );
+                        break;
+                    case 'textarea':
+                        $value = wp_kses_post( $value );
+                        break;
+                    case 'number':
+                        $value = is_numeric( $value ) ? $value : '';
+                        break;
+                    case 'boolean':
+                        $value = $value ? '1' : '0';
+                        break;
+                    default:
+                        $value = sanitize_text_field( $value );
+                }
+
+                update_post_meta( $vacancy_id, $full_key, $value );
+            }
+        }
+
+        wp_send_json_success( array(
+            'id'        => $vacancy_id,
+            'message'   => $is_new ? __( 'Vacancy created.', 'apprenticeship-connect' ) : __( 'Vacancy updated.', 'apprenticeship-connect' ),
+            'permalink' => get_permalink( $vacancy_id ),
+        ) );
+    }
+
+    /**
+     * AJAX handler for vacancy search
+     */
+    public function ajax_search_vacancies(): void {
+        // Verify nonce (optional for public search)
+        $args = array(
+            'post_type'      => 'apprco_vacancy',
+            'post_status'    => 'publish',
+            'posts_per_page' => isset( $_GET['per_page'] ) ? min( absint( $_GET['per_page'] ), 50 ) : 10,
+            'paged'          => isset( $_GET['page'] ) ? absint( $_GET['page'] ) : 1,
+        );
+
+        // Search query
+        if ( ! empty( $_GET['s'] ) ) {
+            $args['s'] = sanitize_text_field( wp_unslash( $_GET['s'] ) );
+        }
+
+        // Taxonomy filters
+        $tax_query = array();
+
+        if ( ! empty( $_GET['level'] ) ) {
+            $tax_query[] = array(
+                'taxonomy' => 'apprco_level',
+                'field'    => 'slug',
+                'terms'    => sanitize_text_field( wp_unslash( $_GET['level'] ) ),
+            );
+        }
+
+        if ( ! empty( $_GET['route'] ) ) {
+            $tax_query[] = array(
+                'taxonomy' => 'apprco_route',
+                'field'    => 'slug',
+                'terms'    => sanitize_text_field( wp_unslash( $_GET['route'] ) ),
+            );
+        }
+
+        if ( ! empty( $tax_query ) ) {
+            $args['tax_query'] = $tax_query;
+        }
+
+        // Meta query for active vacancies
+        $args['meta_query'] = array(
+            'relation' => 'OR',
+            array(
+                'key'     => '_apprco_closing_date',
+                'value'   => current_time( 'Y-m-d' ),
+                'compare' => '>=',
+                'type'    => 'DATE',
+            ),
+            array(
+                'key'     => '_apprco_closing_date',
+                'compare' => 'NOT EXISTS',
+            ),
+        );
+
+        // Ordering
+        $args['meta_key'] = '_apprco_posted_date';
+        $args['orderby']  = 'meta_value';
+        $args['order']    = 'DESC';
+
+        $query = new WP_Query( $args );
+        $vacancies = array();
+
+        foreach ( $query->posts as $post ) {
+            $vacancies[] = $this->format_vacancy_for_rest( $post );
+        }
+
+        wp_send_json_success( array(
+            'vacancies'   => $vacancies,
+            'total'       => $query->found_posts,
+            'total_pages' => $query->max_num_pages,
+            'page'        => $args['paged'],
+        ) );
     }
 
     /**

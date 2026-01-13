@@ -1,0 +1,278 @@
+/**
+ * Apprenticeship Connect - Meta Box Styles
+ * @version 2.0.0
+ */
+
+/* Meta Box Wrapper */
+.apprco-meta-box-wrapper {
+    margin: -6px -12px -12px;
+}
+
+/* Tab Navigation */
+.apprco-meta-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    background: #f6f7f7;
+    border-bottom: 1px solid #c3c4c7;
+    margin: 0;
+    padding: 0;
+}
+
+.apprco-meta-tab {
+    padding: 12px 16px;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    color: #50575e;
+    border-bottom: 3px solid transparent;
+    margin-bottom: -1px;
+    transition: all 0.2s ease;
+}
+
+.apprco-meta-tab:hover {
+    background: #fff;
+    color: #1d2327;
+}
+
+.apprco-meta-tab.active {
+    background: #fff;
+    color: #2271b1;
+    border-bottom-color: #2271b1;
+}
+
+/* Tab Content */
+.apprco-meta-content {
+    padding: 20px;
+    background: #fff;
+}
+
+.apprco-meta-panel {
+    display: none;
+}
+
+.apprco-meta-panel.active {
+    display: block;
+}
+
+/* Fields Grid */
+.apprco-fields-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+}
+
+@media screen and (max-width: 782px) {
+    .apprco-fields-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Individual Field */
+.apprco-field {
+    display: flex;
+    flex-direction: column;
+}
+
+.apprco-field-full-width {
+    grid-column: 1 / -1;
+}
+
+.apprco-field label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 6px;
+    color: #1d2327;
+    font-size: 13px;
+}
+
+.apprco-field input[type="text"],
+.apprco-field input[type="url"],
+.apprco-field input[type="email"],
+.apprco-field input[type="tel"],
+.apprco-field input[type="number"],
+.apprco-field input[type="date"],
+.apprco-field select,
+.apprco-field textarea {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid #8c8f94;
+    border-radius: 4px;
+    font-size: 14px;
+    line-height: 1.5;
+    background: #fff;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.apprco-field input:focus,
+.apprco-field select:focus,
+.apprco-field textarea:focus {
+    border-color: #2271b1;
+    box-shadow: 0 0 0 1px #2271b1;
+    outline: none;
+}
+
+.apprco-field input[readonly],
+.apprco-field textarea[readonly] {
+    background: #f6f7f7;
+    color: #50575e;
+}
+
+.apprco-field input[type="checkbox"] {
+    width: auto;
+    margin-right: 8px;
+}
+
+.apprco-field .description {
+    margin-top: 6px;
+    font-size: 12px;
+    color: #646970;
+    font-style: italic;
+}
+
+/* WYSIWYG Editor */
+.apprco-field-wysiwyg .wp-editor-wrap {
+    border: 1px solid #8c8f94;
+    border-radius: 4px;
+}
+
+.apprco-field-wysiwyg .wp-editor-wrap.tmce-active .mce-container {
+    border: none;
+}
+
+/* Quick Info Sidebar */
+.apprco-quick-info {
+    padding: 0;
+}
+
+.apprco-quick-item {
+    padding: 10px 0;
+    border-bottom: 1px solid #f0f0f1;
+}
+
+.apprco-quick-item:last-child {
+    border-bottom: none;
+}
+
+.apprco-quick-item strong {
+    display: block;
+    font-size: 11px;
+    text-transform: uppercase;
+    color: #646970;
+    margin-bottom: 4px;
+}
+
+.apprco-ref-badge {
+    display: inline-block;
+    background: #f0f0f1;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-family: monospace;
+    font-size: 12px;
+}
+
+.apprco-level-badge {
+    display: inline-block;
+    background: #2271b1;
+    color: #fff;
+    padding: 2px 10px;
+    border-radius: 3px;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.apprco-date-expired {
+    color: #d63638;
+}
+
+.apprco-date-active {
+    color: #00a32a;
+}
+
+.apprco-expired-label {
+    font-size: 11px;
+    color: #d63638;
+    font-weight: 600;
+}
+
+.apprco-quick-actions {
+    padding-top: 15px;
+}
+
+.apprco-quick-actions .button {
+    width: 100%;
+    text-align: center;
+}
+
+.apprco-shortcode-helper {
+    margin-top: 15px;
+    padding-top: 15px;
+    border-top: 1px solid #f0f0f1;
+}
+
+.apprco-shortcode-helper code {
+    display: block;
+    background: #f6f7f7;
+    padding: 8px;
+    border-radius: 3px;
+    font-size: 11px;
+    margin-top: 6px;
+    word-break: break-all;
+}
+
+/* Responsive Adjustments */
+@media screen and (max-width: 1200px) {
+    .apprco-meta-tabs {
+        flex-wrap: wrap;
+    }
+
+    .apprco-meta-tab {
+        flex: 1 1 auto;
+        text-align: center;
+        padding: 10px 12px;
+        font-size: 12px;
+    }
+}
+
+/* Animation */
+.apprco-meta-panel {
+    animation: fadeIn 0.2s ease-in-out;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-5px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Validation States */
+.apprco-field.error input,
+.apprco-field.error select,
+.apprco-field.error textarea {
+    border-color: #d63638;
+}
+
+.apprco-field.error label {
+    color: #d63638;
+}
+
+.apprco-field.success input,
+.apprco-field.success select {
+    border-color: #00a32a;
+}
+
+/* Loading State */
+.apprco-field.loading input,
+.apprco-field.loading select {
+    background-image: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23646970"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z" opacity=".3"/><path d="M12 4V2a10 10 0 0 1 10 10h-2a8 8 0 0 0-8-8z"><animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="1s" repeatCount="indefinite"/></path></svg>');
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    background-size: 16px;
+    padding-right: 36px;
+}
