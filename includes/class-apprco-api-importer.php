@@ -155,10 +155,24 @@ class Apprco_API_Importer {
                 $retry_count = 0;
             }
 
-            // Extract vacancies and pagination info
-            if ( isset( $page_data['vacancies'] ) && is_array( $page_data['vacancies'] ) ) {
-                $page_vacancies = $page_data['vacancies'];
-                $count          = count( $page_vacancies );
+            // Extract vacancies - try multiple possible field names
+            $page_vacancies = null;
+            $vacancy_keys   = array( 'vacancies', 'results', 'data', 'items', 'apprenticeships' );
+
+            foreach ( $vacancy_keys as $key ) {
+                if ( isset( $page_data[ $key ] ) && is_array( $page_data[ $key ] ) ) {
+                    $page_vacancies = $page_data[ $key ];
+                    break;
+                }
+            }
+
+            // If response is directly an array of vacancies
+            if ( null === $page_vacancies && is_array( $page_data ) && isset( $page_data[0] ) ) {
+                $page_vacancies = $page_data;
+            }
+
+            if ( null !== $page_vacancies ) {
+                $count = count( $page_vacancies );
 
                 if ( $count === 0 ) {
                     $consecutive_empty++;
@@ -173,11 +187,26 @@ class Apprco_API_Importer {
                 }
 
                 $this->logger->log( 'info', sprintf( 'Page %d: fetched %d vacancies (total: %d)', $page_number, $count, $total_fetched ), $import_id );
+            } else {
+                $this->logger->log( 'warning', sprintf( 'Page %d: Could not find vacancies array in response', $page_number ), $import_id );
+                $consecutive_empty++;
+                if ( $consecutive_empty >= 2 ) {
+                    break;
+                }
             }
 
-            // Update total pages from response
-            if ( isset( $page_data['totalPages'] ) ) {
-                $total_pages = (int) $page_data['totalPages'];
+            // Update total pages from response - try multiple possible field names
+            $total_page_keys = array( 'totalPages', 'total_pages', 'pageCount', 'pages' );
+            foreach ( $total_page_keys as $key ) {
+                if ( isset( $page_data[ $key ] ) ) {
+                    $total_pages = (int) $page_data[ $key ];
+                    break;
+                }
+            }
+
+            // Also check for total count to calculate pages
+            if ( $total_pages === 1 && isset( $page_data['total'] ) ) {
+                $total_pages = (int) ceil( $page_data['total'] / self::PAGE_SIZE );
             }
 
             $page_number++;
@@ -204,15 +233,18 @@ class Apprco_API_Importer {
      * @return array|false Page data or false on failure.
      */
     private function fetch_single_page( array $params, string $import_id ) {
-        // Base URL should be https://api.apprenticeships.education.gov.uk/vacancies
-        // We append query params directly - don't add /vacancy
-        $api_url = rtrim( $this->options['api_base_url'], '/' ) . '?' . http_build_query( $params );
+        // Base URL: https://api.apprenticeships.education.gov.uk/vacancies
+        // Endpoint: /vacancy (for listing vacancies)
+        // Full URL: https://api.apprenticeships.education.gov.uk/vacancies/vacancy?params
+        $api_url = rtrim( $this->options['api_base_url'], '/' ) . '/vacancy?' . http_build_query( $params );
+
+        // Log URL for debugging (mask subscription key)
+        $this->logger->log( 'debug', sprintf( 'Fetching: %s', preg_replace( '/Ocp-Apim-Subscription-Key=[^&]+/', 'Ocp-Apim-Subscription-Key=***', $api_url ) ), $import_id );
 
         $headers = array(
             'X-Version'                 => self::API_VERSION,
             'Ocp-Apim-Subscription-Key' => $this->options['api_subscription_key'],
             'Accept'                    => 'application/json',
-            'Content-Type'              => 'application/json',
         );
 
         $args = array(
@@ -228,17 +260,32 @@ class Apprco_API_Importer {
         }
 
         $status_code = wp_remote_retrieve_response_code( $response );
+        $body        = wp_remote_retrieve_body( $response );
+
         if ( $status_code !== 200 ) {
-            $this->logger->log( 'error', sprintf( 'API returned HTTP %d', $status_code ), $import_id );
+            // Log the error response body for debugging
+            $error_detail = '';
+            $error_data   = json_decode( $body, true );
+            if ( $error_data ) {
+                $error_detail = isset( $error_data['message'] ) ? $error_data['message'] : wp_json_encode( $error_data );
+            } else {
+                $error_detail = substr( $body, 0, 500 );
+            }
+            $this->logger->log( 'error', sprintf( 'API returned HTTP %d: %s', $status_code, $error_detail ), $import_id );
             return false;
         }
 
-        $body = wp_remote_retrieve_body( $response );
         $data = json_decode( $body, true );
 
         if ( json_last_error() !== JSON_ERROR_NONE ) {
             $this->logger->log( 'error', 'JSON decode error: ' . json_last_error_msg(), $import_id );
             return false;
+        }
+
+        // Log the response structure for debugging (first call only)
+        if ( isset( $params['PageNumber'] ) && $params['PageNumber'] === 1 ) {
+            $keys = is_array( $data ) ? array_keys( $data ) : array();
+            $this->logger->log( 'debug', sprintf( 'API response keys: %s', implode( ', ', $keys ) ), $import_id );
         }
 
         return $data;

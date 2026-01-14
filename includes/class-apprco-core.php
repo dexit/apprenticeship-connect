@@ -107,16 +107,24 @@ class Apprco_Core {
         'wage.wageAdditionalInformation' => '_apprco_wage_additional_information',
         'wage.weeklyHours'             => '_apprco_wage_weekly_hours',
 
-        // Address nested object
-        'address.addressLine1'         => '_apprco_address_line_1',
-        'address.addressLine2'         => '_apprco_address_line_2',
-        'address.addressLine3'         => '_apprco_address_line_3',
-        'address.addressLine4'         => '_apprco_address_line_4',
-        'address.postcode'             => '_apprco_postcode',
-        'address.town'                 => '_apprco_town',
-        'address.county'               => '_apprco_county',
-        'address.latitude'             => '_apprco_latitude',
-        'address.longitude'            => '_apprco_longitude',
+        // V2 API new fields
+        'applicationUrl'               => '_apprco_application_url',
+        'isNationalVacancy'            => '_apprco_is_national_vacancy',
+        'isNationalVacancyDetails'     => '_apprco_is_national_vacancy_details',
+        'trainingDescription'          => '_apprco_training_description',
+        'additionalTrainingDescription' => '_apprco_additional_training_description',
+        'companyBenefitsInformation'   => '_apprco_company_benefits',
+        'ukprn'                        => '_apprco_provider_ukprn',
+        'wage.workingWeekDescription'  => '_apprco_working_week_description',
+
+        // Address - V2 API uses addresses array, we take first address
+        'addresses.0.addressLine1'     => '_apprco_address_line_1',
+        'addresses.0.addressLine2'     => '_apprco_address_line_2',
+        'addresses.0.addressLine3'     => '_apprco_address_line_3',
+        'addresses.0.addressLine4'     => '_apprco_address_line_4',
+        'addresses.0.postcode'         => '_apprco_postcode',
+        'addresses.0.latitude'         => '_apprco_latitude',
+        'addresses.0.longitude'        => '_apprco_longitude',
 
         // Course/Standard nested object
         'course.title'                 => '_apprco_course_title',
