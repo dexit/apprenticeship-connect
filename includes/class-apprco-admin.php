@@ -265,7 +265,7 @@ class Apprco_Admin {
         $old_options = get_option( 'apprco_plugin_options', array() );
         if ( isset( $old_options['sync_frequency'] ) && $old_options['sync_frequency'] !== $sanitized['sync_frequency'] ) {
             $scheduler = Apprco_Scheduler::get_instance();
-            $scheduler->schedule_sync( $sanitized['sync_frequency'] );
+            $scheduler->reschedule();
         }
 
         return $sanitized;
@@ -796,10 +796,15 @@ class Apprco_Admin {
             wp_send_json_error( __( 'Permission denied.', 'apprenticeship-connect' ) );
         }
 
-        $frequency = isset( $_POST['frequency'] ) ? sanitize_text_field( wp_unslash( $_POST['frequency'] ) ) : 'daily';
+        // If frequency is provided, save it first
+        if ( isset( $_POST['frequency'] ) ) {
+            $options = get_option( 'apprco_plugin_options', array() );
+            $options['sync_frequency'] = sanitize_text_field( wp_unslash( $_POST['frequency'] ) );
+            update_option( 'apprco_plugin_options', $options );
+        }
 
         $scheduler = Apprco_Scheduler::get_instance();
-        $scheduler->schedule_sync( $frequency );
+        $scheduler->reschedule();
 
         wp_send_json_success( __( 'Sync rescheduled.', 'apprenticeship-connect' ) );
     }
