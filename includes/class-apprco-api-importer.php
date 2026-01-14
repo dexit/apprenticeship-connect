@@ -204,7 +204,9 @@ class Apprco_API_Importer {
      * @return array|false Page data or false on failure.
      */
     private function fetch_single_page( array $params, string $import_id ) {
-        $api_url = $this->options['api_base_url'] . '/vacancy?' . http_build_query( $params );
+        // Base URL should be https://api.apprenticeships.education.gov.uk/vacancies
+        // We append query params directly - don't add /vacancy
+        $api_url = rtrim( $this->options['api_base_url'], '/' ) . '?' . http_build_query( $params );
 
         $headers = array(
             'X-Version'                 => self::API_VERSION,
