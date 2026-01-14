@@ -108,15 +108,16 @@ class Apprco_API_Importer {
         $retry_count      = 0;
         $consecutive_empty = 0;
 
-        // Build default params
+        // Build default params per Display Advert API v2 OpenAPI spec
         $default_params = array(
-            'PageSize'             => self::PAGE_SIZE,
-            'Sort'                 => 'AgeDesc',
-            'FilterBySubscription' => 'true',
+            'PageSize' => self::PAGE_SIZE,
+            'Sort'     => 'AgeDesc',
         );
 
+        // Add UKPRN filter if configured (integer per spec)
         if ( ! empty( $this->options['api_ukprn'] ) ) {
-            $default_params['Ukprn'] = $this->options['api_ukprn'];
+            $default_params['Ukprn']               = (int) $this->options['api_ukprn'];
+            $default_params['FilterBySubscription'] = 'true';
         }
 
         $params = array_merge( $default_params, $params );
@@ -321,9 +322,9 @@ class Apprco_API_Importer {
     }
 
     /**
-     * Test API connection
+     * Test API connection using Display Advert API v2
      *
-     * @return array{success: bool, message: string, vacancy_count?: int}
+     * @return array{success: bool, message: string, vacancy_count?: int, total_pages?: int}
      */
     public function test_connection(): array {
         if ( empty( $this->options['api_subscription_key'] ) || empty( $this->options['api_base_url'] ) ) {
@@ -333,15 +334,17 @@ class Apprco_API_Importer {
             );
         }
 
+        // Build test request params per OpenAPI spec
         $params = array(
-            'PageNumber'           => 1,
-            'PageSize'             => 10,
-            'Sort'                 => 'AgeDesc',
-            'FilterBySubscription' => 'true',
+            'PageNumber' => 1,
+            'PageSize'   => 10,
+            'Sort'       => 'AgeDesc',
         );
 
+        // Add UKPRN filter if configured
         if ( ! empty( $this->options['api_ukprn'] ) ) {
-            $params['Ukprn'] = $this->options['api_ukprn'];
+            $params['Ukprn']               = (int) $this->options['api_ukprn'];
+            $params['FilterBySubscription'] = 'true';
         }
 
         $result = $this->fetch_single_page( $params, 'test' );
@@ -353,12 +356,24 @@ class Apprco_API_Importer {
             );
         }
 
-        $total = isset( $result['total'] ) ? (int) $result['total'] : 0;
+        // Response structure per OpenAPI: { vacancies: [], total, totalFiltered, totalPages }
+        $total         = isset( $result['total'] ) ? (int) $result['total'] : 0;
+        $total_filtered = isset( $result['totalFiltered'] ) ? (int) $result['totalFiltered'] : $total;
+        $total_pages   = isset( $result['totalPages'] ) ? (int) $result['totalPages'] : 0;
+        $vacancies     = isset( $result['vacancies'] ) ? count( $result['vacancies'] ) : 0;
 
         return array(
-            'success'       => true,
-            'message'       => sprintf( 'API connection successful! Found %d total vacancies.', $total ),
-            'vacancy_count' => $total,
+            'success'        => true,
+            'message'        => sprintf(
+                'API connection successful! Found %d vacancies (%d filtered, %d pages). Sample returned: %d',
+                $total,
+                $total_filtered,
+                $total_pages,
+                $vacancies
+            ),
+            'vacancy_count'  => $total,
+            'total_filtered' => $total_filtered,
+            'total_pages'    => $total_pages,
         );
     }
 }
