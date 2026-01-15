@@ -34,6 +34,7 @@ require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-import-logger.php';
 require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-api-client.php';
 require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-geocoder.php';
 require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-employer.php';
+require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-import-wizard.php';
 
 // Provider abstraction layer
 require_once APPRCO_PLUGIN_DIR . 'includes/interfaces/interface-apprco-provider.php';
@@ -130,6 +131,7 @@ class Apprco_Connector {
             new Apprco_Admin();
             new Apprco_Setup_Wizard();
             Apprco_Meta_Box::get_instance();
+            Apprco_Import_Wizard::get_instance();
         }
 
         // Initialize REST API (extended endpoints)
