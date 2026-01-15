@@ -145,6 +145,15 @@ class Apprco_Admin {
 
         add_submenu_page(
             'apprco-dashboard',
+            __( 'Import Wizard', 'apprenticeship-connect' ),
+            __( 'Import Wizard', 'apprenticeship-connect' ),
+            'manage_options',
+            'apprco-import-wizard',
+            array( $this, 'import_wizard_page' )
+        );
+
+        add_submenu_page(
+            'apprco-dashboard',
             __( 'Settings', 'apprenticeship-connect' ),
             __( 'Settings', 'apprenticeship-connect' ),
             'manage_options',
@@ -159,7 +168,7 @@ class Apprco_Admin {
      * @param string $hook Current admin page hook.
      */
     public function enqueue_admin_scripts( string $hook ): void {
-        $apprco_pages = array( 'apprco-settings', 'apprco-setup', 'apprco-dashboard', 'apprco-logs' );
+        $apprco_pages = array( 'apprco-settings', 'apprco-setup', 'apprco-dashboard', 'apprco-logs', 'apprco-import-wizard' );
         $current_page = isset( $_GET['page'] ) ? sanitize_text_field( wp_unslash( $_GET['page'] ) ) : '';
 
         if ( in_array( $current_page, $apprco_pages, true ) ) {
@@ -179,6 +188,15 @@ class Apprco_Admin {
                     'loading'       => __( 'Loading...', 'apprenticeship-connect' ),
                 ),
             ) );
+        }
+
+        // Import wizard specific assets
+        if ( 'apprco-import-wizard' === $current_page ) {
+            wp_enqueue_style( 'apprco-import-wizard', APPRCO_PLUGIN_URL . 'assets/css/import-wizard.css', array(), APPRCO_PLUGIN_VERSION );
+            wp_enqueue_script( 'apprco-import-wizard', APPRCO_PLUGIN_URL . 'assets/js/import-wizard.js', array( 'jquery' ), APPRCO_PLUGIN_VERSION, true );
+
+            $wizard = Apprco_Import_Wizard::get_instance();
+            wp_localize_script( 'apprco-import-wizard', 'apprcoWizard', $wizard->get_js_data() );
         }
     }
 
@@ -265,7 +283,7 @@ class Apprco_Admin {
         $old_options = get_option( 'apprco_plugin_options', array() );
         if ( isset( $old_options['sync_frequency'] ) && $old_options['sync_frequency'] !== $sanitized['sync_frequency'] ) {
             $scheduler = Apprco_Scheduler::get_instance();
-            $scheduler->schedule_sync( $sanitized['sync_frequency'] );
+            $scheduler->reschedule();
         }
 
         return $sanitized;
@@ -466,10 +484,11 @@ class Apprco_Admin {
                 <div class="apprco-card">
                     <h2><?php esc_html_e( 'Quick Actions', 'apprenticeship-connect' ); ?></h2>
                     <p>
-                        <button type="button" id="apprco-dashboard-sync" class="button button-primary"><?php esc_html_e( 'Sync Now', 'apprenticeship-connect' ); ?></button>
-                        <a href="<?php echo esc_url( admin_url( 'edit.php?post_type=apprco_vacancy' ) ); ?>" class="button"><?php esc_html_e( 'View Vacancies', 'apprenticeship-connect' ); ?></a>
+                        <a href="<?php echo esc_url( admin_url( 'admin.php?page=apprco-import-wizard' ) ); ?>" class="button button-primary"><?php esc_html_e( 'Import Wizard', 'apprenticeship-connect' ); ?></a>
+                        <button type="button" id="apprco-dashboard-sync" class="button"><?php esc_html_e( 'Quick Sync', 'apprenticeship-connect' ); ?></button>
                     </p>
                     <p>
+                        <a href="<?php echo esc_url( admin_url( 'edit.php?post_type=apprco_vacancy' ) ); ?>" class="button"><?php esc_html_e( 'View Vacancies', 'apprenticeship-connect' ); ?></a>
                         <a href="<?php echo esc_url( admin_url( 'admin.php?page=apprco-logs' ) ); ?>" class="button"><?php esc_html_e( 'View Logs', 'apprenticeship-connect' ); ?></a>
                         <a href="<?php echo esc_url( admin_url( 'admin.php?page=apprco-settings' ) ); ?>" class="button"><?php esc_html_e( 'Settings', 'apprenticeship-connect' ); ?></a>
                     </p>
@@ -570,6 +589,56 @@ class Apprco_Admin {
                 <h3><?php esc_html_e( 'Log Details', 'apprenticeship-connect' ); ?> <span id="apprco-log-import-id"></span></h3>
                 <button type="button" id="apprco-close-logs" class="button"><?php esc_html_e( 'Close', 'apprenticeship-connect' ); ?></button>
                 <div id="apprco-log-entries"></div>
+            </div>
+        </div>
+        <?php
+    }
+
+    /**
+     * Import Wizard page
+     */
+    public function import_wizard_page(): void {
+        ?>
+        <div class="wrap">
+            <h1><?php esc_html_e( 'Import Wizard', 'apprenticeship-connect' ); ?></h1>
+            <p><?php esc_html_e( 'Use this wizard to import apprenticeship vacancies from external APIs.', 'apprenticeship-connect' ); ?></p>
+
+            <div id="apprco-import-wizard">
+                <ul class="wizard-steps">
+                    <li class="step active" data-step="connect">
+                        <span class="step-number">1</span>
+                        <?php esc_html_e( 'Test Connection', 'apprenticeship-connect' ); ?>
+                    </li>
+                    <li class="step" data-step="configure">
+                        <span class="step-number">2</span>
+                        <?php esc_html_e( 'Configure Import', 'apprenticeship-connect' ); ?>
+                    </li>
+                    <li class="step" data-step="preview">
+                        <span class="step-number">3</span>
+                        <?php esc_html_e( 'Preview Data', 'apprenticeship-connect' ); ?>
+                    </li>
+                    <li class="step" data-step="execute">
+                        <span class="step-number">4</span>
+                        <?php esc_html_e( 'Execute Import', 'apprenticeship-connect' ); ?>
+                    </li>
+                </ul>
+
+                <div class="wizard-content">
+                    <!-- Step content rendered by JavaScript -->
+                </div>
+
+                <div class="wizard-navigation">
+                    <button type="button" class="button wizard-prev" disabled>
+                        &larr; <?php esc_html_e( 'Previous', 'apprenticeship-connect' ); ?>
+                    </button>
+                    <button type="button" class="button button-primary wizard-next" disabled>
+                        <?php esc_html_e( 'Next', 'apprenticeship-connect' ); ?> &rarr;
+                    </button>
+                </div>
+
+                <div class="wizard-status">
+                    <?php esc_html_e( 'Select a provider to begin.', 'apprenticeship-connect' ); ?>
+                </div>
             </div>
         </div>
         <?php
@@ -796,10 +865,15 @@ class Apprco_Admin {
             wp_send_json_error( __( 'Permission denied.', 'apprenticeship-connect' ) );
         }
 
-        $frequency = isset( $_POST['frequency'] ) ? sanitize_text_field( wp_unslash( $_POST['frequency'] ) ) : 'daily';
+        // If frequency is provided, save it first
+        if ( isset( $_POST['frequency'] ) ) {
+            $options = get_option( 'apprco_plugin_options', array() );
+            $options['sync_frequency'] = sanitize_text_field( wp_unslash( $_POST['frequency'] ) );
+            update_option( 'apprco_plugin_options', $options );
+        }
 
         $scheduler = Apprco_Scheduler::get_instance();
-        $scheduler->schedule_sync( $frequency );
+        $scheduler->reschedule();
 
         wp_send_json_success( __( 'Sync rescheduled.', 'apprenticeship-connect' ) );
     }

@@ -56,77 +56,88 @@ class Apprco_Core {
 
     /**
      * Meta field mappings: API field => Post meta key
+     * Based on Display Advert API v2 OpenAPI specification
      *
      * @var array
      */
     public const META_MAPPINGS = array(
-        // Core vacancy fields
+        // Core vacancy fields (GetVacanciesListResponseItemV2)
         'vacancyReference'             => '_apprco_vacancy_reference',
         'title'                        => '_apprco_title',
-        'description'                  => '_apprco_vacancy_description_short',
-        'fullDescription'              => '_apprco_full_description',
+        'description'                  => '_apprco_description',
         'numberOfPositions'            => '_apprco_number_of_positions',
         'postedDate'                   => '_apprco_posted_date',
         'closingDate'                  => '_apprco_closing_date',
         'startDate'                    => '_apprco_start_date',
         'hoursPerWeek'                 => '_apprco_hours_per_week',
-        'workingWeekDescription'       => '_apprco_working_week_description',
         'expectedDuration'             => '_apprco_expected_duration',
-        'employerName'                 => '_apprco_employer_name',
-        'employerDescription'          => '_apprco_employer_description',
-        'employerWebsiteUrl'           => '_apprco_employer_website_url',
-        'employerContactEmail'         => '_apprco_employer_contact_email',
-        'employerContactName'          => '_apprco_employer_contact_name',
-        'employerContactPhone'         => '_apprco_employer_contact_phone',
-        'vacancyUrl'                   => '_apprco_vacancy_url',
-        'apprenticeshipLevel'          => '_apprco_apprenticeship_level',
-        'providerName'                 => '_apprco_provider_name',
-        'providerUkprn'                => '_apprco_provider_ukprn',
-        'trainingToBeProvided'         => '_apprco_training_to_be_provided',
-        'qualificationsRequired'       => '_apprco_qualifications_required',
-        'skillsRequired'               => '_apprco_skills_required',
-        'thingsToConsider'             => '_apprco_things_to_consider',
-        'outcomeDescription'           => '_apprco_outcome_description',
-        'futureProspects'              => '_apprco_future_prospects',
-        'isPositiveAboutDisability'    => '_apprco_is_positive_about_disability',
-        'isDisabilityConfident'        => '_apprco_is_disability_confident',
-        'isEmployerAnonymous'          => '_apprco_is_employer_anonymous',
-        'isRecruitVacancy'             => '_apprco_is_recruit_vacancy',
-        'vacancyLocationType'          => '_apprco_vacancy_location_type',
-        'supplementaryQuestion1'       => '_apprco_supplementary_question_1',
-        'supplementaryQuestion2'       => '_apprco_supplementary_question_2',
-        'externalVacancyUrl'           => '_apprco_external_vacancy_url',
         'distance'                     => '_apprco_distance',
 
-        // Wage nested object
+        // Employer fields
+        'employerName'                 => '_apprco_employer_name',
+        'employerWebsiteUrl'           => '_apprco_employer_website_url',
+        'employerContactName'          => '_apprco_employer_contact_name',
+        'employerContactPhone'         => '_apprco_employer_contact_phone',
+        'employerContactEmail'         => '_apprco_employer_contact_email',
+
+        // Provider fields
+        'providerName'                 => '_apprco_provider_name',
+        'ukprn'                        => '_apprco_ukprn',
+
+        // URLs
+        'vacancyUrl'                   => '_apprco_vacancy_url',
+        'applicationUrl'               => '_apprco_application_url',
+
+        // Apprenticeship info
+        'apprenticeshipLevel'          => '_apprco_apprenticeship_level',
+        'isDisabilityConfident'        => '_apprco_is_disability_confident',
+
+        // National vacancy
+        'isNationalVacancy'            => '_apprco_is_national_vacancy',
+        'isNationalVacancyDetails'     => '_apprco_is_national_vacancy_details',
+
+        // Wage object (GetVacancyWageItem)
         'wage.wageType'                => '_apprco_wage_type',
         'wage.wageAmount'              => '_apprco_wage_amount',
-        'wage.wageAmountLowerBound'    => '_apprco_wage_amount_lower_bound',
-        'wage.wageAmountUpperBound'    => '_apprco_wage_amount_upper_bound',
         'wage.wageUnit'                => '_apprco_wage_unit',
         'wage.wageAdditionalInformation' => '_apprco_wage_additional_information',
-        'wage.weeklyHours'             => '_apprco_wage_weekly_hours',
+        'wage.workingWeekDescription'  => '_apprco_working_week_description',
 
-        // Address nested object
-        'address.addressLine1'         => '_apprco_address_line_1',
-        'address.addressLine2'         => '_apprco_address_line_2',
-        'address.addressLine3'         => '_apprco_address_line_3',
-        'address.addressLine4'         => '_apprco_address_line_4',
-        'address.postcode'             => '_apprco_postcode',
-        'address.town'                 => '_apprco_town',
-        'address.county'               => '_apprco_county',
-        'address.latitude'             => '_apprco_latitude',
-        'address.longitude'            => '_apprco_longitude',
+        // Address - V2 uses addresses array (GetVacancyAddressItem)
+        'addresses.0.addressLine1'     => '_apprco_address_line_1',
+        'addresses.0.addressLine2'     => '_apprco_address_line_2',
+        'addresses.0.addressLine3'     => '_apprco_address_line_3',
+        'addresses.0.addressLine4'     => '_apprco_address_line_4',
+        'addresses.0.postcode'         => '_apprco_postcode',
+        'addresses.0.latitude'         => '_apprco_latitude',
+        'addresses.0.longitude'        => '_apprco_longitude',
 
-        // Course/Standard nested object
+        // Course object (GetVacancyCourseItem)
+        'course.larsCode'              => '_apprco_course_lars_code',
         'course.title'                 => '_apprco_course_title',
         'course.level'                 => '_apprco_course_level',
         'course.route'                 => '_apprco_course_route',
-        'course.larsCode'              => '_apprco_course_lars_code',
+        'course.type'                  => '_apprco_course_type',
 
-        // Framework (legacy)
-        'framework.title'              => '_apprco_framework_title',
-        'framework.level'              => '_apprco_framework_level',
+        // Additional fields from single vacancy endpoint (GetVacancyResponseV2)
+        'employerDescription'          => '_apprco_employer_description',
+        'trainingDescription'          => '_apprco_training_description',
+        'additionalTrainingDescription' => '_apprco_additional_training_description',
+        'outcomeDescription'           => '_apprco_outcome_description',
+        'fullDescription'              => '_apprco_full_description',
+        'thingsToConsider'             => '_apprco_things_to_consider',
+        'companyBenefitsInformation'   => '_apprco_company_benefits',
+    );
+
+    /**
+     * Array fields that need special handling (stored as JSON)
+     *
+     * @var array
+     */
+    public const ARRAY_FIELDS = array(
+        'skills'         => '_apprco_skills',
+        'qualifications' => '_apprco_qualifications',
+        'addresses'      => '_apprco_addresses',
     );
 
     /**
@@ -403,29 +414,62 @@ class Apprco_Core {
      * @param array $vacancy Vacancy data from API.
      */
     private function save_vacancy_meta( int $post_id, array $vacancy ): void {
+        // Save mapped scalar fields
         foreach ( self::META_MAPPINGS as $api_path => $meta_key ) {
             $value = $this->get_nested_value( $vacancy, $api_path );
 
             if ( $value !== null ) {
-                // Sanitize based on field type
-                if ( is_bool( $value ) ) {
-                    $value = $value ? '1' : '0';
-                } elseif ( is_array( $value ) ) {
-                    $value = wp_json_encode( $value );
-                } elseif ( is_string( $value ) ) {
-                    // Check if it's HTML content
-                    if ( strpos( $meta_key, 'description' ) !== false || strpos( $meta_key, 'prospects' ) !== false ) {
-                        $value = wp_kses_post( $value );
-                    } elseif ( strpos( $meta_key, 'url' ) !== false ) {
-                        $value = esc_url_raw( $value );
-                    } else {
-                        $value = sanitize_text_field( $value );
-                    }
-                }
-
+                $value = $this->sanitize_meta_value( $value, $meta_key );
                 update_post_meta( $post_id, $meta_key, $value );
             }
         }
+
+        // Save array fields (skills, qualifications, addresses) as JSON
+        foreach ( self::ARRAY_FIELDS as $api_field => $meta_key ) {
+            if ( isset( $vacancy[ $api_field ] ) && is_array( $vacancy[ $api_field ] ) ) {
+                update_post_meta( $post_id, $meta_key, wp_json_encode( $vacancy[ $api_field ] ) );
+            }
+        }
+    }
+
+    /**
+     * Sanitize meta value based on field type
+     *
+     * @param mixed  $value    Value to sanitize.
+     * @param string $meta_key Meta key for context.
+     * @return mixed Sanitized value.
+     */
+    private function sanitize_meta_value( $value, string $meta_key ) {
+        if ( is_bool( $value ) ) {
+            return $value ? '1' : '0';
+        }
+
+        if ( is_array( $value ) ) {
+            return wp_json_encode( $value );
+        }
+
+        if ( is_numeric( $value ) ) {
+            return $value;
+        }
+
+        if ( is_string( $value ) ) {
+            // HTML content fields
+            if ( strpos( $meta_key, 'description' ) !== false ||
+                 strpos( $meta_key, 'benefits' ) !== false ||
+                 strpos( $meta_key, 'consider' ) !== false ) {
+                return wp_kses_post( $value );
+            }
+
+            // URL fields
+            if ( strpos( $meta_key, 'url' ) !== false || strpos( $meta_key, 'Url' ) !== false ) {
+                return esc_url_raw( $value );
+            }
+
+            // Default text sanitization
+            return sanitize_text_field( $value );
+        }
+
+        return $value;
     }
 
     /**

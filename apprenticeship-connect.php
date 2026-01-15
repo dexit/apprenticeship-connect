@@ -22,7 +22,7 @@
 if ( ! defined( 'ABSPATH' ) ) exit; // Exit if accessed directly
 
 // Define plugin constants
-define( 'APPRCO_PLUGIN_VERSION', '2.0.0' );
+define( 'APPRCO_PLUGIN_VERSION', '2.1.0' );
 define( 'APPRCO_PLUGIN_FILE', __FILE__ );
 define( 'APPRCO_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'APPRCO_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
@@ -31,6 +31,18 @@ define( 'APPRCO_DB_VERSION', '2.0.0' );
 
 // Include required files
 require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-import-logger.php';
+require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-api-client.php';
+require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-geocoder.php';
+require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-employer.php';
+require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-import-wizard.php';
+
+// Provider abstraction layer
+require_once APPRCO_PLUGIN_DIR . 'includes/interfaces/interface-apprco-provider.php';
+require_once APPRCO_PLUGIN_DIR . 'includes/providers/abstract-apprco-provider.php';
+require_once APPRCO_PLUGIN_DIR . 'includes/providers/class-apprco-provider-registry.php';
+require_once APPRCO_PLUGIN_DIR . 'includes/providers/class-apprco-uk-gov-provider.php';
+
+// Core functionality
 require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-api-importer.php';
 require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-scheduler.php';
 require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-core.php';
@@ -105,6 +117,9 @@ class Apprco_Connector {
      * Initialize plugin
      */
     public function init(): void {
+        // Initialize and register providers
+        $this->register_providers();
+
         // Initialize core
         $this->core = Apprco_Core::get_instance();
 
@@ -116,6 +131,7 @@ class Apprco_Connector {
             new Apprco_Admin();
             new Apprco_Setup_Wizard();
             Apprco_Meta_Box::get_instance();
+            Apprco_Import_Wizard::get_instance();
         }
 
         // Initialize REST API (extended endpoints)
@@ -155,6 +171,34 @@ class Apprco_Connector {
             false,
             dirname( APPRCO_PLUGIN_BASENAME ) . '/languages/'
         );
+    }
+
+    /**
+     * Register vacancy data providers
+     */
+    private function register_providers(): void {
+        $registry = Apprco_Provider_Registry::get_instance();
+
+        // Register UK Government Apprenticeships provider
+        $uk_gov_provider = new Apprco_UK_Gov_Provider();
+        $registry->register( $uk_gov_provider );
+
+        // Load provider configurations from plugin options
+        $options = get_option( 'apprco_plugin_options', array() );
+
+        // Configure UK Gov provider from existing settings
+        $uk_gov_provider->set_config( array(
+            'subscription_key' => $options['api_subscription_key'] ?? '',
+            'base_url'         => $options['api_base_url'] ?? Apprco_UK_Gov_Provider::BASE_URL,
+            'ukprn'            => $options['api_ukprn'] ?? '',
+        ) );
+
+        /**
+         * Allow other plugins/themes to register additional providers
+         *
+         * @param Apprco_Provider_Registry $registry The provider registry instance.
+         */
+        do_action( 'apprco_register_providers', $registry );
     }
 
     /**
@@ -401,6 +445,7 @@ class Apprco_Connector {
     public function activate(): void {
         // Create database tables
         Apprco_Import_Logger::create_table();
+        Apprco_Employer::create_table();
 
         // Set default options
         $this->set_default_options();
@@ -447,6 +492,7 @@ class Apprco_Connector {
 
         if ( version_compare( $current_version, APPRCO_DB_VERSION, '<' ) ) {
             Apprco_Import_Logger::create_table();
+            Apprco_Employer::create_table();
             update_option( 'apprco_db_version', APPRCO_DB_VERSION );
         }
     }

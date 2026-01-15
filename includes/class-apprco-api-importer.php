@@ -108,15 +108,16 @@ class Apprco_API_Importer {
         $retry_count      = 0;
         $consecutive_empty = 0;
 
-        // Build default params
+        // Build default params per Display Advert API v2 OpenAPI spec
         $default_params = array(
-            'PageSize'             => self::PAGE_SIZE,
-            'Sort'                 => 'AgeDesc',
-            'FilterBySubscription' => 'true',
+            'PageSize' => self::PAGE_SIZE,
+            'Sort'     => 'AgeDesc',
         );
 
+        // Add UKPRN filter if configured (integer per spec)
         if ( ! empty( $this->options['api_ukprn'] ) ) {
-            $default_params['Ukprn'] = $this->options['api_ukprn'];
+            $default_params['Ukprn']               = (int) $this->options['api_ukprn'];
+            $default_params['FilterBySubscription'] = 'true';
         }
 
         $params = array_merge( $default_params, $params );
@@ -155,10 +156,24 @@ class Apprco_API_Importer {
                 $retry_count = 0;
             }
 
-            // Extract vacancies and pagination info
-            if ( isset( $page_data['vacancies'] ) && is_array( $page_data['vacancies'] ) ) {
-                $page_vacancies = $page_data['vacancies'];
-                $count          = count( $page_vacancies );
+            // Extract vacancies - try multiple possible field names
+            $page_vacancies = null;
+            $vacancy_keys   = array( 'vacancies', 'results', 'data', 'items', 'apprenticeships' );
+
+            foreach ( $vacancy_keys as $key ) {
+                if ( isset( $page_data[ $key ] ) && is_array( $page_data[ $key ] ) ) {
+                    $page_vacancies = $page_data[ $key ];
+                    break;
+                }
+            }
+
+            // If response is directly an array of vacancies
+            if ( null === $page_vacancies && is_array( $page_data ) && isset( $page_data[0] ) ) {
+                $page_vacancies = $page_data;
+            }
+
+            if ( null !== $page_vacancies ) {
+                $count = count( $page_vacancies );
 
                 if ( $count === 0 ) {
                     $consecutive_empty++;
@@ -173,11 +188,26 @@ class Apprco_API_Importer {
                 }
 
                 $this->logger->log( 'info', sprintf( 'Page %d: fetched %d vacancies (total: %d)', $page_number, $count, $total_fetched ), $import_id );
+            } else {
+                $this->logger->log( 'warning', sprintf( 'Page %d: Could not find vacancies array in response', $page_number ), $import_id );
+                $consecutive_empty++;
+                if ( $consecutive_empty >= 2 ) {
+                    break;
+                }
             }
 
-            // Update total pages from response
-            if ( isset( $page_data['totalPages'] ) ) {
-                $total_pages = (int) $page_data['totalPages'];
+            // Update total pages from response - try multiple possible field names
+            $total_page_keys = array( 'totalPages', 'total_pages', 'pageCount', 'pages' );
+            foreach ( $total_page_keys as $key ) {
+                if ( isset( $page_data[ $key ] ) ) {
+                    $total_pages = (int) $page_data[ $key ];
+                    break;
+                }
+            }
+
+            // Also check for total count to calculate pages
+            if ( $total_pages === 1 && isset( $page_data['total'] ) ) {
+                $total_pages = (int) ceil( $page_data['total'] / self::PAGE_SIZE );
             }
 
             $page_number++;
@@ -204,13 +234,18 @@ class Apprco_API_Importer {
      * @return array|false Page data or false on failure.
      */
     private function fetch_single_page( array $params, string $import_id ) {
-        $api_url = $this->options['api_base_url'] . '/vacancy?' . http_build_query( $params );
+        // Base URL: https://api.apprenticeships.education.gov.uk/vacancies
+        // Endpoint: /vacancy (for listing vacancies)
+        // Full URL: https://api.apprenticeships.education.gov.uk/vacancies/vacancy?params
+        $api_url = rtrim( $this->options['api_base_url'], '/' ) . '/vacancy?' . http_build_query( $params );
+
+        // Log URL for debugging (mask subscription key)
+        $this->logger->log( 'debug', sprintf( 'Fetching: %s', preg_replace( '/Ocp-Apim-Subscription-Key=[^&]+/', 'Ocp-Apim-Subscription-Key=***', $api_url ) ), $import_id );
 
         $headers = array(
             'X-Version'                 => self::API_VERSION,
             'Ocp-Apim-Subscription-Key' => $this->options['api_subscription_key'],
             'Accept'                    => 'application/json',
-            'Content-Type'              => 'application/json',
         );
 
         $args = array(
@@ -226,17 +261,32 @@ class Apprco_API_Importer {
         }
 
         $status_code = wp_remote_retrieve_response_code( $response );
+        $body        = wp_remote_retrieve_body( $response );
+
         if ( $status_code !== 200 ) {
-            $this->logger->log( 'error', sprintf( 'API returned HTTP %d', $status_code ), $import_id );
+            // Log the error response body for debugging
+            $error_detail = '';
+            $error_data   = json_decode( $body, true );
+            if ( $error_data ) {
+                $error_detail = isset( $error_data['message'] ) ? $error_data['message'] : wp_json_encode( $error_data );
+            } else {
+                $error_detail = substr( $body, 0, 500 );
+            }
+            $this->logger->log( 'error', sprintf( 'API returned HTTP %d: %s', $status_code, $error_detail ), $import_id );
             return false;
         }
 
-        $body = wp_remote_retrieve_body( $response );
         $data = json_decode( $body, true );
 
         if ( json_last_error() !== JSON_ERROR_NONE ) {
             $this->logger->log( 'error', 'JSON decode error: ' . json_last_error_msg(), $import_id );
             return false;
+        }
+
+        // Log the response structure for debugging (first call only)
+        if ( isset( $params['PageNumber'] ) && $params['PageNumber'] === 1 ) {
+            $keys = is_array( $data ) ? array_keys( $data ) : array();
+            $this->logger->log( 'debug', sprintf( 'API response keys: %s', implode( ', ', $keys ) ), $import_id );
         }
 
         return $data;
@@ -272,9 +322,9 @@ class Apprco_API_Importer {
     }
 
     /**
-     * Test API connection
+     * Test API connection using Display Advert API v2
      *
-     * @return array{success: bool, message: string, vacancy_count?: int}
+     * @return array{success: bool, message: string, vacancy_count?: int, total_pages?: int}
      */
     public function test_connection(): array {
         if ( empty( $this->options['api_subscription_key'] ) || empty( $this->options['api_base_url'] ) ) {
@@ -284,15 +334,17 @@ class Apprco_API_Importer {
             );
         }
 
+        // Build test request params per OpenAPI spec
         $params = array(
-            'PageNumber'           => 1,
-            'PageSize'             => 10,
-            'Sort'                 => 'AgeDesc',
-            'FilterBySubscription' => 'true',
+            'PageNumber' => 1,
+            'PageSize'   => 10,
+            'Sort'       => 'AgeDesc',
         );
 
+        // Add UKPRN filter if configured
         if ( ! empty( $this->options['api_ukprn'] ) ) {
-            $params['Ukprn'] = $this->options['api_ukprn'];
+            $params['Ukprn']               = (int) $this->options['api_ukprn'];
+            $params['FilterBySubscription'] = 'true';
         }
 
         $result = $this->fetch_single_page( $params, 'test' );
@@ -304,12 +356,24 @@ class Apprco_API_Importer {
             );
         }
 
-        $total = isset( $result['total'] ) ? (int) $result['total'] : 0;
+        // Response structure per OpenAPI: { vacancies: [], total, totalFiltered, totalPages }
+        $total         = isset( $result['total'] ) ? (int) $result['total'] : 0;
+        $total_filtered = isset( $result['totalFiltered'] ) ? (int) $result['totalFiltered'] : $total;
+        $total_pages   = isset( $result['totalPages'] ) ? (int) $result['totalPages'] : 0;
+        $vacancies     = isset( $result['vacancies'] ) ? count( $result['vacancies'] ) : 0;
 
         return array(
-            'success'       => true,
-            'message'       => sprintf( 'API connection successful! Found %d total vacancies.', $total ),
-            'vacancy_count' => $total,
+            'success'        => true,
+            'message'        => sprintf(
+                'API connection successful! Found %d vacancies (%d filtered, %d pages). Sample returned: %d',
+                $total,
+                $total_filtered,
+                $total_pages,
+                $vacancies
+            ),
+            'vacancy_count'  => $total,
+            'total_filtered' => $total_filtered,
+            'total_pages'    => $total_pages,
         );
     }
 }

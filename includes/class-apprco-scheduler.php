@@ -108,19 +108,22 @@ class Apprco_Scheduler {
     }
 
     /**
-     * Schedule events on plugin init
+     * Schedule events on plugin init (only if not already scheduled)
      */
     public function maybe_schedule_events(): void {
-        $this->schedule_sync();
+        // Only schedule if not already set up
+        if ( ! get_option( 'apprco_sync_scheduled' ) ) {
+            $this->schedule_sync();
+        }
         $this->schedule_cleanup();
     }
 
     /**
      * Schedule the recurring sync action
      *
-     * @param string $frequency Frequency: hourly, twicedaily, daily.
+     * @param bool $force Force rescheduling even if already scheduled.
      */
-    public function schedule_sync( string $frequency = 'daily' ): void {
+    public function schedule_sync( bool $force = false ): void {
         $options   = get_option( 'apprco_plugin_options', array() );
         $frequency = $options['sync_frequency'] ?? 'daily';
 
@@ -134,6 +137,12 @@ class Apprco_Scheduler {
         $interval = $intervals[ $frequency ] ?? DAY_IN_SECONDS;
 
         if ( self::has_action_scheduler() ) {
+            // Check if already scheduled with same frequency
+            $next_scheduled = as_next_scheduled_action( self::SYNC_ACTION, array(), self::GROUP );
+            if ( $next_scheduled && ! $force ) {
+                return; // Already scheduled, don't reschedule
+            }
+
             // Cancel existing scheduled actions
             as_unschedule_all_actions( self::SYNC_ACTION, array(), self::GROUP );
 
@@ -152,6 +161,10 @@ class Apprco_Scheduler {
             $hook = 'apprco_daily_fetch_vacancies';
 
             $timestamp = wp_next_scheduled( $hook );
+            if ( $timestamp && ! $force ) {
+                return; // Already scheduled, don't reschedule
+            }
+
             if ( $timestamp ) {
                 wp_unschedule_event( $timestamp, $hook );
             }
@@ -162,6 +175,14 @@ class Apprco_Scheduler {
         }
 
         update_option( 'apprco_sync_scheduled', true );
+    }
+
+    /**
+     * Force reschedule (call when settings change)
+     */
+    public function reschedule(): void {
+        delete_option( 'apprco_sync_scheduled' );
+        $this->schedule_sync( true );
     }
 
     /**
