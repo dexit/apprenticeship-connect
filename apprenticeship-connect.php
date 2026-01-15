@@ -32,6 +32,7 @@ define( 'APPRCO_DB_VERSION', '2.0.0' );
 // Include required files
 require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-import-logger.php';
 require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-api-client.php';
+require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-geocoder.php';
 
 // Provider abstraction layer
 require_once APPRCO_PLUGIN_DIR . 'includes/interfaces/interface-apprco-provider.php';
