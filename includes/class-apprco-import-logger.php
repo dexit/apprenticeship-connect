@@ -1,15 +1,15 @@
 <?php
 /**
- * Import Logger class for detailed import logging
+ * Enhanced Import Logger class with multiple log levels and component tagging
  *
  * @package ApprenticeshipConnect
- * @version 2.0.0
+ * @version 2.1.0
  */
 
 if ( ! defined( 'ABSPATH' ) ) exit;
 
 /**
- * Handles logging for import operations
+ * Handles logging for import operations with enhanced verbosity control
  */
 class Apprco_Import_Logger {
 
@@ -21,11 +21,34 @@ class Apprco_Import_Logger {
     private const TABLE_NAME = 'apprco_import_logs';
 
     /**
-     * Log levels
+     * Log levels with numeric values for filtering
      *
      * @var array
      */
-    private const LOG_LEVELS = array( 'debug', 'info', 'warning', 'error' );
+    public const LOG_LEVELS = array(
+        'trace'    => 0,  // Most verbose - function entry/exit, variable dumps
+        'debug'    => 1,  // Detailed debugging info
+        'info'     => 2,  // General information
+        'warning'  => 3,  // Potential issues
+        'error'    => 4,  // Errors that don't stop execution
+        'critical' => 5,  // Fatal errors
+    );
+
+    /**
+     * Available components for categorization
+     *
+     * @var array
+     */
+    public const COMPONENTS = array(
+        'api',       // API communications
+        'core',      // Core vacancy processing
+        'scheduler', // Scheduled tasks
+        'geocoder',  // Geocoding operations
+        'employer',  // Employer management
+        'wizard',    // Import wizard
+        'provider',  // Provider operations
+        'system',    // System/general
+    );
 
     /**
      * Maximum log retention in days
@@ -39,7 +62,26 @@ class Apprco_Import_Logger {
      *
      * @var int
      */
-    private const MAX_ENTRIES = 10000;
+    private const MAX_ENTRIES = 50000;
+
+    /**
+     * Singleton instance
+     *
+     * @var self|null
+     */
+    private static ?self $instance = null;
+
+    /**
+     * Get singleton instance
+     *
+     * @return self
+     */
+    public static function get_instance(): self {
+        if ( null === self::$instance ) {
+            self::$instance = new self();
+        }
+        return self::$instance;
+    }
 
     /**
      * Get the full table name with prefix
@@ -52,6 +94,39 @@ class Apprco_Import_Logger {
     }
 
     /**
+     * Get configured log level (default: trace for MAX logging)
+     *
+     * @return string
+     */
+    public function get_configured_level(): string {
+        $options = get_option( 'apprco_plugin_options', array() );
+        return $options['log_level'] ?? 'trace'; // MAX logging by default
+    }
+
+    /**
+     * Get configured level numeric value
+     *
+     * @return int
+     */
+    public function get_configured_level_value(): int {
+        $level = $this->get_configured_level();
+        return self::LOG_LEVELS[ $level ] ?? 0;
+    }
+
+    /**
+     * Check if a message at given level should be logged
+     *
+     * @param string $level Log level.
+     * @return bool
+     */
+    private function should_log( string $level ): bool {
+        if ( ! isset( self::LOG_LEVELS[ $level ] ) ) {
+            return true;
+        }
+        return self::LOG_LEVELS[ $level ] >= $this->get_configured_level_value();
+    }
+
+    /**
      * Create the logs table on plugin activation
      */
     public static function create_table(): void {
@@ -60,17 +135,21 @@ class Apprco_Import_Logger {
         $table_name      = self::get_table_name();
         $charset_collate = $wpdb->get_charset_collate();
 
+        // Enhanced logs table with component column
         $sql = "CREATE TABLE IF NOT EXISTS {$table_name} (
             id bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT,
             import_id varchar(36) NOT NULL,
             log_level varchar(20) NOT NULL DEFAULT 'info',
+            component varchar(50) NOT NULL DEFAULT 'system',
             message text NOT NULL,
             context longtext DEFAULT NULL,
             created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (id),
             KEY import_id (import_id),
             KEY log_level (log_level),
-            KEY created_at (created_at)
+            KEY component (component),
+            KEY created_at (created_at),
+            KEY level_component (log_level, component)
         ) {$charset_collate};";
 
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';
@@ -91,6 +170,7 @@ class Apprco_Import_Logger {
             total_skipped int(11) DEFAULT 0,
             error_count int(11) DEFAULT 0,
             trigger_type varchar(50) DEFAULT 'manual',
+            provider varchar(100) DEFAULT NULL,
             PRIMARY KEY (id),
             UNIQUE KEY import_id (import_id),
             KEY status (status),
@@ -98,6 +178,35 @@ class Apprco_Import_Logger {
         ) {$charset_collate};";
 
         dbDelta( $sql_runs );
+
+        // Add component column if missing (for upgrades)
+        self::maybe_add_component_column();
+    }
+
+    /**
+     * Add component column to existing table (for upgrades)
+     */
+    private static function maybe_add_component_column(): void {
+        global $wpdb;
+
+        $table = self::get_table_name();
+
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+        $column_exists = $wpdb->get_var(
+            $wpdb->prepare(
+                "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+                WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s AND COLUMN_NAME = 'component'",
+                DB_NAME,
+                $table
+            )
+        );
+
+        if ( ! $column_exists ) {
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.DirectDatabaseQuery.SchemaChange
+            $wpdb->query( "ALTER TABLE {$table} ADD COLUMN component varchar(50) NOT NULL DEFAULT 'system' AFTER log_level" );
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.DirectDatabaseQuery.SchemaChange
+            $wpdb->query( "ALTER TABLE {$table} ADD INDEX component (component)" );
+        }
     }
 
     /**
@@ -124,10 +233,11 @@ class Apprco_Import_Logger {
     /**
      * Start a new import run
      *
-     * @param string $trigger_type Type of trigger (manual, cron, scheduler).
+     * @param string $trigger_type Type of trigger (manual, cron, scheduler, wizard).
+     * @param string $provider     Optional. Provider identifier.
      * @return string Import ID.
      */
-    public function start_import( string $trigger_type = 'manual' ): string {
+    public function start_import( string $trigger_type = 'manual', string $provider = '' ): string {
         global $wpdb;
 
         $import_id = $this->generate_import_id();
@@ -140,11 +250,12 @@ class Apprco_Import_Logger {
                 'status'       => 'running',
                 'started_at'   => current_time( 'mysql' ),
                 'trigger_type' => $trigger_type,
+                'provider'     => $provider ?: null,
             ),
-            array( '%s', '%s', '%s', '%s' )
+            array( '%s', '%s', '%s', '%s', '%s' )
         );
 
-        $this->log( 'info', sprintf( 'Import started (trigger: %s)', $trigger_type ), $import_id );
+        $this->info( sprintf( 'Import started (trigger: %s, provider: %s)', $trigger_type, $provider ?: 'default' ), $import_id, 'core' );
 
         return $import_id;
     }
@@ -191,8 +302,7 @@ class Apprco_Import_Logger {
             array( '%s' )
         );
 
-        $this->log(
-            'info',
+        $this->info(
             sprintf(
                 'Import %s: fetched=%d, created=%d, updated=%d, deleted=%d, skipped=%d, errors=%d',
                 $status,
@@ -203,23 +313,36 @@ class Apprco_Import_Logger {
                 $skipped,
                 $errors
             ),
-            $import_id
+            $import_id,
+            'core'
         );
     }
 
     /**
-     * Log a message
+     * Main log method
      *
-     * @param string      $level     Log level (debug, info, warning, error).
+     * @param string      $level     Log level.
      * @param string      $message   Log message.
      * @param string|null $import_id Optional. Import ID for association.
+     * @param string      $component Optional. Component name.
      * @param array       $context   Optional. Additional context data.
      */
-    public function log( string $level, string $message, ?string $import_id = null, array $context = array() ): void {
+    public function log( string $level, string $message, ?string $import_id = null, string $component = 'system', array $context = array() ): void {
         global $wpdb;
 
-        if ( ! in_array( $level, self::LOG_LEVELS, true ) ) {
+        // Validate level
+        if ( ! isset( self::LOG_LEVELS[ $level ] ) ) {
             $level = 'info';
+        }
+
+        // Check if we should log this level
+        if ( ! $this->should_log( $level ) ) {
+            return;
+        }
+
+        // Validate component
+        if ( ! in_array( $component, self::COMPONENTS, true ) ) {
+            $component = 'system';
         }
 
         $import_id = $import_id ?? 'system';
@@ -230,18 +353,100 @@ class Apprco_Import_Logger {
             array(
                 'import_id'  => $import_id,
                 'log_level'  => $level,
+                'component'  => $component,
                 'message'    => $message,
                 'context'    => ! empty( $context ) ? wp_json_encode( $context ) : null,
                 'created_at' => current_time( 'mysql' ),
             ),
-            array( '%s', '%s', '%s', '%s', '%s' )
+            array( '%s', '%s', '%s', '%s', '%s', '%s' )
         );
 
-        // Also log to error_log for debugging
-        if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-            error_log( sprintf( '[Apprco][%s][%s] %s', strtoupper( $level ), $import_id, $message ) );
+        // Also log to error_log for debugging (always for error and above, or when WP_DEBUG)
+        $should_error_log = ( defined( 'WP_DEBUG' ) && WP_DEBUG ) || self::LOG_LEVELS[ $level ] >= self::LOG_LEVELS['error'];
+        if ( $should_error_log ) {
+            error_log( sprintf( '[Apprco][%s][%s][%s] %s', strtoupper( $level ), $component, $import_id, $message ) );
         }
     }
+
+    // ==========================================
+    // Convenience methods for each log level
+    // ==========================================
+
+    /**
+     * Log trace message (most verbose)
+     *
+     * @param string      $message   Log message.
+     * @param string|null $import_id Optional. Import ID.
+     * @param string      $component Optional. Component.
+     * @param array       $context   Optional. Context.
+     */
+    public function trace( string $message, ?string $import_id = null, string $component = 'system', array $context = array() ): void {
+        $this->log( 'trace', $message, $import_id, $component, $context );
+    }
+
+    /**
+     * Log debug message
+     *
+     * @param string      $message   Log message.
+     * @param string|null $import_id Optional. Import ID.
+     * @param string      $component Optional. Component.
+     * @param array       $context   Optional. Context.
+     */
+    public function debug( string $message, ?string $import_id = null, string $component = 'system', array $context = array() ): void {
+        $this->log( 'debug', $message, $import_id, $component, $context );
+    }
+
+    /**
+     * Log info message
+     *
+     * @param string      $message   Log message.
+     * @param string|null $import_id Optional. Import ID.
+     * @param string      $component Optional. Component.
+     * @param array       $context   Optional. Context.
+     */
+    public function info( string $message, ?string $import_id = null, string $component = 'system', array $context = array() ): void {
+        $this->log( 'info', $message, $import_id, $component, $context );
+    }
+
+    /**
+     * Log warning message
+     *
+     * @param string      $message   Log message.
+     * @param string|null $import_id Optional. Import ID.
+     * @param string      $component Optional. Component.
+     * @param array       $context   Optional. Context.
+     */
+    public function warning( string $message, ?string $import_id = null, string $component = 'system', array $context = array() ): void {
+        $this->log( 'warning', $message, $import_id, $component, $context );
+    }
+
+    /**
+     * Log error message
+     *
+     * @param string      $message   Log message.
+     * @param string|null $import_id Optional. Import ID.
+     * @param string      $component Optional. Component.
+     * @param array       $context   Optional. Context.
+     */
+    public function error( string $message, ?string $import_id = null, string $component = 'system', array $context = array() ): void {
+        $this->log( 'error', $message, $import_id, $component, $context );
+    }
+
+    /**
+     * Log critical message
+     *
+     * @param string      $message   Log message.
+     * @param string|null $import_id Optional. Import ID.
+     * @param string      $component Optional. Component.
+     * @param array       $context   Optional. Context.
+     */
+    public function critical( string $message, ?string $import_id = null, string $component = 'system', array $context = array() ): void {
+        $this->log( 'critical', $message, $import_id, $component, $context );
+    }
+
+    // ==========================================
+    // Query methods
+    // ==========================================
 
     /**
      * Get recent import runs
@@ -269,7 +474,7 @@ class Apprco_Import_Logger {
      * @param int    $limit     Number of logs to retrieve.
      * @return array
      */
-    public function get_logs_by_import( string $import_id, int $limit = 100 ): array {
+    public function get_logs_by_import( string $import_id, int $limit = 500 ): array {
         global $wpdb;
 
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
@@ -285,39 +490,40 @@ class Apprco_Import_Logger {
     }
 
     /**
-     * Get recent logs
+     * Get recent logs with filtering
      *
-     * @param int         $limit  Number of logs to retrieve.
-     * @param string|null $level  Optional. Filter by log level.
-     * @param int         $offset Optional. Offset for pagination.
+     * @param int         $limit     Number of logs to retrieve.
+     * @param string|null $level     Optional. Filter by log level.
+     * @param string|null $component Optional. Filter by component.
+     * @param int         $offset    Optional. Offset for pagination.
      * @return array
      */
-    public function get_recent_logs( int $limit = 100, ?string $level = null, int $offset = 0 ): array {
+    public function get_recent_logs( int $limit = 100, ?string $level = null, ?string $component = null, int $offset = 0 ): array {
         global $wpdb;
 
         $table = self::get_table_name();
+        $where = array();
+        $values = array();
 
-        if ( $level && in_array( $level, self::LOG_LEVELS, true ) ) {
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
-            return $wpdb->get_results(
-                $wpdb->prepare(
-                    "SELECT * FROM %i WHERE log_level = %s ORDER BY created_at DESC LIMIT %d OFFSET %d",
-                    $table,
-                    $level,
-                    $limit,
-                    $offset
-                ),
-                ARRAY_A
-            );
+        if ( $level && isset( self::LOG_LEVELS[ $level ] ) ) {
+            $where[] = 'log_level = %s';
+            $values[] = $level;
         }
 
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+        if ( $component && in_array( $component, self::COMPONENTS, true ) ) {
+            $where[] = 'component = %s';
+            $values[] = $component;
+        }
+
+        $where_clause = ! empty( $where ) ? 'WHERE ' . implode( ' AND ', $where ) : '';
+        $values[] = $limit;
+        $values[] = $offset;
+
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.InterpolatedNotPrepared
         return $wpdb->get_results(
             $wpdb->prepare(
-                "SELECT * FROM %i ORDER BY created_at DESC LIMIT %d OFFSET %d",
-                $table,
-                $limit,
-                $offset
+                "SELECT * FROM {$table} {$where_clause} ORDER BY created_at DESC LIMIT %d OFFSET %d",
+                ...$values
             ),
             ARRAY_A
         );
@@ -346,6 +552,15 @@ class Apprco_Import_Logger {
         );
 
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+        $by_component = $wpdb->get_results(
+            $wpdb->prepare(
+                "SELECT component, COUNT(*) as count FROM %i GROUP BY component",
+                $table
+            ),
+            ARRAY_A
+        );
+
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
         $total_runs = $wpdb->get_var(
             "SELECT COUNT(*) FROM {$wpdb->prefix}apprco_import_runs"
         );
@@ -361,11 +576,19 @@ class Apprco_Import_Logger {
             $level_counts[ $row['log_level'] ] = (int) $row['count'];
         }
 
+        $component_counts = array();
+        foreach ( $by_component as $row ) {
+            $component_counts[ $row['component'] ] = (int) $row['count'];
+        }
+
         return array(
             'total_logs'   => (int) $total,
             'by_level'     => $level_counts,
+            'by_component' => $component_counts,
             'total_runs'   => (int) $total_runs,
             'last_run'     => $last_run,
+            'log_levels'   => array_keys( self::LOG_LEVELS ),
+            'components'   => self::COMPONENTS,
         );
     }
 
@@ -412,7 +635,7 @@ class Apprco_Import_Logger {
             )
         );
 
-        $this->log( 'info', sprintf( 'Log cleanup completed. Deleted %d old entries by date.', $deleted_by_date ) );
+        $this->info( sprintf( 'Log cleanup completed. Deleted %d old entries by date.', $deleted_by_date ), null, 'system' );
     }
 
     /**
@@ -452,21 +675,22 @@ class Apprco_Import_Logger {
             // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
             $logs = $wpdb->get_results(
                 $wpdb->prepare(
-                    "SELECT * FROM %i ORDER BY created_at DESC LIMIT 5000",
+                    "SELECT * FROM %i ORDER BY created_at DESC LIMIT 10000",
                     $table
                 ),
                 ARRAY_A
             );
         }
 
-        $output = "ID,Import ID,Level,Message,Context,Created At\n";
+        $output = "ID,Import ID,Level,Component,Message,Context,Created At\n";
 
         foreach ( $logs as $log ) {
             $output .= sprintf(
-                "%d,%s,%s,\"%s\",\"%s\",%s\n",
+                "%d,%s,%s,%s,\"%s\",\"%s\",%s\n",
                 $log['id'],
                 $log['import_id'],
                 $log['log_level'],
+                $log['component'] ?? 'system',
                 str_replace( '"', '""', $log['message'] ),
                 str_replace( '"', '""', $log['context'] ?? '' ),
                 $log['created_at']
@@ -474,5 +698,23 @@ class Apprco_Import_Logger {
         }
 
         return $output;
+    }
+
+    /**
+     * Get available log levels
+     *
+     * @return array
+     */
+    public static function get_log_levels(): array {
+        return array_keys( self::LOG_LEVELS );
+    }
+
+    /**
+     * Get available components
+     *
+     * @return array
+     */
+    public static function get_components(): array {
+        return self::COMPONENTS;
     }
 }
