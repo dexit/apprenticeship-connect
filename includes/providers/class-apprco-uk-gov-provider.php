@@ -592,4 +592,224 @@ class Apprco_UK_Gov_Provider extends Apprco_Abstract_Provider {
 
         return $this->merge_with_template( $normalized );
     }
+
+    /**
+     * Get example API response structure for UK Gov API
+     *
+     * Returns actual structure from the UK Government Apprenticeships API v2
+     * based on the OpenAPI specification.
+     *
+     * @return array Example response with template variables.
+     */
+    public function get_example_response(): array {
+        $example_item = array(
+            'title'                     => 'Apprentice Invoicing Administrator',
+            'description'               => '<p>A fantastic opportunity to join an established employer, in South Normanton. You will provide administration duties for all live contracts within the Maintenance group, supporting the operational contract admin with all aspects of sales invoicing.</p>',
+            'numberOfPositions'         => 1,
+            'postedDate'                => '2026-01-05T10:07:27.453Z',
+            'closingDate'               => '2026-01-23T23:59:59Z',
+            'startDate'                 => '2026-01-26T00:00:00Z',
+            'wage'                      => array(
+                'wageType'                  => 'Custom',
+                'wageUnit'                  => 'Annually',
+                'wageAdditionalInformation' => '£15,808 a year',
+                'workingWeekDescription'    => 'Monday to Friday 8:00am to 5:00pm, 1-hour unpaid lunch break',
+            ),
+            'hoursPerWeek'              => 40,
+            'expectedDuration'          => '19 Months',
+            'addresses'                 => array(
+                array(
+                    'addressLine1' => '2 Maisies Way',
+                    'addressLine2' => 'South Normanton',
+                    'addressLine3' => 'Alfreton',
+                    'postcode'     => 'DE55 2DS',
+                    'latitude'     => 53.10721,
+                    'longitude'    => -1.31883,
+                ),
+            ),
+            'distance'                  => 48.5759261775074,
+            'employerName'              => 'BGIS BUILDING SERVICES MAINTENANCE LIMITED',
+            'employerWebsiteUrl'        => 'https://www.bgis.com/uk/',
+            'course'                    => array(
+                'larsCode' => 133,
+                'title'    => 'Assistant accountant (level 3)',
+                'level'    => 3,
+                'route'    => 'Legal, finance and accounting',
+                'type'     => 'Standard',
+            ),
+            'apprenticeshipLevel'       => 'Advanced',
+            'providerName'              => 'WEST NOTTINGHAMSHIRE COLLEGE',
+            'ukprn'                     => 10007427,
+            'isDisabilityConfident'     => false,
+            'vacancyUrl'                => 'https://www.findapprenticeship.service.gov.uk/apprenticeship/reference/2000005420',
+            'vacancyReference'          => '2000005420',
+            'isNationalVacancy'         => false,
+            'isNationalVacancyDetails'  => '',
+        );
+
+        $example_response = array(
+            'items'         => array( $example_item ),
+            'total'         => 4551,
+            'totalFiltered' => 460,
+            'totalPages'    => 46,
+            'pageNumber'    => 1,
+            'pageSize'      => 30,
+        );
+
+        return array(
+            'response'       => $example_response,
+            'template_vars'  => $this->extract_template_variables( $example_item ),
+            'description'    => 'Example response from UK Government Apprenticeships API v2. This shows the structure of vacancy data returned by the /vacancy endpoint.',
+        );
+    }
+
+    /**
+     * Get example API request structure for UK Gov API
+     *
+     * Returns a sample request configuration with all available parameters
+     * and template variables for the UK Government Apprenticeships API.
+     *
+     * @return array Example request structure.
+     */
+    public function get_example_request(): array {
+        $base_url = $this->get_base_url();
+        $endpoint = self::ENDPOINTS['vacancy'];
+
+        return array(
+            'url'            => $base_url . $endpoint,
+            'method'         => 'GET',
+            'headers'        => array(
+                'X-Version'                 => self::API_VERSION,
+                'Ocp-Apim-Subscription-Key' => '{{subscription_key}}',
+                'Accept'                    => 'application/json',
+            ),
+            'params'         => array(
+                // Pagination
+                'PageNumber'           => '{{page}}',
+                'PageSize'             => '{{page_size}}',
+
+                // Sorting
+                'Sort'                 => '{{sort}}',
+
+                // Filtering
+                'Ukprn'                => '{{ukprn}}',
+                'FilterBySubscription' => '{{filter_by_subscription}}',
+                'StandardLarsCode'     => '{{lars_code}}',
+                'NationWideOnly'       => '{{nationwide_only}}',
+                'Postcode'             => '{{postcode}}',
+                'DistanceInMiles'      => '{{distance}}',
+                'Routes'               => '{{routes}}',
+                'Levels'               => '{{levels}}',
+            ),
+            'template_vars'  => array(
+                '{{subscription_key}}'      => 'Your Ocp-Apim-Subscription-Key from API Management Portal',
+                '{{page}}'                  => 'Page number (default: 1)',
+                '{{page_size}}'             => 'Results per page (default: 100, max: 100)',
+                '{{sort}}'                  => 'Sort order: "AgeAsc", "AgeDesc", "ClosingAsc", "ClosingDesc", "DistanceAsc", "DistanceDesc", "ExpectedStartDateAsc", "ExpectedStartDateDesc"',
+                '{{ukprn}}'                 => 'UK Provider Reference Number for filtering by training provider',
+                '{{filter_by_subscription}}' => 'Filter by subscription (true/false)',
+                '{{lars_code}}'             => 'Standard LARS Code to filter by specific course',
+                '{{nationwide_only}}'       => 'Show only nationwide vacancies (true/false)',
+                '{{postcode}}'              => 'Postcode for location-based search',
+                '{{distance}}'              => 'Distance from postcode in miles',
+                '{{routes}}'                => 'Comma-separated route names (e.g., "Digital,Engineering and manufacturing")',
+                '{{levels}}'                => 'Comma-separated levels: "Intermediate" (2), "Advanced" (3), "Higher" (4-5), "Degree" (6-7)',
+            ),
+            'description'    => 'Example request to UK Government Apprenticeships API /vacancy endpoint. All parameters are optional except pagination.',
+            'rate_limit_info' => $this->get_rate_limit_info(),
+        );
+    }
+
+    /**
+     * Get body template variables for POST requests
+     *
+     * Note: UK Gov API v2 uses GET requests only for public consumption.
+     * This method is provided for completeness and future POST endpoints.
+     *
+     * @return array Request body template structure.
+     */
+    public function get_request_body_template(): array {
+        return array(
+            'template' => array(
+                'message' => 'The UK Government Apprenticeships API v2 uses GET requests only.',
+                'note'    => 'For creating or updating vacancies, you need access to the Employer Portal.',
+            ),
+            'template_vars' => array(),
+            'description'   => 'UK Gov API does not accept POST requests for vacancy retrieval.',
+        );
+    }
+
+    /**
+     * Get response body template variables with examples
+     *
+     * Provides a detailed mapping of all fields in the API response
+     * with their types, descriptions, and example values.
+     *
+     * @return array Response template structure.
+     */
+    public function get_response_body_template(): array {
+        $template_vars = array(
+            // Wrapper fields
+            'items'              => 'Array of vacancy objects',
+            'total'              => 'Total number of vacancies available (integer)',
+            'totalFiltered'      => 'Number of vacancies matching filters (integer)',
+            'totalPages'         => 'Total number of pages (integer)',
+            'pageNumber'         => 'Current page number (integer)',
+            'pageSize'           => 'Number of items per page (integer)',
+
+            // Vacancy fields (inside items array)
+            'items[0].title'                     => 'Vacancy title (string)',
+            'items[0].description'               => 'Full description with HTML (string)',
+            'items[0].numberOfPositions'         => 'Number of positions available (integer)',
+            'items[0].postedDate'                => 'Date posted in ISO 8601 format (string)',
+            'items[0].closingDate'               => 'Application closing date (string)',
+            'items[0].startDate'                 => 'Expected start date (string)',
+            'items[0].hoursPerWeek'              => 'Working hours per week (number)',
+            'items[0].expectedDuration'          => 'Duration of apprenticeship (string)',
+            'items[0].distance'                  => 'Distance from search location in miles (number)',
+            'items[0].employerName'              => 'Employer company name (string)',
+            'items[0].employerWebsiteUrl'        => 'Employer website URL (string)',
+            'items[0].employerDescription'       => 'Employer description (string)',
+            'items[0].providerName'              => 'Training provider name (string)',
+            'items[0].ukprn'                     => 'UK Provider Reference Number (integer)',
+            'items[0].isDisabilityConfident'     => 'Disability Confident employer (boolean)',
+            'items[0].vacancyUrl'                => 'Link to vacancy on Find an Apprenticeship (string)',
+            'items[0].vacancyReference'          => 'Unique vacancy reference number (string)',
+            'items[0].isNationalVacancy'         => 'Available nationwide (boolean)',
+            'items[0].apprenticeshipLevel'       => 'Level: Intermediate/Advanced/Higher/Degree (string)',
+
+            // Wage fields
+            'items[0].wage.wageType'             => 'Type: ApprenticeshipMinimum, NationalMinimum, Custom, CompetitiveSalary (string)',
+            'items[0].wage.wageUnit'             => 'Unit: Annually, Weekly, Monthly (string)',
+            'items[0].wage.wageAdditionalInformation' => 'Additional wage information (string)',
+            'items[0].wage.workingWeekDescription' => 'Description of working hours (string)',
+
+            // Address fields
+            'items[0].addresses[0].addressLine1' => 'Address line 1 (string)',
+            'items[0].addresses[0].addressLine2' => 'Address line 2 (string)',
+            'items[0].addresses[0].addressLine3' => 'Town/City (string)',
+            'items[0].addresses[0].addressLine4' => 'County (string)',
+            'items[0].addresses[0].postcode'     => 'Postcode (string)',
+            'items[0].addresses[0].latitude'     => 'Latitude coordinate (number)',
+            'items[0].addresses[0].longitude'    => 'Longitude coordinate (number)',
+
+            // Course fields
+            'items[0].course.larsCode'           => 'LARS (Learning Aim Reference Service) code (integer)',
+            'items[0].course.title'              => 'Course/Standard title (string)',
+            'items[0].course.level'              => 'Course level 2-7 (integer)',
+            'items[0].course.route'              => 'Apprenticeship route/pathway (string)',
+            'items[0].course.type'               => 'Type: Standard or Framework (string)',
+        );
+
+        return array(
+            'template'       => $template_vars,
+            'description'    => 'Complete field mapping for UK Government Apprenticeships API v2 response',
+            'example_values' => array(
+                'wageType' => array( 'ApprenticeshipMinimum', 'NationalMinimum', 'Custom', 'CompetitiveSalary' ),
+                'wageUnit' => array( 'Annually', 'Weekly', 'Monthly', 'Daily' ),
+                'apprenticeshipLevel' => array( 'Intermediate', 'Advanced', 'Higher', 'Degree' ),
+                'courseType' => array( 'Standard', 'Framework' ),
+            ),
+        );
+    }
 }
