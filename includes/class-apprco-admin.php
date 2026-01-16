@@ -42,6 +42,14 @@ class Apprco_Admin {
         add_action( 'wp_ajax_apprco_clear_cache', array( $this, 'ajax_clear_cache' ) );
         add_action( 'wp_ajax_apprco_reschedule_sync', array( $this, 'ajax_reschedule_sync' ) );
 
+        // Import Tasks AJAX handlers
+        add_action( 'wp_ajax_apprco_get_tasks', array( $this, 'ajax_get_tasks' ) );
+        add_action( 'wp_ajax_apprco_get_task', array( $this, 'ajax_get_task' ) );
+        add_action( 'wp_ajax_apprco_save_task', array( $this, 'ajax_save_task' ) );
+        add_action( 'wp_ajax_apprco_delete_task', array( $this, 'ajax_delete_task' ) );
+        add_action( 'wp_ajax_apprco_test_task_connection', array( $this, 'ajax_test_task_connection' ) );
+        add_action( 'wp_ajax_apprco_run_task', array( $this, 'ajax_run_task' ) );
+
         // Plugin links
         if ( ! has_filter( 'plugin_action_links_' . APPRCO_PLUGIN_BASENAME, array( $this, 'plugin_action_links' ) ) ) {
             add_filter( 'plugin_action_links_' . APPRCO_PLUGIN_BASENAME, array( $this, 'plugin_action_links' ) );
@@ -154,6 +162,15 @@ class Apprco_Admin {
 
         add_submenu_page(
             'apprco-dashboard',
+            __( 'Import Tasks', 'apprenticeship-connect' ),
+            __( 'Import Tasks', 'apprenticeship-connect' ),
+            'manage_options',
+            'apprco-import-tasks',
+            array( $this, 'import_tasks_page' )
+        );
+
+        add_submenu_page(
+            'apprco-dashboard',
             __( 'Settings', 'apprenticeship-connect' ),
             __( 'Settings', 'apprenticeship-connect' ),
             'manage_options',
@@ -168,7 +185,7 @@ class Apprco_Admin {
      * @param string $hook Current admin page hook.
      */
     public function enqueue_admin_scripts( string $hook ): void {
-        $apprco_pages = array( 'apprco-settings', 'apprco-setup', 'apprco-dashboard', 'apprco-logs', 'apprco-import-wizard' );
+        $apprco_pages = array( 'apprco-settings', 'apprco-setup', 'apprco-dashboard', 'apprco-logs', 'apprco-import-wizard', 'apprco-import-tasks' );
         $current_page = isset( $_GET['page'] ) ? sanitize_text_field( wp_unslash( $_GET['page'] ) ) : '';
 
         if ( in_array( $current_page, $apprco_pages, true ) ) {
@@ -876,6 +893,856 @@ class Apprco_Admin {
         $scheduler->reschedule();
 
         wp_send_json_success( __( 'Sync rescheduled.', 'apprenticeship-connect' ) );
+    }
+
+    /**
+     * Import Tasks list/edit page
+     */
+    public function import_tasks_page(): void {
+        $action  = isset( $_GET['action'] ) ? sanitize_text_field( wp_unslash( $_GET['action'] ) ) : 'list';
+        $task_id = isset( $_GET['task_id'] ) ? absint( $_GET['task_id'] ) : 0;
+
+        if ( $action === 'edit' || $action === 'new' ) {
+            $this->render_task_editor( $task_id );
+        } else {
+            $this->render_tasks_list();
+        }
+    }
+
+    /**
+     * Render import tasks list
+     */
+    private function render_tasks_list(): void {
+        $tasks_manager = Apprco_Import_Tasks::get_instance();
+        $tasks = $tasks_manager->get_all();
+        ?>
+        <div class="wrap apprco-import-tasks">
+            <h1 class="wp-heading-inline"><?php esc_html_e( 'Import Tasks', 'apprenticeship-connect' ); ?></h1>
+            <a href="<?php echo esc_url( admin_url( 'admin.php?page=apprco-import-tasks&action=new' ) ); ?>" class="page-title-action"><?php esc_html_e( 'Add New', 'apprenticeship-connect' ); ?></a>
+            <hr class="wp-header-end">
+
+            <p class="description"><?php esc_html_e( 'Configure import tasks to fetch apprenticeship vacancies from external APIs. Each task can have its own API configuration, field mappings, and schedule.', 'apprenticeship-connect' ); ?></p>
+
+            <table class="wp-list-table widefat fixed striped">
+                <thead>
+                    <tr>
+                        <th scope="col" class="column-name"><?php esc_html_e( 'Name', 'apprenticeship-connect' ); ?></th>
+                        <th scope="col" class="column-status"><?php esc_html_e( 'Status', 'apprenticeship-connect' ); ?></th>
+                        <th scope="col" class="column-provider"><?php esc_html_e( 'API Endpoint', 'apprenticeship-connect' ); ?></th>
+                        <th scope="col" class="column-last-run"><?php esc_html_e( 'Last Run', 'apprenticeship-connect' ); ?></th>
+                        <th scope="col" class="column-stats"><?php esc_html_e( 'Last Results', 'apprenticeship-connect' ); ?></th>
+                        <th scope="col" class="column-actions"><?php esc_html_e( 'Actions', 'apprenticeship-connect' ); ?></th>
+                    </tr>
+                </thead>
+                <tbody id="apprco-tasks-list">
+                    <?php if ( empty( $tasks ) ) : ?>
+                        <tr><td colspan="6"><?php esc_html_e( 'No import tasks found. Create one to get started.', 'apprenticeship-connect' ); ?></td></tr>
+                    <?php else : ?>
+                        <?php foreach ( $tasks as $task ) : ?>
+                            <tr data-task-id="<?php echo esc_attr( $task['id'] ); ?>">
+                                <td class="column-name">
+                                    <strong>
+                                        <a href="<?php echo esc_url( admin_url( 'admin.php?page=apprco-import-tasks&action=edit&task_id=' . $task['id'] ) ); ?>">
+                                            <?php echo esc_html( $task['name'] ); ?>
+                                        </a>
+                                    </strong>
+                                    <?php if ( $task['description'] ) : ?>
+                                        <br><span class="description"><?php echo esc_html( wp_trim_words( $task['description'], 10 ) ); ?></span>
+                                    <?php endif; ?>
+                                </td>
+                                <td class="column-status">
+                                    <span class="apprco-badge apprco-badge-<?php echo esc_attr( $task['status'] ); ?>">
+                                        <?php echo esc_html( ucfirst( $task['status'] ) ); ?>
+                                    </span>
+                                    <?php if ( $task['schedule_enabled'] ) : ?>
+                                        <br><small><?php echo esc_html( ucfirst( $task['schedule_frequency'] ) ); ?></small>
+                                    <?php endif; ?>
+                                </td>
+                                <td class="column-provider">
+                                    <code><?php echo esc_html( $task['api_endpoint'] ); ?></code>
+                                    <br><small><?php echo esc_html( wp_parse_url( $task['api_base_url'], PHP_URL_HOST ) ); ?></small>
+                                </td>
+                                <td class="column-last-run">
+                                    <?php if ( $task['last_run_at'] ) : ?>
+                                        <?php echo esc_html( human_time_diff( strtotime( $task['last_run_at'] ) ) ); ?> ago
+                                        <br><span class="apprco-badge apprco-badge-<?php echo $task['last_run_status'] === 'success' ? 'success' : 'warning'; ?>">
+                                            <?php echo esc_html( $task['last_run_status'] ); ?>
+                                        </span>
+                                    <?php else : ?>
+                                        <?php esc_html_e( 'Never', 'apprenticeship-connect' ); ?>
+                                    <?php endif; ?>
+                                </td>
+                                <td class="column-stats">
+                                    <?php if ( $task['last_run_at'] ) : ?>
+                                        <span title="<?php esc_attr_e( 'Fetched', 'apprenticeship-connect' ); ?>"><?php echo esc_html( $task['last_run_fetched'] ); ?> fetched</span>
+                                        <br>
+                                        <span title="<?php esc_attr_e( 'Created', 'apprenticeship-connect' ); ?>" style="color: green;"><?php echo esc_html( $task['last_run_created'] ); ?> new</span> /
+                                        <span title="<?php esc_attr_e( 'Updated', 'apprenticeship-connect' ); ?>"><?php echo esc_html( $task['last_run_updated'] ); ?> updated</span>
+                                        <?php if ( $task['last_run_errors'] > 0 ) : ?>
+                                            <br><span style="color: red;"><?php echo esc_html( $task['last_run_errors'] ); ?> errors</span>
+                                        <?php endif; ?>
+                                    <?php else : ?>
+                                        —
+                                    <?php endif; ?>
+                                </td>
+                                <td class="column-actions">
+                                    <button type="button" class="button button-small apprco-run-task" data-task-id="<?php echo esc_attr( $task['id'] ); ?>" <?php echo $task['status'] !== 'active' ? 'disabled' : ''; ?>>
+                                        <?php esc_html_e( 'Run Now', 'apprenticeship-connect' ); ?>
+                                    </button>
+                                    <a href="<?php echo esc_url( admin_url( 'admin.php?page=apprco-import-tasks&action=edit&task_id=' . $task['id'] ) ); ?>" class="button button-small">
+                                        <?php esc_html_e( 'Edit', 'apprenticeship-connect' ); ?>
+                                    </a>
+                                    <button type="button" class="button button-small button-link-delete apprco-delete-task" data-task-id="<?php echo esc_attr( $task['id'] ); ?>">
+                                        <?php esc_html_e( 'Delete', 'apprenticeship-connect' ); ?>
+                                    </button>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+                </tbody>
+            </table>
+        </div>
+
+        <script>
+        jQuery(document).ready(function($) {
+            // Run task
+            $('.apprco-run-task').on('click', function() {
+                var $btn = $(this);
+                var taskId = $btn.data('task-id');
+                $btn.prop('disabled', true).text('Running...');
+
+                $.post(apprcoAjax.ajaxurl, {
+                    action: 'apprco_run_task',
+                    nonce: apprcoAjax.nonce,
+                    task_id: taskId
+                }, function(response) {
+                    if (response.success) {
+                        alert('Import completed!\n' + response.data.message);
+                        location.reload();
+                    } else {
+                        alert('Error: ' + response.data);
+                    }
+                    $btn.prop('disabled', false).text('Run Now');
+                });
+            });
+
+            // Delete task
+            $('.apprco-delete-task').on('click', function() {
+                if (!confirm('Are you sure you want to delete this task?')) return;
+
+                var taskId = $(this).data('task-id');
+                $.post(apprcoAjax.ajaxurl, {
+                    action: 'apprco_delete_task',
+                    nonce: apprcoAjax.nonce,
+                    task_id: taskId
+                }, function(response) {
+                    if (response.success) {
+                        location.reload();
+                    } else {
+                        alert('Error: ' + response.data);
+                    }
+                });
+            });
+        });
+        </script>
+        <?php
+    }
+
+    /**
+     * Render task editor
+     *
+     * @param int $task_id Task ID (0 for new).
+     */
+    private function render_task_editor( int $task_id ): void {
+        $tasks_manager = Apprco_Import_Tasks::get_instance();
+        $task = $task_id ? $tasks_manager->get( $task_id ) : null;
+        $is_new = ! $task;
+
+        // Default values for new task
+        if ( $is_new ) {
+            $task = array(
+                'id'                 => 0,
+                'name'               => '',
+                'description'        => '',
+                'status'             => 'draft',
+                'api_base_url'       => 'https://api.apprenticeships.education.gov.uk/vacancies',
+                'api_endpoint'       => '/vacancy',
+                'api_method'         => 'GET',
+                'api_headers'        => array( 'X-Version' => '2' ),
+                'api_params'         => array( 'Sort' => 'AgeDesc' ),
+                'api_auth_type'      => 'header_key',
+                'api_auth_key'       => 'Ocp-Apim-Subscription-Key',
+                'api_auth_value'     => '',
+                'response_format'    => 'json',
+                'data_path'          => 'vacancies',
+                'total_path'         => 'total',
+                'pagination_type'    => 'page_number',
+                'page_param'         => 'PageNumber',
+                'page_size_param'    => 'PageSize',
+                'page_size'          => 100,
+                'field_mappings'     => Apprco_Import_Tasks::get_default_field_mappings(),
+                'unique_id_field'    => 'vacancyReference',
+                'transforms_enabled' => 0,
+                'transforms_code'    => '',
+                'target_post_type'   => 'apprco_vacancy',
+                'post_status'        => 'publish',
+                'schedule_enabled'   => 0,
+                'schedule_frequency' => 'daily',
+            );
+        }
+        ?>
+        <div class="wrap apprco-task-editor">
+            <h1>
+                <?php echo $is_new ? esc_html__( 'Add New Import Task', 'apprenticeship-connect' ) : esc_html__( 'Edit Import Task', 'apprenticeship-connect' ); ?>
+                <a href="<?php echo esc_url( admin_url( 'admin.php?page=apprco-import-tasks' ) ); ?>" class="page-title-action"><?php esc_html_e( 'Back to List', 'apprenticeship-connect' ); ?></a>
+            </h1>
+
+            <form id="apprco-task-form" method="post">
+                <input type="hidden" name="task_id" value="<?php echo esc_attr( $task['id'] ); ?>">
+                <?php wp_nonce_field( 'apprco_admin_nonce', 'apprco_nonce' ); ?>
+
+                <div class="apprco-task-sections">
+                    <!-- Basic Info -->
+                    <div class="apprco-section">
+                        <h2><?php esc_html_e( 'Basic Information', 'apprenticeship-connect' ); ?></h2>
+                        <table class="form-table">
+                            <tr>
+                                <th scope="row"><label for="task_name"><?php esc_html_e( 'Task Name', 'apprenticeship-connect' ); ?></label></th>
+                                <td>
+                                    <input type="text" id="task_name" name="name" value="<?php echo esc_attr( $task['name'] ); ?>" class="regular-text" required>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th scope="row"><label for="task_description"><?php esc_html_e( 'Description', 'apprenticeship-connect' ); ?></label></th>
+                                <td>
+                                    <textarea id="task_description" name="description" rows="2" class="large-text"><?php echo esc_textarea( $task['description'] ); ?></textarea>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th scope="row"><label for="task_status"><?php esc_html_e( 'Status', 'apprenticeship-connect' ); ?></label></th>
+                                <td>
+                                    <select id="task_status" name="status">
+                                        <option value="draft" <?php selected( $task['status'], 'draft' ); ?>><?php esc_html_e( 'Draft', 'apprenticeship-connect' ); ?></option>
+                                        <option value="active" <?php selected( $task['status'], 'active' ); ?>><?php esc_html_e( 'Active', 'apprenticeship-connect' ); ?></option>
+                                        <option value="inactive" <?php selected( $task['status'], 'inactive' ); ?>><?php esc_html_e( 'Inactive', 'apprenticeship-connect' ); ?></option>
+                                    </select>
+                                    <p class="description"><?php esc_html_e( 'Only active tasks can be run or scheduled.', 'apprenticeship-connect' ); ?></p>
+                                </td>
+                            </tr>
+                        </table>
+                    </div>
+
+                    <!-- API Configuration -->
+                    <div class="apprco-section">
+                        <h2><?php esc_html_e( 'API Configuration', 'apprenticeship-connect' ); ?></h2>
+                        <table class="form-table">
+                            <tr>
+                                <th scope="row"><label for="api_base_url"><?php esc_html_e( 'API Base URL', 'apprenticeship-connect' ); ?></label></th>
+                                <td>
+                                    <input type="url" id="api_base_url" name="api_base_url" value="<?php echo esc_attr( $task['api_base_url'] ); ?>" class="regular-text" required>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th scope="row"><label for="api_endpoint"><?php esc_html_e( 'API Endpoint', 'apprenticeship-connect' ); ?></label></th>
+                                <td>
+                                    <input type="text" id="api_endpoint" name="api_endpoint" value="<?php echo esc_attr( $task['api_endpoint'] ); ?>" class="regular-text">
+                                    <p class="description"><?php esc_html_e( 'Path appended to base URL (e.g., /vacancy)', 'apprenticeship-connect' ); ?></p>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th scope="row"><label for="api_auth_key"><?php esc_html_e( 'Auth Header Name', 'apprenticeship-connect' ); ?></label></th>
+                                <td>
+                                    <input type="text" id="api_auth_key" name="api_auth_key" value="<?php echo esc_attr( $task['api_auth_key'] ); ?>" class="regular-text">
+                                </td>
+                            </tr>
+                            <tr>
+                                <th scope="row"><label for="api_auth_value"><?php esc_html_e( 'API Key / Subscription Key', 'apprenticeship-connect' ); ?></label></th>
+                                <td>
+                                    <input type="password" id="api_auth_value" name="api_auth_value" value="<?php echo esc_attr( $task['api_auth_value'] ); ?>" class="regular-text" autocomplete="new-password">
+                                    <p class="description"><?php esc_html_e( 'Your API subscription key', 'apprenticeship-connect' ); ?></p>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th scope="row"><label for="api_headers"><?php esc_html_e( 'Additional Headers', 'apprenticeship-connect' ); ?></label></th>
+                                <td>
+                                    <textarea id="api_headers" name="api_headers" rows="3" class="large-text code"><?php echo esc_textarea( wp_json_encode( $task['api_headers'], JSON_PRETTY_PRINT ) ); ?></textarea>
+                                    <p class="description"><?php esc_html_e( 'JSON object of headers (e.g., {"X-Version": "2"})', 'apprenticeship-connect' ); ?></p>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th scope="row"><label for="api_params"><?php esc_html_e( 'Query Parameters', 'apprenticeship-connect' ); ?></label></th>
+                                <td>
+                                    <textarea id="api_params" name="api_params" rows="3" class="large-text code"><?php echo esc_textarea( wp_json_encode( $task['api_params'], JSON_PRETTY_PRINT ) ); ?></textarea>
+                                    <p class="description"><?php esc_html_e( 'JSON object of query params (e.g., {"Sort": "AgeDesc", "Ukprn": "12345678"})', 'apprenticeship-connect' ); ?></p>
+                                </td>
+                            </tr>
+                        </table>
+
+                        <h3><?php esc_html_e( 'Test API Connection', 'apprenticeship-connect' ); ?></h3>
+                        <p>
+                            <button type="button" id="apprco-test-connection" class="button button-primary"><?php esc_html_e( 'Test Connection & Fetch Sample', 'apprenticeship-connect' ); ?></button>
+                            <span id="apprco-test-status"></span>
+                        </p>
+                        <div id="apprco-test-result" class="apprco-test-result" style="display:none;">
+                            <h4><?php esc_html_e( 'API Response', 'apprenticeship-connect' ); ?></h4>
+                            <div id="apprco-test-summary"></div>
+                            <h4><?php esc_html_e( 'Available Fields (click to copy path)', 'apprenticeship-connect' ); ?></h4>
+                            <div id="apprco-available-fields"></div>
+                            <h4><?php esc_html_e( 'Sample Data (First 10 Records)', 'apprenticeship-connect' ); ?></h4>
+                            <div id="apprco-sample-data" style="max-height: 400px; overflow: auto;"></div>
+                        </div>
+                    </div>
+
+                    <!-- Response Parsing -->
+                    <div class="apprco-section">
+                        <h2><?php esc_html_e( 'Response Parsing', 'apprenticeship-connect' ); ?></h2>
+                        <table class="form-table">
+                            <tr>
+                                <th scope="row"><label for="data_path"><?php esc_html_e( 'Data Path', 'apprenticeship-connect' ); ?></label></th>
+                                <td>
+                                    <input type="text" id="data_path" name="data_path" value="<?php echo esc_attr( $task['data_path'] ); ?>" class="regular-text">
+                                    <p class="description"><?php esc_html_e( 'JSONPath to the array of items (e.g., "vacancies" or "data.items")', 'apprenticeship-connect' ); ?></p>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th scope="row"><label for="total_path"><?php esc_html_e( 'Total Count Path', 'apprenticeship-connect' ); ?></label></th>
+                                <td>
+                                    <input type="text" id="total_path" name="total_path" value="<?php echo esc_attr( $task['total_path'] ); ?>" class="regular-text">
+                                    <p class="description"><?php esc_html_e( 'JSONPath to total record count (e.g., "total")', 'apprenticeship-connect' ); ?></p>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th scope="row"><label for="unique_id_field"><?php esc_html_e( 'Unique ID Field', 'apprenticeship-connect' ); ?></label></th>
+                                <td>
+                                    <input type="text" id="unique_id_field" name="unique_id_field" value="<?php echo esc_attr( $task['unique_id_field'] ); ?>" class="regular-text">
+                                    <p class="description"><?php esc_html_e( 'Field to identify unique records (prevents duplicates)', 'apprenticeship-connect' ); ?></p>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th scope="row"><label for="page_param"><?php esc_html_e( 'Page Parameter', 'apprenticeship-connect' ); ?></label></th>
+                                <td>
+                                    <input type="text" id="page_param" name="page_param" value="<?php echo esc_attr( $task['page_param'] ); ?>" class="regular-text">
+                                </td>
+                            </tr>
+                            <tr>
+                                <th scope="row"><label for="page_size"><?php esc_html_e( 'Page Size', 'apprenticeship-connect' ); ?></label></th>
+                                <td>
+                                    <input type="number" id="page_size" name="page_size" value="<?php echo esc_attr( $task['page_size'] ); ?>" min="10" max="500">
+                                </td>
+                            </tr>
+                        </table>
+                    </div>
+
+                    <!-- Field Mappings -->
+                    <div class="apprco-section">
+                        <h2><?php esc_html_e( 'Field Mappings', 'apprenticeship-connect' ); ?></h2>
+                        <p class="description"><?php esc_html_e( 'Map API response fields to WordPress post fields and meta. Use dot notation for nested fields (e.g., addresses[0].postcode).', 'apprenticeship-connect' ); ?></p>
+
+                        <table class="wp-list-table widefat fixed" id="apprco-field-mappings">
+                            <thead>
+                                <tr>
+                                    <th style="width: 40%;"><?php esc_html_e( 'Target Field (WordPress)', 'apprenticeship-connect' ); ?></th>
+                                    <th style="width: 50%;"><?php esc_html_e( 'Source Field (API)', 'apprenticeship-connect' ); ?></th>
+                                    <th style="width: 10%;"></th>
+                                </tr>
+                            </thead>
+                            <tbody id="apprco-mappings-body">
+                                <?php foreach ( $task['field_mappings'] as $target => $source ) : ?>
+                                    <tr>
+                                        <td><input type="text" name="mapping_target[]" value="<?php echo esc_attr( $target ); ?>" class="widefat"></td>
+                                        <td><input type="text" name="mapping_source[]" value="<?php echo esc_attr( $source ); ?>" class="widefat"></td>
+                                        <td><button type="button" class="button button-small apprco-remove-mapping">&times;</button></td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                        <p>
+                            <button type="button" id="apprco-add-mapping" class="button"><?php esc_html_e( 'Add Mapping', 'apprenticeship-connect' ); ?></button>
+                            <button type="button" id="apprco-reset-mappings" class="button"><?php esc_html_e( 'Reset to Defaults', 'apprenticeship-connect' ); ?></button>
+                        </p>
+                    </div>
+
+                    <!-- ETL Transforms -->
+                    <div class="apprco-section">
+                        <h2><?php esc_html_e( 'ETL Transforms (Advanced)', 'apprenticeship-connect' ); ?></h2>
+                        <table class="form-table">
+                            <tr>
+                                <th scope="row"><label for="transforms_enabled"><?php esc_html_e( 'Enable Transforms', 'apprenticeship-connect' ); ?></label></th>
+                                <td>
+                                    <input type="checkbox" id="transforms_enabled" name="transforms_enabled" value="1" <?php checked( $task['transforms_enabled'], 1 ); ?>>
+                                    <label for="transforms_enabled"><?php esc_html_e( 'Apply custom PHP transforms to each record', 'apprenticeship-connect' ); ?></label>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th scope="row"><label for="transforms_code"><?php esc_html_e( 'Transform Code', 'apprenticeship-connect' ); ?></label></th>
+                                <td>
+                                    <textarea id="transforms_code" name="transforms_code" rows="10" class="large-text code" placeholder="// $item contains the API record array&#10;// Modify $item as needed&#10;// Example:&#10;// $item['customField'] = strtoupper($item['title']);"><?php echo esc_textarea( $task['transforms_code'] ); ?></textarea>
+                                    <p class="description"><?php esc_html_e( 'PHP code to transform each record. The $item variable contains the API record.', 'apprenticeship-connect' ); ?></p>
+                                </td>
+                            </tr>
+                        </table>
+                    </div>
+
+                    <!-- Schedule -->
+                    <div class="apprco-section">
+                        <h2><?php esc_html_e( 'Schedule', 'apprenticeship-connect' ); ?></h2>
+                        <table class="form-table">
+                            <tr>
+                                <th scope="row"><label for="schedule_enabled"><?php esc_html_e( 'Enable Schedule', 'apprenticeship-connect' ); ?></label></th>
+                                <td>
+                                    <input type="checkbox" id="schedule_enabled" name="schedule_enabled" value="1" <?php checked( $task['schedule_enabled'], 1 ); ?>>
+                                    <label for="schedule_enabled"><?php esc_html_e( 'Run this task automatically on a schedule', 'apprenticeship-connect' ); ?></label>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th scope="row"><label for="schedule_frequency"><?php esc_html_e( 'Frequency', 'apprenticeship-connect' ); ?></label></th>
+                                <td>
+                                    <select id="schedule_frequency" name="schedule_frequency">
+                                        <option value="hourly" <?php selected( $task['schedule_frequency'], 'hourly' ); ?>><?php esc_html_e( 'Hourly', 'apprenticeship-connect' ); ?></option>
+                                        <option value="twicedaily" <?php selected( $task['schedule_frequency'], 'twicedaily' ); ?>><?php esc_html_e( 'Twice Daily', 'apprenticeship-connect' ); ?></option>
+                                        <option value="daily" <?php selected( $task['schedule_frequency'], 'daily' ); ?>><?php esc_html_e( 'Daily', 'apprenticeship-connect' ); ?></option>
+                                        <option value="weekly" <?php selected( $task['schedule_frequency'], 'weekly' ); ?>><?php esc_html_e( 'Weekly', 'apprenticeship-connect' ); ?></option>
+                                    </select>
+                                </td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+
+                <p class="submit">
+                    <button type="submit" class="button button-primary"><?php echo $is_new ? esc_html__( 'Create Task', 'apprenticeship-connect' ) : esc_html__( 'Save Changes', 'apprenticeship-connect' ); ?></button>
+                    <?php if ( ! $is_new && $task['status'] === 'active' ) : ?>
+                        <button type="button" id="apprco-run-task-now" class="button"><?php esc_html_e( 'Run Task Now', 'apprenticeship-connect' ); ?></button>
+                    <?php endif; ?>
+                </p>
+            </form>
+        </div>
+
+        <style>
+            .apprco-task-sections { max-width: 1000px; }
+            .apprco-section { background: #fff; border: 1px solid #ccd0d4; padding: 20px; margin-bottom: 20px; }
+            .apprco-section h2 { margin-top: 0; padding-bottom: 10px; border-bottom: 1px solid #eee; }
+            .apprco-test-result { background: #f9f9f9; padding: 15px; margin-top: 15px; border: 1px solid #ddd; }
+            #apprco-available-fields { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 15px; }
+            #apprco-available-fields .field-tag { background: #e1e1e1; padding: 3px 8px; border-radius: 3px; cursor: pointer; font-family: monospace; font-size: 12px; }
+            #apprco-available-fields .field-tag:hover { background: #0073aa; color: #fff; }
+            #apprco-sample-data table { font-size: 12px; }
+            #apprco-field-mappings input { font-family: monospace; }
+            .apprco-badge-active { background: #00a32a; color: #fff; }
+            .apprco-badge-inactive { background: #dba617; color: #fff; }
+            .apprco-badge-draft { background: #72777c; color: #fff; }
+        </style>
+
+        <script>
+        jQuery(document).ready(function($) {
+            var defaultMappings = <?php echo wp_json_encode( Apprco_Import_Tasks::get_default_field_mappings() ); ?>;
+
+            // Test connection
+            $('#apprco-test-connection').on('click', function() {
+                var $btn = $(this);
+                var $status = $('#apprco-test-status');
+                var $result = $('#apprco-test-result');
+
+                $btn.prop('disabled', true);
+                $status.text('Testing connection...');
+                $result.hide();
+
+                // Gather current form values
+                var formData = {
+                    action: 'apprco_test_task_connection',
+                    nonce: $('#apprco_nonce').val(),
+                    api_base_url: $('#api_base_url').val(),
+                    api_endpoint: $('#api_endpoint').val(),
+                    api_auth_key: $('#api_auth_key').val(),
+                    api_auth_value: $('#api_auth_value').val(),
+                    api_headers: $('#api_headers').val(),
+                    api_params: $('#api_params').val(),
+                    data_path: $('#data_path').val(),
+                    total_path: $('#total_path').val()
+                };
+
+                $.post(apprcoAjax.ajaxurl, formData, function(response) {
+                    $btn.prop('disabled', false);
+
+                    if (response.success) {
+                        $status.html('<span style="color: green;">Connected successfully!</span>');
+                        $result.show();
+
+                        var data = response.data;
+                        $('#apprco-test-summary').html(
+                            '<p><strong>Total Records:</strong> ' + data.total +
+                            ' | <strong>Fetched:</strong> ' + data.fetched +
+                            ' | <strong>Response Keys:</strong> ' + data.response_keys.join(', ') + '</p>'
+                        );
+
+                        // Show available fields
+                        var fieldsHtml = '';
+                        if (data.available_fields && data.available_fields.length > 0) {
+                            data.available_fields.forEach(function(field) {
+                                fieldsHtml += '<span class="field-tag" data-field="' + field + '">' + field + '</span>';
+                            });
+                        }
+                        $('#apprco-available-fields').html(fieldsHtml);
+
+                        // Show sample data as table
+                        if (data.sample && data.sample.length > 0) {
+                            var tableHtml = '<table class="wp-list-table widefat striped"><thead><tr><th>#</th>';
+                            var keys = Object.keys(data.sample[0]).slice(0, 8);
+                            keys.forEach(function(key) {
+                                tableHtml += '<th>' + key + '</th>';
+                            });
+                            tableHtml += '</tr></thead><tbody>';
+
+                            data.sample.forEach(function(item, idx) {
+                                tableHtml += '<tr><td>' + (idx + 1) + '</td>';
+                                keys.forEach(function(key) {
+                                    var val = item[key];
+                                    if (typeof val === 'object') val = JSON.stringify(val).substring(0, 50) + '...';
+                                    if (typeof val === 'string' && val.length > 50) val = val.substring(0, 50) + '...';
+                                    tableHtml += '<td>' + (val || '') + '</td>';
+                                });
+                                tableHtml += '</tr>';
+                            });
+                            tableHtml += '</tbody></table>';
+                            $('#apprco-sample-data').html(tableHtml);
+                        }
+                    } else {
+                        $status.html('<span style="color: red;">Error: ' + response.data.error + '</span>');
+                        if (response.data.raw_response) {
+                            $result.show();
+                            $('#apprco-test-summary').html('<pre>' + response.data.raw_response + '</pre>');
+                        }
+                    }
+                }).fail(function() {
+                    $btn.prop('disabled', false);
+                    $status.html('<span style="color: red;">Request failed</span>');
+                });
+            });
+
+            // Click field tag to copy
+            $(document).on('click', '.field-tag', function() {
+                var field = $(this).data('field');
+                navigator.clipboard.writeText(field);
+                $(this).css('background', '#00a32a').css('color', '#fff');
+                setTimeout(function() {
+                    $('.field-tag').css('background', '').css('color', '');
+                }, 500);
+            });
+
+            // Add mapping row
+            $('#apprco-add-mapping').on('click', function() {
+                $('#apprco-mappings-body').append(
+                    '<tr>' +
+                    '<td><input type="text" name="mapping_target[]" value="" class="widefat"></td>' +
+                    '<td><input type="text" name="mapping_source[]" value="" class="widefat"></td>' +
+                    '<td><button type="button" class="button button-small apprco-remove-mapping">&times;</button></td>' +
+                    '</tr>'
+                );
+            });
+
+            // Remove mapping row
+            $(document).on('click', '.apprco-remove-mapping', function() {
+                $(this).closest('tr').remove();
+            });
+
+            // Reset mappings to defaults
+            $('#apprco-reset-mappings').on('click', function() {
+                if (!confirm('Reset all field mappings to defaults?')) return;
+
+                var html = '';
+                for (var target in defaultMappings) {
+                    html += '<tr>' +
+                        '<td><input type="text" name="mapping_target[]" value="' + target + '" class="widefat"></td>' +
+                        '<td><input type="text" name="mapping_source[]" value="' + defaultMappings[target] + '" class="widefat"></td>' +
+                        '<td><button type="button" class="button button-small apprco-remove-mapping">&times;</button></td>' +
+                        '</tr>';
+                }
+                $('#apprco-mappings-body').html(html);
+            });
+
+            // Save task via AJAX
+            $('#apprco-task-form').on('submit', function(e) {
+                e.preventDefault();
+
+                var $form = $(this);
+                var $submitBtn = $form.find('button[type="submit"]');
+
+                // Build field mappings
+                var mappings = {};
+                $('input[name="mapping_target[]"]').each(function(idx) {
+                    var target = $(this).val().trim();
+                    var source = $('input[name="mapping_source[]"]').eq(idx).val().trim();
+                    if (target && source) {
+                        mappings[target] = source;
+                    }
+                });
+
+                var formData = {
+                    action: 'apprco_save_task',
+                    nonce: $('#apprco_nonce').val(),
+                    task_id: $('input[name="task_id"]').val(),
+                    name: $('#task_name').val(),
+                    description: $('#task_description').val(),
+                    status: $('#task_status').val(),
+                    api_base_url: $('#api_base_url').val(),
+                    api_endpoint: $('#api_endpoint').val(),
+                    api_auth_key: $('#api_auth_key').val(),
+                    api_auth_value: $('#api_auth_value').val(),
+                    api_headers: $('#api_headers').val(),
+                    api_params: $('#api_params').val(),
+                    data_path: $('#data_path').val(),
+                    total_path: $('#total_path').val(),
+                    unique_id_field: $('#unique_id_field').val(),
+                    page_param: $('#page_param').val(),
+                    page_size: $('#page_size').val(),
+                    field_mappings: JSON.stringify(mappings),
+                    transforms_enabled: $('#transforms_enabled').is(':checked') ? 1 : 0,
+                    transforms_code: $('#transforms_code').val(),
+                    schedule_enabled: $('#schedule_enabled').is(':checked') ? 1 : 0,
+                    schedule_frequency: $('#schedule_frequency').val()
+                };
+
+                $submitBtn.prop('disabled', true).text('Saving...');
+
+                $.post(apprcoAjax.ajaxurl, formData, function(response) {
+                    if (response.success) {
+                        alert('Task saved successfully!');
+                        if (!formData.task_id || formData.task_id == '0') {
+                            window.location.href = 'admin.php?page=apprco-import-tasks&action=edit&task_id=' + response.data.task_id;
+                        } else {
+                            $submitBtn.prop('disabled', false).text('Save Changes');
+                        }
+                    } else {
+                        alert('Error: ' + response.data);
+                        $submitBtn.prop('disabled', false).text('Save Changes');
+                    }
+                }).fail(function() {
+                    alert('Request failed');
+                    $submitBtn.prop('disabled', false).text('Save Changes');
+                });
+            });
+
+            // Run task now
+            $('#apprco-run-task-now').on('click', function() {
+                var $btn = $(this);
+                var taskId = $('input[name="task_id"]').val();
+
+                if (!taskId || taskId == '0') {
+                    alert('Please save the task first.');
+                    return;
+                }
+
+                $btn.prop('disabled', true).text('Running...');
+
+                $.post(apprcoAjax.ajaxurl, {
+                    action: 'apprco_run_task',
+                    nonce: apprcoAjax.nonce,
+                    task_id: taskId
+                }, function(response) {
+                    if (response.success) {
+                        alert('Import completed!\n' + response.data.message);
+                    } else {
+                        alert('Error: ' + response.data);
+                    }
+                    $btn.prop('disabled', false).text('Run Task Now');
+                });
+            });
+        });
+        </script>
+        <?php
+    }
+
+    /**
+     * AJAX: Get all tasks
+     */
+    public function ajax_get_tasks(): void {
+        check_ajax_referer( 'apprco_admin_nonce', 'nonce' );
+
+        if ( ! current_user_can( 'manage_options' ) ) {
+            wp_send_json_error( __( 'Permission denied.', 'apprenticeship-connect' ) );
+        }
+
+        $tasks_manager = Apprco_Import_Tasks::get_instance();
+        wp_send_json_success( $tasks_manager->get_all() );
+    }
+
+    /**
+     * AJAX: Get single task
+     */
+    public function ajax_get_task(): void {
+        check_ajax_referer( 'apprco_admin_nonce', 'nonce' );
+
+        if ( ! current_user_can( 'manage_options' ) ) {
+            wp_send_json_error( __( 'Permission denied.', 'apprenticeship-connect' ) );
+        }
+
+        $task_id = isset( $_POST['task_id'] ) ? absint( $_POST['task_id'] ) : 0;
+        $tasks_manager = Apprco_Import_Tasks::get_instance();
+        $task = $tasks_manager->get( $task_id );
+
+        if ( $task ) {
+            wp_send_json_success( $task );
+        } else {
+            wp_send_json_error( __( 'Task not found.', 'apprenticeship-connect' ) );
+        }
+    }
+
+    /**
+     * AJAX: Save task
+     */
+    public function ajax_save_task(): void {
+        check_ajax_referer( 'apprco_admin_nonce', 'nonce' );
+
+        if ( ! current_user_can( 'manage_options' ) ) {
+            wp_send_json_error( __( 'Permission denied.', 'apprenticeship-connect' ) );
+        }
+
+        $task_id = isset( $_POST['task_id'] ) ? absint( $_POST['task_id'] ) : 0;
+
+        // Parse JSON fields
+        $api_headers    = json_decode( stripslashes( $_POST['api_headers'] ?? '{}' ), true ) ?: array();
+        $api_params     = json_decode( stripslashes( $_POST['api_params'] ?? '{}' ), true ) ?: array();
+        $field_mappings = json_decode( stripslashes( $_POST['field_mappings'] ?? '{}' ), true ) ?: array();
+
+        $data = array(
+            'name'               => sanitize_text_field( wp_unslash( $_POST['name'] ?? '' ) ),
+            'description'        => sanitize_textarea_field( wp_unslash( $_POST['description'] ?? '' ) ),
+            'status'             => sanitize_text_field( wp_unslash( $_POST['status'] ?? 'draft' ) ),
+            'api_base_url'       => esc_url_raw( wp_unslash( $_POST['api_base_url'] ?? '' ) ),
+            'api_endpoint'       => sanitize_text_field( wp_unslash( $_POST['api_endpoint'] ?? '' ) ),
+            'api_auth_key'       => sanitize_text_field( wp_unslash( $_POST['api_auth_key'] ?? '' ) ),
+            'api_auth_value'     => sanitize_text_field( wp_unslash( $_POST['api_auth_value'] ?? '' ) ),
+            'api_headers'        => $api_headers,
+            'api_params'         => $api_params,
+            'data_path'          => sanitize_text_field( wp_unslash( $_POST['data_path'] ?? '' ) ),
+            'total_path'         => sanitize_text_field( wp_unslash( $_POST['total_path'] ?? '' ) ),
+            'unique_id_field'    => sanitize_text_field( wp_unslash( $_POST['unique_id_field'] ?? '' ) ),
+            'page_param'         => sanitize_text_field( wp_unslash( $_POST['page_param'] ?? '' ) ),
+            'page_size'          => absint( $_POST['page_size'] ?? 100 ),
+            'field_mappings'     => $field_mappings,
+            'transforms_enabled' => isset( $_POST['transforms_enabled'] ) ? 1 : 0,
+            'transforms_code'    => wp_unslash( $_POST['transforms_code'] ?? '' ),
+            'schedule_enabled'   => isset( $_POST['schedule_enabled'] ) ? 1 : 0,
+            'schedule_frequency' => sanitize_text_field( wp_unslash( $_POST['schedule_frequency'] ?? 'daily' ) ),
+        );
+
+        $tasks_manager = Apprco_Import_Tasks::get_instance();
+
+        if ( $task_id > 0 ) {
+            $result = $tasks_manager->update( $task_id, $data );
+            if ( $result ) {
+                wp_send_json_success( array( 'task_id' => $task_id, 'message' => 'Task updated.' ) );
+            } else {
+                wp_send_json_error( __( 'Failed to update task.', 'apprenticeship-connect' ) );
+            }
+        } else {
+            $new_id = $tasks_manager->create( $data );
+            if ( $new_id ) {
+                wp_send_json_success( array( 'task_id' => $new_id, 'message' => 'Task created.' ) );
+            } else {
+                wp_send_json_error( __( 'Failed to create task.', 'apprenticeship-connect' ) );
+            }
+        }
+    }
+
+    /**
+     * AJAX: Delete task
+     */
+    public function ajax_delete_task(): void {
+        check_ajax_referer( 'apprco_admin_nonce', 'nonce' );
+
+        if ( ! current_user_can( 'manage_options' ) ) {
+            wp_send_json_error( __( 'Permission denied.', 'apprenticeship-connect' ) );
+        }
+
+        $task_id = isset( $_POST['task_id'] ) ? absint( $_POST['task_id'] ) : 0;
+
+        if ( ! $task_id ) {
+            wp_send_json_error( __( 'Invalid task ID.', 'apprenticeship-connect' ) );
+        }
+
+        $tasks_manager = Apprco_Import_Tasks::get_instance();
+        $result = $tasks_manager->delete( $task_id );
+
+        if ( $result ) {
+            wp_send_json_success( __( 'Task deleted.', 'apprenticeship-connect' ) );
+        } else {
+            wp_send_json_error( __( 'Failed to delete task.', 'apprenticeship-connect' ) );
+        }
+    }
+
+    /**
+     * AJAX: Test task connection
+     */
+    public function ajax_test_task_connection(): void {
+        check_ajax_referer( 'apprco_admin_nonce', 'nonce' );
+
+        if ( ! current_user_can( 'manage_options' ) ) {
+            wp_send_json_error( __( 'Permission denied.', 'apprenticeship-connect' ) );
+        }
+
+        // Build task config from form data
+        $api_headers = json_decode( stripslashes( $_POST['api_headers'] ?? '{}' ), true ) ?: array();
+        $api_params  = json_decode( stripslashes( $_POST['api_params'] ?? '{}' ), true ) ?: array();
+
+        $task = array(
+            'api_base_url'    => esc_url_raw( wp_unslash( $_POST['api_base_url'] ?? '' ) ),
+            'api_endpoint'    => sanitize_text_field( wp_unslash( $_POST['api_endpoint'] ?? '' ) ),
+            'api_method'      => 'GET',
+            'api_headers'     => $api_headers,
+            'api_params'      => $api_params,
+            'api_auth_type'   => 'header_key',
+            'api_auth_key'    => sanitize_text_field( wp_unslash( $_POST['api_auth_key'] ?? '' ) ),
+            'api_auth_value'  => sanitize_text_field( wp_unslash( $_POST['api_auth_value'] ?? '' ) ),
+            'data_path'       => sanitize_text_field( wp_unslash( $_POST['data_path'] ?? 'vacancies' ) ),
+            'total_path'      => sanitize_text_field( wp_unslash( $_POST['total_path'] ?? 'total' ) ),
+            'pagination_type' => 'page_number',
+            'page_param'      => 'PageNumber',
+            'page_size_param' => 'PageSize',
+            'page_size'       => 10,
+        );
+
+        $tasks_manager = Apprco_Import_Tasks::get_instance();
+        $result = $tasks_manager->execute_api_request( $task, 10, true );
+
+        if ( $result['success'] ) {
+            wp_send_json_success( $result );
+        } else {
+            wp_send_json_error( $result );
+        }
+    }
+
+    /**
+     * AJAX: Run task
+     */
+    public function ajax_run_task(): void {
+        check_ajax_referer( 'apprco_admin_nonce', 'nonce' );
+
+        if ( ! current_user_can( 'manage_options' ) ) {
+            wp_send_json_error( __( 'Permission denied.', 'apprenticeship-connect' ) );
+        }
+
+        $task_id = isset( $_POST['task_id'] ) ? absint( $_POST['task_id'] ) : 0;
+
+        if ( ! $task_id ) {
+            wp_send_json_error( __( 'Invalid task ID.', 'apprenticeship-connect' ) );
+        }
+
+        $tasks_manager = Apprco_Import_Tasks::get_instance();
+        $result = $tasks_manager->run_import( $task_id );
+
+        if ( $result['success'] ) {
+            $message = sprintf(
+                __( 'Fetched: %d, Created: %d, Updated: %d, Errors: %d', 'apprenticeship-connect' ),
+                $result['fetched'],
+                $result['created'],
+                $result['updated'],
+                $result['errors']
+            );
+            wp_send_json_success( array( 'message' => $message, 'result' => $result ) );
+        } else {
+            wp_send_json_error( $result['error'] ?? __( 'Import failed.', 'apprenticeship-connect' ) );
+        }
     }
 }
 

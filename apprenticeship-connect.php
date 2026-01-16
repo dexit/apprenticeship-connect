@@ -35,6 +35,7 @@ require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-api-client.php';
 require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-geocoder.php';
 require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-employer.php';
 require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-import-wizard.php';
+require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-import-tasks.php';
 
 // Provider abstraction layer
 require_once APPRCO_PLUGIN_DIR . 'includes/interfaces/interface-apprco-provider.php';
@@ -446,6 +447,7 @@ class Apprco_Connector {
         // Create database tables
         Apprco_Import_Logger::create_table();
         Apprco_Employer::create_table();
+        Apprco_Import_Tasks::create_table();
 
         // Set default options
         $this->set_default_options();
@@ -493,6 +495,7 @@ class Apprco_Connector {
         if ( version_compare( $current_version, APPRCO_DB_VERSION, '<' ) ) {
             Apprco_Import_Logger::create_table();
             Apprco_Employer::create_table();
+            Apprco_Import_Tasks::create_table();
             update_option( 'apprco_db_version', APPRCO_DB_VERSION );
         }
     }
