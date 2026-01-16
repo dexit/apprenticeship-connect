@@ -209,6 +209,114 @@ class Apprco_REST_API {
                 'permission_callback' => '__return_true',
             )
         );
+
+        // Get example API response for a provider
+        register_rest_route(
+            self::NAMESPACE,
+            '/provider/(?P<provider_id>[a-z0-9-]+)/example-response',
+            array(
+                'methods'             => WP_REST_Server::READABLE,
+                'callback'            => array( $this, 'get_example_response' ),
+                'permission_callback' => '__return_true',
+                'args'                => array(
+                    'provider_id' => array(
+                        'required'          => true,
+                        'type'              => 'string',
+                        'validate_callback' => array( $this, 'validate_provider_id' ),
+                    ),
+                ),
+            )
+        );
+
+        // Get example API request for a provider
+        register_rest_route(
+            self::NAMESPACE,
+            '/provider/(?P<provider_id>[a-z0-9-]+)/example-request',
+            array(
+                'methods'             => WP_REST_Server::READABLE,
+                'callback'            => array( $this, 'get_example_request' ),
+                'permission_callback' => '__return_true',
+                'args'                => array(
+                    'provider_id' => array(
+                        'required'          => true,
+                        'type'              => 'string',
+                        'validate_callback' => array( $this, 'validate_provider_id' ),
+                    ),
+                ),
+            )
+        );
+
+        // Get response body template for a provider
+        register_rest_route(
+            self::NAMESPACE,
+            '/provider/(?P<provider_id>[a-z0-9-]+)/response-template',
+            array(
+                'methods'             => WP_REST_Server::READABLE,
+                'callback'            => array( $this, 'get_response_template' ),
+                'permission_callback' => '__return_true',
+                'args'                => array(
+                    'provider_id' => array(
+                        'required'          => true,
+                        'type'              => 'string',
+                        'validate_callback' => array( $this, 'validate_provider_id' ),
+                    ),
+                ),
+            )
+        );
+
+        // Get request body template for a provider
+        register_rest_route(
+            self::NAMESPACE,
+            '/provider/(?P<provider_id>[a-z0-9-]+)/request-body-template',
+            array(
+                'methods'             => WP_REST_Server::READABLE,
+                'callback'            => array( $this, 'get_request_body_template' ),
+                'permission_callback' => '__return_true',
+                'args'                => array(
+                    'provider_id' => array(
+                        'required'          => true,
+                        'type'              => 'string',
+                        'validate_callback' => array( $this, 'validate_provider_id' ),
+                    ),
+                ),
+            )
+        );
+
+        // Get rate limit information for a provider
+        register_rest_route(
+            self::NAMESPACE,
+            '/provider/(?P<provider_id>[a-z0-9-]+)/rate-limits',
+            array(
+                'methods'             => WP_REST_Server::READABLE,
+                'callback'            => array( $this, 'get_rate_limits' ),
+                'permission_callback' => '__return_true',
+                'args'                => array(
+                    'provider_id' => array(
+                        'required'          => true,
+                        'type'              => 'string',
+                        'validate_callback' => array( $this, 'validate_provider_id' ),
+                    ),
+                ),
+            )
+        );
+
+        // Extract template variables from custom data
+        register_rest_route(
+            self::NAMESPACE,
+            '/tools/extract-template-vars',
+            array(
+                'methods'             => WP_REST_Server::CREATABLE,
+                'callback'            => array( $this, 'extract_template_variables' ),
+                'permission_callback' => '__return_true',
+                'args'                => array(
+                    'data' => array(
+                        'required'          => true,
+                        'type'              => 'object',
+                        'description'       => 'JSON data structure to analyze',
+                    ),
+                ),
+            )
+        );
     }
 
     /**
@@ -785,6 +893,224 @@ class Apprco_REST_API {
                 $terms = is_array( $taxonomies[ $key ] ) ? $taxonomies[ $key ] : array( $taxonomies[ $key ] );
                 wp_set_object_terms( $post_id, $terms, $taxonomy );
             }
+        }
+    }
+
+    /**
+     * Get example API response for a provider
+     *
+     * @param WP_REST_Request $request Request object.
+     * @return WP_REST_Response|WP_Error
+     */
+    public function get_example_response( WP_REST_Request $request ) {
+        $provider_id = $request->get_param( 'provider_id' );
+
+        try {
+            $provider = $this->get_provider_instance( $provider_id );
+
+            $example = $provider->get_example_response();
+
+            return new WP_REST_Response( $example, 200 );
+
+        } catch ( Exception $e ) {
+            return new WP_Error(
+                'provider_error',
+                sprintf( 'Failed to get example response: %s', $e->getMessage() ),
+                array( 'status' => 500 )
+            );
+        }
+    }
+
+    /**
+     * Get example API request for a provider
+     *
+     * @param WP_REST_Request $request Request object.
+     * @return WP_REST_Response|WP_Error
+     */
+    public function get_example_request( WP_REST_Request $request ) {
+        $provider_id = $request->get_param( 'provider_id' );
+
+        try {
+            $provider = $this->get_provider_instance( $provider_id );
+
+            $example = $provider->get_example_request();
+
+            return new WP_REST_Response( $example, 200 );
+
+        } catch ( Exception $e ) {
+            return new WP_Error(
+                'provider_error',
+                sprintf( 'Failed to get example request: %s', $e->getMessage() ),
+                array( 'status' => 500 )
+            );
+        }
+    }
+
+    /**
+     * Get response body template for a provider
+     *
+     * @param WP_REST_Request $request Request object.
+     * @return WP_REST_Response|WP_Error
+     */
+    public function get_response_template( WP_REST_Request $request ) {
+        $provider_id = $request->get_param( 'provider_id' );
+
+        try {
+            $provider = $this->get_provider_instance( $provider_id );
+
+            if ( method_exists( $provider, 'get_response_body_template' ) ) {
+                $template = $provider->get_response_body_template();
+            } else {
+                // Fallback to extracting from example response
+                $example_response = $provider->get_example_response();
+                $template = array(
+                    'template' => $example_response['template_vars'] ?? array(),
+                    'description' => 'Automatically extracted from example response',
+                );
+            }
+
+            return new WP_REST_Response( $template, 200 );
+
+        } catch ( Exception $e ) {
+            return new WP_Error(
+                'provider_error',
+                sprintf( 'Failed to get response template: %s', $e->getMessage() ),
+                array( 'status' => 500 )
+            );
+        }
+    }
+
+    /**
+     * Get request body template for a provider
+     *
+     * @param WP_REST_Request $request Request object.
+     * @return WP_REST_Response|WP_Error
+     */
+    public function get_request_body_template( WP_REST_Request $request ) {
+        $provider_id = $request->get_param( 'provider_id' );
+
+        try {
+            $provider = $this->get_provider_instance( $provider_id );
+
+            if ( method_exists( $provider, 'get_request_body_template' ) ) {
+                $template = $provider->get_request_body_template();
+            } else {
+                $template = array(
+                    'template' => array(),
+                    'template_vars' => array(),
+                    'description' => 'This provider does not require a request body',
+                );
+            }
+
+            return new WP_REST_Response( $template, 200 );
+
+        } catch ( Exception $e ) {
+            return new WP_Error(
+                'provider_error',
+                sprintf( 'Failed to get request body template: %s', $e->getMessage() ),
+                array( 'status' => 500 )
+            );
+        }
+    }
+
+    /**
+     * Get rate limit information for a provider
+     *
+     * @param WP_REST_Request $request Request object.
+     * @return WP_REST_Response|WP_Error
+     */
+    public function get_rate_limits( WP_REST_Request $request ) {
+        $provider_id = $request->get_param( 'provider_id' );
+
+        try {
+            $provider = $this->get_provider_instance( $provider_id );
+
+            if ( method_exists( $provider, 'get_rate_limit_info' ) ) {
+                $rate_limits = $provider->get_rate_limit_info();
+            } else {
+                $rate_limits = $provider->get_rate_limits();
+            }
+
+            return new WP_REST_Response( $rate_limits, 200 );
+
+        } catch ( Exception $e ) {
+            return new WP_Error(
+                'provider_error',
+                sprintf( 'Failed to get rate limits: %s', $e->getMessage() ),
+                array( 'status' => 500 )
+            );
+        }
+    }
+
+    /**
+     * Extract template variables from custom data
+     *
+     * @param WP_REST_Request $request Request object.
+     * @return WP_REST_Response|WP_Error
+     */
+    public function extract_template_variables( WP_REST_Request $request ) {
+        $data = $request->get_param( 'data' );
+
+        if ( empty( $data ) ) {
+            return new WP_Error(
+                'invalid_data',
+                'No data provided for analysis',
+                array( 'status' => 400 )
+            );
+        }
+
+        try {
+            // Use UK Gov provider as a helper for extraction
+            $provider = new Apprco_UK_Gov_Provider();
+            $template_vars = $provider->extract_template_variables( $data );
+
+            return new WP_REST_Response(
+                array(
+                    'template_vars' => $template_vars,
+                    'count' => count( $template_vars ),
+                ),
+                200
+            );
+
+        } catch ( Exception $e ) {
+            return new WP_Error(
+                'extraction_error',
+                sprintf( 'Failed to extract template variables: %s', $e->getMessage() ),
+                array( 'status' => 500 )
+            );
+        }
+    }
+
+    /**
+     * Validate provider ID
+     *
+     * @param string $provider_id Provider ID to validate.
+     * @return bool True if valid.
+     */
+    public function validate_provider_id( string $provider_id ): bool {
+        // List of valid provider IDs
+        $valid_providers = array(
+            'uk-gov-apprenticeships',
+            // Add more as needed
+        );
+
+        return in_array( $provider_id, $valid_providers, true );
+    }
+
+    /**
+     * Get provider instance by ID
+     *
+     * @param string $provider_id Provider ID.
+     * @return Apprco_Provider_Interface Provider instance.
+     * @throws Exception If provider not found.
+     */
+    private function get_provider_instance( string $provider_id ): Apprco_Provider_Interface {
+        switch ( $provider_id ) {
+            case 'uk-gov-apprenticeships':
+                return new Apprco_UK_Gov_Provider();
+
+            default:
+                throw new Exception( sprintf( 'Unknown provider: %s', $provider_id ) );
         }
     }
 }

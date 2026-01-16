@@ -346,4 +346,314 @@ abstract class Apprco_Abstract_Provider implements Apprco_Provider_Interface {
 
         return trim( $text );
     }
+
+    /**
+     * Get example API response structure
+     *
+     * Returns a sample response based on the provider's typical response format.
+     * Override this method in child classes to provide provider-specific examples.
+     *
+     * @return array {
+     *     Example API response structure.
+     *     @type array  $response       Sample response body.
+     *     @type array  $template_vars  Available template variables.
+     *     @type string $description    Description of the response.
+     * }
+     */
+    public function get_example_response(): array {
+        return array(
+            'response'       => array(
+                'items' => array(
+                    $this->get_normalized_template(),
+                ),
+                'total' => 1,
+                'page'  => 1,
+            ),
+            'template_vars'  => $this->extract_template_variables( $this->get_normalized_template() ),
+            'description'    => sprintf(
+                'Example API response structure for %s provider',
+                $this->get_name()
+            ),
+        );
+    }
+
+    /**
+     * Get example API request structure
+     *
+     * Returns a sample request with template variables that can be used.
+     *
+     * @return array {
+     *     Example API request structure.
+     *     @type string $url            Sample API endpoint URL.
+     *     @type string $method         HTTP method (GET, POST, etc).
+     *     @type array  $headers        Sample request headers.
+     *     @type array  $params         Sample query/body parameters.
+     *     @type array  $template_vars  Available template variables for requests.
+     *     @type string $description    Description of the request.
+     * }
+     */
+    public function get_example_request(): array {
+        $config_schema = $this->get_config_schema();
+
+        $example_headers = array(
+            'Accept'        => 'application/json',
+            'Content-Type'  => 'application/json',
+        );
+
+        if ( isset( $config_schema['api_key'] ) ) {
+            $example_headers['Authorization'] = 'Bearer {{api_key}}';
+        }
+
+        return array(
+            'url'            => $this->config['base_url'] ?? 'https://api.example.com/vacancies',
+            'method'         => 'GET',
+            'headers'        => $example_headers,
+            'params'         => array(
+                'page'     => '{{page}}',
+                'pageSize' => '{{page_size}}',
+            ),
+            'template_vars'  => array(
+                '{{api_key}}'   => 'Your API key',
+                '{{page}}'      => 'Current page number',
+                '{{page_size}}' => 'Number of items per page',
+            ),
+            'description'    => sprintf(
+                'Example API request structure for %s provider',
+                $this->get_name()
+            ),
+        );
+    }
+
+    /**
+     * Extract template variables from a response structure
+     *
+     * Recursively analyzes a data structure and extracts all available field paths
+     * that can be used as template variables.
+     *
+     * @param mixed  $data   Data structure to analyze (array or object).
+     * @param string $prefix Current path prefix (for recursion).
+     * @param int    $depth  Current recursion depth (max 10).
+     * @return array {
+     *     Template variables with descriptions.
+     *     Format: 'path' => 'description'
+     *     Example: 'item.title' => 'Vacancy title (string)'
+     * }
+     */
+    public function extract_template_variables( $data, string $prefix = '', int $depth = 0 ): array {
+        if ( $depth > 10 ) {
+            return array();
+        }
+
+        $variables = array();
+
+        if ( is_array( $data ) ) {
+            // Check if it's a numeric array (list)
+            $is_list = array_keys( $data ) === range( 0, count( $data ) - 1 );
+
+            if ( $is_list && ! empty( $data ) ) {
+                // For arrays, use [0] notation and recurse into first item
+                $item_prefix = $prefix ? "{$prefix}[0]" : '[0]';
+                $variables = array_merge(
+                    $variables,
+                    $this->extract_template_variables( $data[0], $item_prefix, $depth + 1 )
+                );
+            } else {
+                // For associative arrays, recurse into each key
+                foreach ( $data as $key => $value ) {
+                    $path = $prefix ? "{$prefix}.{$key}" : $key;
+
+                    if ( is_array( $value ) || is_object( $value ) ) {
+                        $variables = array_merge(
+                            $variables,
+                            $this->extract_template_variables( $value, $path, $depth + 1 )
+                        );
+                    } else {
+                        $type = gettype( $value );
+                        $sample = $this->get_sample_value( $value );
+                        $variables[ $path ] = sprintf(
+                            '%s (%s) - Example: %s',
+                            $this->humanize_field_name( $key ),
+                            $type,
+                            $sample
+                        );
+                    }
+                }
+            }
+        } elseif ( is_object( $data ) ) {
+            foreach ( get_object_vars( $data ) as $key => $value ) {
+                $path = $prefix ? "{$prefix}.{$key}" : $key;
+
+                if ( is_array( $value ) || is_object( $value ) ) {
+                    $variables = array_merge(
+                        $variables,
+                        $this->extract_template_variables( $value, $path, $depth + 1 )
+                    );
+                } else {
+                    $type = gettype( $value );
+                    $sample = $this->get_sample_value( $value );
+                    $variables[ $path ] = sprintf(
+                        '%s (%s) - Example: %s',
+                        $this->humanize_field_name( $key ),
+                        $type,
+                        $sample
+                    );
+                }
+            }
+        }
+
+        return $variables;
+    }
+
+    /**
+     * Get enhanced rate limit information
+     *
+     * Provides detailed rate limiting configuration including current usage stats.
+     *
+     * @return array {
+     *     Enhanced rate limit information.
+     *     @type int    $requests_per_minute     Maximum requests per minute.
+     *     @type int    $delay_ms                Delay between requests (milliseconds).
+     *     @type int    $requests_per_hour       Calculated hourly limit.
+     *     @type int    $requests_per_day        Calculated daily limit.
+     *     @type string $recommended_page_size   Recommended pagination size.
+     *     @type array  $retry_config           Retry configuration settings.
+     * }
+     */
+    public function get_rate_limit_info(): array {
+        $limits = $this->get_rate_limits();
+
+        return array(
+            'requests_per_minute'   => $limits['requests_per_minute'],
+            'delay_ms'              => $limits['delay_ms'],
+            'requests_per_hour'     => $limits['requests_per_minute'] * 60,
+            'requests_per_day'      => $limits['requests_per_minute'] * 60 * 24,
+            'recommended_page_size' => 100, // Can be overridden by child class
+            'retry_config'          => array(
+                'max_retries'     => 3,
+                'initial_delay'   => 1000, // ms
+                'backoff_multiplier' => 2,
+            ),
+            'throttle_on_429'       => true,
+            'respect_retry_after'   => true,
+        );
+    }
+
+    /**
+     * Validate response structure against expected template
+     *
+     * Checks if a response contains the expected fields for normalization.
+     *
+     * @param array $response   Response data to validate.
+     * @param array $required_fields  Required field paths (dot notation).
+     * @return array {
+     *     Validation result.
+     *     @type bool   $valid    Whether validation passed.
+     *     @type array  $missing  Missing required fields.
+     *     @type array  $warnings Optional field warnings.
+     * }
+     */
+    public function validate_response_structure( array $response, array $required_fields = array() ): array {
+        if ( empty( $required_fields ) ) {
+            // Default required fields for vacancy data
+            $required_fields = array( 'title', 'employer_name', 'posted_date' );
+        }
+
+        $missing = array();
+        $warnings = array();
+
+        foreach ( $required_fields as $field_path ) {
+            $value = $this->get_nested_value( $response, $field_path );
+
+            if ( null === $value || '' === $value ) {
+                $missing[] = $field_path;
+            }
+        }
+
+        // Check optional but recommended fields
+        $optional_fields = array( 'description', 'location', 'apply_url' );
+        foreach ( $optional_fields as $field_path ) {
+            $value = $this->get_nested_value( $response, $field_path );
+
+            if ( null === $value || '' === $value ) {
+                $warnings[] = "Optional field '{$field_path}' is missing";
+            }
+        }
+
+        return array(
+            'valid'    => empty( $missing ),
+            'missing'  => $missing,
+            'warnings' => $warnings,
+        );
+    }
+
+    /**
+     * Get nested value from array using dot notation
+     *
+     * @param array  $array Array to search.
+     * @param string $path  Dot-notated path (e.g., 'items.0.title').
+     * @return mixed Value at path or null if not found.
+     */
+    protected function get_nested_value( array $array, string $path ) {
+        $keys = explode( '.', $path );
+        $value = $array;
+
+        foreach ( $keys as $key ) {
+            // Handle array notation like [0]
+            if ( preg_match( '/\[(\d+)\]/', $key, $matches ) ) {
+                $key = (int) $matches[1];
+            }
+
+            if ( ! is_array( $value ) || ! isset( $value[ $key ] ) ) {
+                return null;
+            }
+
+            $value = $value[ $key ];
+        }
+
+        return $value;
+    }
+
+    /**
+     * Humanize field name
+     *
+     * Converts snake_case or camelCase to readable format.
+     *
+     * @param string $field_name Field name to humanize.
+     * @return string Humanized field name.
+     */
+    protected function humanize_field_name( string $field_name ): string {
+        // Convert camelCase to snake_case first
+        $field_name = preg_replace( '/(?<!^)[A-Z]/', '_$0', $field_name );
+
+        // Replace underscores and hyphens with spaces
+        $field_name = str_replace( array( '_', '-' ), ' ', $field_name );
+
+        // Capitalize words
+        return ucwords( strtolower( $field_name ) );
+    }
+
+    /**
+     * Get sample value for display
+     *
+     * Returns a shortened version of a value for example display.
+     *
+     * @param mixed $value Value to format.
+     * @return string Formatted sample value.
+     */
+    protected function get_sample_value( $value ): string {
+        if ( is_bool( $value ) ) {
+            return $value ? 'true' : 'false';
+        }
+
+        if ( is_null( $value ) ) {
+            return 'null';
+        }
+
+        if ( is_numeric( $value ) ) {
+            return (string) $value;
+        }
+
+        $str = (string) $value;
+        return mb_strlen( $str ) > 50 ? mb_substr( $str, 0, 47 ) . '...' : $str;
+    }
 }
