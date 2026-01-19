@@ -30,6 +30,7 @@ define( 'APPRCO_PLUGIN_BASENAME', plugin_basename( __FILE__ ) );
 define( 'APPRCO_DB_VERSION', '2.0.0' );
 
 // Include required files
+require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-database.php';
 require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-import-logger.php';
 require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-api-client.php';
 require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-geocoder.php';
@@ -120,6 +121,10 @@ class Apprco_Connector {
      * Initialize plugin
      */
     public function init(): void {
+        // Initialize database manager (ensures tables exist)
+        $database = Apprco_Database::get_instance();
+        $database->init();
+
         // Initialize and register providers
         $this->register_providers();
 
