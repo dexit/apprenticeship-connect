@@ -36,6 +36,8 @@ require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-geocoder.php';
 require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-employer.php';
 require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-import-wizard.php';
 require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-import-tasks.php';
+require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-task-scheduler.php';
+require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-db-upgrade.php';
 
 // Provider abstraction layer
 require_once APPRCO_PLUGIN_DIR . 'includes/interfaces/interface-apprco-provider.php';
@@ -126,6 +128,10 @@ class Apprco_Connector {
 
         // Initialize scheduler
         $this->scheduler = Apprco_Scheduler::get_instance();
+
+        // Initialize import task scheduler
+        $task_scheduler = Apprco_Task_Scheduler::get_instance();
+        $task_scheduler->init();
 
         // Initialize admin
         if ( is_admin() ) {
