@@ -657,15 +657,49 @@ class Apprco_Import_Tasks {
         ) );
 
         if ( is_wp_error( $response ) ) {
-            return array( 'success' => false, 'error' => $response->get_error_message() );
+            $error_message = sprintf(
+                'API request failed: %s. Please check your API Base URL and network connection.',
+                $response->get_error_message()
+            );
+            return array( 'success' => false, 'error' => $error_message );
         }
 
-        if ( wp_remote_retrieve_response_code( $response ) !== 200 ) {
-            return array( 'success' => false, 'error' => 'HTTP ' . wp_remote_retrieve_response_code( $response ) );
+        $response_code = wp_remote_retrieve_response_code( $response );
+        if ( $response_code !== 200 ) {
+            $error_details = array(
+                401 => 'Unauthorized. Please check your API authentication key.',
+                403 => 'Forbidden. Your API key may not have permission to access this resource.',
+                404 => 'Not found. Please check your API endpoint.',
+                429 => 'Rate limit exceeded. Please try again later.',
+                500 => 'Server error. The API service is experiencing issues.',
+                503 => 'Service unavailable. The API is temporarily down.',
+            );
+            $error_message = $error_details[ $response_code ] ?? 'Request failed.';
+            return array(
+                'success' => false,
+                'error'   => sprintf( 'HTTP %d: %s', $response_code, $error_message )
+            );
         }
 
-        $data  = json_decode( wp_remote_retrieve_body( $response ), true );
+        $body = wp_remote_retrieve_body( $response );
+        $data = json_decode( $body, true );
+
+        if ( json_last_error() !== JSON_ERROR_NONE ) {
+            return array(
+                'success' => false,
+                'error'   => sprintf( 'Invalid JSON response: %s', json_last_error_msg() )
+            );
+        }
+
         $items = $this->get_nested_value( $data, $task['data_path'] ) ?? array();
+
+        if ( ! is_array( $items ) ) {
+            return array(
+                'success' => false,
+                'error'   => sprintf( 'Data path "%s" did not return an array. Check your data path configuration.', $task['data_path'] )
+            );
+        }
+
         $total = $this->get_nested_value( $data, $task['total_path'] );
 
         return array(

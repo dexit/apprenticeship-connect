@@ -312,6 +312,46 @@ class Apprco_Admin {
         $sanitized['no_vacancy_image']     = isset( $input['no_vacancy_image'] ) ? esc_url_raw( $input['no_vacancy_image'] ) : '';
         $sanitized['show_no_vacancy_image'] = isset( $input['show_no_vacancy_image'] ) ? true : false;
 
+        // Validate API credentials
+        if ( ! empty( $sanitized['api_base_url'] ) && ! filter_var( $sanitized['api_base_url'], FILTER_VALIDATE_URL ) ) {
+            add_settings_error(
+                'apprco_plugin_options',
+                'invalid_api_url',
+                __( 'API Base URL must be a valid URL.', 'apprenticeship-connect' ),
+                'error'
+            );
+            $sanitized['api_base_url'] = '';
+        }
+
+        if ( ! empty( $sanitized['api_subscription_key'] ) && strlen( $sanitized['api_subscription_key'] ) < 10 ) {
+            add_settings_error(
+                'apprco_plugin_options',
+                'invalid_api_key',
+                __( 'API Subscription Key appears to be invalid (too short).', 'apprenticeship-connect' ),
+                'warning'
+            );
+        }
+
+        if ( $sanitized['expire_after_days'] < 1 || $sanitized['expire_after_days'] > 365 ) {
+            add_settings_error(
+                'apprco_plugin_options',
+                'invalid_expire_days',
+                __( 'Expire after days must be between 1 and 365.', 'apprenticeship-connect' ),
+                'error'
+            );
+            $sanitized['expire_after_days'] = 7;
+        }
+
+        if ( $sanitized['display_count'] < 1 || $sanitized['display_count'] > 100 ) {
+            add_settings_error(
+                'apprco_plugin_options',
+                'invalid_display_count',
+                __( 'Display count must be between 1 and 100.', 'apprenticeship-connect' ),
+                'error'
+            );
+            $sanitized['display_count'] = 10;
+        }
+
         // Reschedule sync if frequency changed
         $old_options = get_option( 'apprco_plugin_options', array() );
         if ( isset( $old_options['sync_frequency'] ) && $old_options['sync_frequency'] !== $sanitized['sync_frequency'] ) {
@@ -1641,6 +1681,28 @@ class Apprco_Admin {
             'schedule_enabled'   => isset( $_POST['schedule_enabled'] ) ? 1 : 0,
             'schedule_frequency' => sanitize_text_field( wp_unslash( $_POST['schedule_frequency'] ?? 'daily' ) ),
         );
+
+        // Validate required fields
+        $validation_errors = array();
+        if ( empty( $data['name'] ) ) {
+            $validation_errors[] = __( 'Task name is required.', 'apprenticeship-connect' );
+        }
+        if ( empty( $data['api_base_url'] ) || ! filter_var( $data['api_base_url'], FILTER_VALIDATE_URL ) ) {
+            $validation_errors[] = __( 'Valid API Base URL is required.', 'apprenticeship-connect' );
+        }
+        if ( empty( $data['unique_id_field'] ) ) {
+            $validation_errors[] = __( 'Unique ID field is required for duplicate detection.', 'apprenticeship-connect' );
+        }
+        if ( $data['page_size'] < 1 || $data['page_size'] > 1000 ) {
+            $validation_errors[] = __( 'Page size must be between 1 and 1000.', 'apprenticeship-connect' );
+        }
+
+        if ( ! empty( $validation_errors ) ) {
+            wp_send_json_error( array(
+                'message' => __( 'Validation failed:', 'apprenticeship-connect' ),
+                'errors'  => $validation_errors,
+            ) );
+        }
 
         $tasks_manager = Apprco_Import_Tasks::get_instance();
 
