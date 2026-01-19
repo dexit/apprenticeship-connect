@@ -254,8 +254,13 @@ class Apprco_Import_Tasks {
             return false;
         }
 
-        $this->logger->info( sprintf( 'Created import task: %s (ID: %d)', $data['name'], $wpdb->insert_id ), null, 'core' );
-        return $wpdb->insert_id;
+        $task_id = $wpdb->insert_id;
+        $this->logger->info( sprintf( 'Created import task: %s (ID: %d)', $data['name'], $task_id ), null, 'core' );
+
+        // Trigger action for scheduler
+        do_action( 'apprco_task_saved', $task_id );
+
+        return $task_id;
     }
 
     /**
@@ -285,6 +290,9 @@ class Apprco_Import_Tasks {
             $this->logger->error( sprintf( 'Failed to update import task %d: %s', $id, $wpdb->last_error ), null, 'core' );
             return false;
         }
+
+        // Trigger action for scheduler
+        do_action( 'apprco_task_saved', $id );
 
         return true;
     }
@@ -363,6 +371,9 @@ class Apprco_Import_Tasks {
 
         if ( $result ) {
             $this->logger->info( sprintf( 'Deleted import task ID: %d', $id ), null, 'core' );
+
+            // Trigger action for scheduler
+            do_action( 'apprco_task_deleted', $id );
         }
 
         return (bool) $result;
