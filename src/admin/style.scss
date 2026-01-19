@@ -1,0 +1,208 @@
+/**
+ * Apprenticeship Connect Admin Styles
+ *
+ * Modern SCSS implementation
+ *
+ * @package ApprenticeshipConnect
+ */
+
+// Admin notice styles
+.apprco-notice {
+	padding: 12px 15px;
+	margin: 15px 0;
+	border-left: 4px solid;
+	background: #fff;
+	box-shadow: 0 1px 1px rgba(0, 0, 0, 0.04);
+
+	&.apprco-notice-success {
+		border-left-color: #46b450;
+		color: #155724;
+		background-color: #d4edda;
+	}
+
+	&.apprco-notice-error {
+		border-left-color: #dc3232;
+		color: #721c24;
+		background-color: #f8d7da;
+	}
+
+	&.apprco-notice-warning {
+		border-left-color: #ffb900;
+		color: #856404;
+		background-color: #fff3cd;
+	}
+
+	&.apprco-notice-info {
+		border-left-color: #00a0d2;
+		color: #004085;
+		background-color: #d1ecf1;
+	}
+}
+
+// Loading indicator
+.apprco-loading {
+	display: inline-block;
+	position: relative;
+	padding-left: 25px;
+
+	&::before {
+		content: '';
+		position: absolute;
+		left: 0;
+		top: 50%;
+		transform: translateY(-50%);
+		width: 16px;
+		height: 16px;
+		border: 2px solid #f3f3f3;
+		border-top: 2px solid #2271b1;
+		border-radius: 50%;
+		animation: spin 1s linear infinite;
+	}
+}
+
+@keyframes spin {
+	0% {
+		transform: translateY(-50%) rotate(0deg);
+	}
+	100% {
+		transform: translateY(-50%) rotate(360deg);
+	}
+}
+
+// Form error states
+input.error,
+select.error,
+textarea.error {
+	border-color: #dc3232 !important;
+	box-shadow: 0 0 0 1px #dc3232 !important;
+}
+
+// Shortcode inline styles
+.apprco-shortcode-inline code {
+	cursor: pointer;
+	transition: all 0.2s ease;
+	padding: 2px 8px;
+	background: #f0f0f1;
+	border-radius: 3px;
+
+	&:hover {
+		background: #dcdcde;
+	}
+}
+
+// Logs page styles
+.apprco-logs {
+	.apprco-log-entry {
+		padding: 10px 15px;
+		margin-bottom: 10px;
+		border-left: 4px solid;
+		background: #fff;
+		display: flex;
+		gap: 15px;
+		align-items: center;
+
+		&.info {
+			border-left-color: #00a0d2;
+		}
+
+		&.warning {
+			border-left-color: #ffb900;
+		}
+
+		&.error {
+			border-left-color: #dc3232;
+		}
+
+		.log-time {
+			color: #646970;
+			font-size: 12px;
+			white-space: nowrap;
+		}
+
+		.log-level {
+			padding: 2px 8px;
+			border-radius: 3px;
+			font-size: 11px;
+			font-weight: 600;
+			text-transform: uppercase;
+			white-space: nowrap;
+		}
+
+		.log-message {
+			flex: 1;
+		}
+	}
+}
+
+// Setup wizard progress
+.apprco-setup-progress {
+	margin-bottom: 30px;
+
+	.setup-steps {
+		display: flex;
+		justify-content: space-between;
+		position: relative;
+		margin-bottom: 20px;
+
+		&::before {
+			content: '';
+			position: absolute;
+			top: 20px;
+			left: 0;
+			right: 0;
+			height: 2px;
+			background: #dcdcde;
+			z-index: 0;
+		}
+
+		.step {
+			position: relative;
+			z-index: 1;
+			text-align: center;
+
+			.step-number {
+				display: inline-block;
+				width: 40px;
+				height: 40px;
+				line-height: 40px;
+				border-radius: 50%;
+				background: #dcdcde;
+				color: #646970;
+				font-weight: 600;
+				margin-bottom: 5px;
+			}
+
+			&.active .step-number {
+				background: #2271b1;
+				color: #fff;
+			}
+
+			&.completed .step-number {
+				background: #46b450;
+				color: #fff;
+			}
+		}
+	}
+}
+
+// Dashboard widget styles
+.apprco-dashboard-widget {
+	.dashboard-stat {
+		padding: 15px;
+		background: #f6f7f7;
+		border-radius: 4px;
+		margin-bottom: 15px;
+
+		.stat-label {
+			color: #646970;
+			font-size: 13px;
+			margin-bottom: 5px;
+		}
+
+		.stat-value {
+			font-size: 24px;
+			font-weight: 600;
+			color: #1d2327;
+		}
+	}
+}
