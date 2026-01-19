@@ -1,0 +1,135 @@
+/**
+ * Apprenticeship Connect Frontend Styles
+ *
+ * Modern SCSS implementation
+ *
+ * @package ApprenticeshipConnect
+ */
+
+// Vacancy list styles
+.apprco-vacancy-list {
+	.vacancy-item {
+		padding: 20px;
+		margin-bottom: 20px;
+		background: #fff;
+		border: 1px solid #ddd;
+		border-radius: 4px;
+		transition: box-shadow 0.2s ease;
+
+		&:hover {
+			box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+		}
+
+		.vacancy-title {
+			font-size: 20px;
+			font-weight: 600;
+			margin-bottom: 10px;
+
+			a {
+				color: #2271b1;
+				text-decoration: none;
+
+				&:hover {
+					text-decoration: underline;
+				}
+			}
+		}
+
+		.vacancy-meta {
+			color: #646970;
+			font-size: 14px;
+			margin-bottom: 15px;
+
+			span {
+				margin-right: 15px;
+			}
+		}
+
+		.vacancy-excerpt {
+			margin-bottom: 15px;
+			line-height: 1.6;
+		}
+
+		.vacancy-apply {
+			display: inline-block;
+			padding: 10px 20px;
+			background: #2271b1;
+			color: #fff;
+			text-decoration: none;
+			border-radius: 4px;
+			transition: background 0.2s ease;
+
+			&:hover {
+				background: #135e96;
+			}
+		}
+	}
+}
+
+// Search form styles
+.apprco-search-form {
+	padding: 20px;
+	background: #f6f7f7;
+	border-radius: 4px;
+	margin-bottom: 30px;
+
+	.search-field {
+		margin-bottom: 15px;
+
+		label {
+			display: block;
+			margin-bottom: 5px;
+			font-weight: 600;
+		}
+
+		input,
+		select {
+			width: 100%;
+			padding: 8px 12px;
+			border: 1px solid #ddd;
+			border-radius: 4px;
+		}
+	}
+
+	button {
+		padding: 10px 20px;
+		background: #2271b1;
+		color: #fff;
+		border: none;
+		border-radius: 4px;
+		cursor: pointer;
+		transition: background 0.2s ease;
+
+		&:hover {
+			background: #135e96;
+		}
+	}
+}
+
+// Pagination styles
+.apprco-pagination {
+	display: flex;
+	justify-content: center;
+	gap: 5px;
+	margin-top: 30px;
+
+	a,
+	span {
+		display: inline-block;
+		padding: 8px 12px;
+		border: 1px solid #ddd;
+		border-radius: 4px;
+		text-decoration: none;
+		color: #2271b1;
+
+		&.current {
+			background: #2271b1;
+			color: #fff;
+			border-color: #2271b1;
+		}
+
+		&:hover:not(.current) {
+			background: #f6f7f7;
+		}
+	}
+}

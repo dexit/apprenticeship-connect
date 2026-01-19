@@ -1,0 +1,50 @@
+# Dependencies
+/node_modules/
+/vendor/
+
+# Build output
+/assets/build/
+*.asset.php
+
+# WordPress
+/wordpress/
+/wp-content/
+/.wp-env.json
+
+# Testing
+/coverage/
+/tests/_output/
+/.phpunit.result.cache
+
+# IDE
+/.idea/
+/.vscode/
+*.sublime-project
+*.sublime-workspace
+.DS_Store
+Thumbs.db
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.log
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+# Package files
+*.zip
+
+# Composer
+composer.lock
+composer.phar

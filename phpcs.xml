@@ -1,0 +1,72 @@
+<?xml version="1.0"?>
+<ruleset name="Apprenticeship Connect Coding Standards">
+	<description>Coding standards for Apprenticeship Connect plugin</description>
+
+	<!-- Check all PHP files in directory tree by default. -->
+	<file>.</file>
+
+	<!-- Exclude patterns -->
+	<exclude-pattern>*/node_modules/*</exclude-pattern>
+	<exclude-pattern>*/vendor/*</exclude-pattern>
+	<exclude-pattern>*/assets/build/*</exclude-pattern>
+	<exclude-pattern>*/tests/*</exclude-pattern>
+	<exclude-pattern>*.js</exclude-pattern>
+	<exclude-pattern>*.css</exclude-pattern>
+
+	<!-- Show progress and sniff codes in all reports -->
+	<arg value="ps"/>
+	<arg name="colors"/>
+	<arg name="extensions" value="php"/>
+	<arg name="parallel" value="8"/>
+
+	<!-- Include the WordPress-Extra standard. -->
+	<rule ref="WordPress-Extra">
+		<!-- Allow short array syntax -->
+		<exclude name="Generic.Arrays.DisallowShortArraySyntax"/>
+		<exclude name="Universal.Arrays.DisallowShortArraySyntax"/>
+
+		<!-- We use PSR-4 autoloading -->
+		<exclude name="WordPress.Files.FileName"/>
+	</rule>
+
+	<!-- Include the WordPress-Docs standard. -->
+	<rule ref="WordPress-Docs"/>
+
+	<!-- Let's also check that everything is properly documented. -->
+	<rule ref="WordPress-Docs">
+		<exclude name="Squiz.Commenting.FileComment.Missing"/>
+		<exclude name="Squiz.Commenting.FileComment.MissingPackageTag"/>
+	</rule>
+
+	<!-- Add in some extra rules from other standards. -->
+	<rule ref="Generic.CodeAnalysis.UnusedFunctionParameter"/>
+	<rule ref="Generic.Commenting.Todo"/>
+
+	<!-- Check for PHP cross-version compatibility. -->
+	<config name="testVersion" value="7.4-"/>
+	<rule ref="PHPCompatibility">
+		<include-pattern>*\.php$</include-pattern>
+	</rule>
+
+	<!-- Minimum WordPress version -->
+	<config name="minimum_supported_wp_version" value="5.8"/>
+
+	<!-- Plugin-specific configuration -->
+	<rule ref="WordPress.WP.I18n">
+		<properties>
+			<property name="text_domain" type="array">
+				<element value="apprenticeship-connect"/>
+			</property>
+		</properties>
+	</rule>
+
+	<rule ref="WordPress.NamingConventions.PrefixAllGlobals">
+		<properties>
+			<property name="prefixes" type="array">
+				<element value="apprco"/>
+				<element value="APPRCO"/>
+				<element value="ApprCo"/>
+			</property>
+		</properties>
+	</rule>
+</ruleset>
