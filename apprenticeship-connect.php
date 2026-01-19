@@ -37,6 +37,7 @@ require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-geocoder.php';
 require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-employer.php';
 require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-import-wizard.php';
 require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-import-tasks.php';
+require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-import-adapter.php';
 require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-task-scheduler.php';
 require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-db-upgrade.php';
 

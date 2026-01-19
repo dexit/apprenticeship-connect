@@ -635,10 +635,21 @@ class Apprco_Core {
     /**
      * Manual sync function
      *
+     * Uses the Import Adapter to run a one-time import with global settings.
+     * This ensures consistent behavior with Import Tasks and Import Wizard.
+     *
      * @return bool
      */
     public function manual_sync(): bool {
-        return $this->fetch_and_save_vacancies( 'manual' );
+        $adapter = Apprco_Import_Adapter::get_instance();
+        $result  = $adapter->run_manual_sync();
+
+        // Update last sync time on success
+        if ( $result['success'] ) {
+            update_option( 'apprco_last_sync', current_time( 'timestamp' ) );
+        }
+
+        return $result['success'];
     }
 
     /**
@@ -647,19 +658,17 @@ class Apprco_Core {
      * @return array
      */
     public function get_sync_status(): array {
-        $last_sync       = get_option( 'apprco_last_sync' );
-        $total_vacancies = wp_count_posts( 'apprco_vacancy' );
-        $logger          = new Apprco_Import_Logger();
-        $log_stats       = $logger->get_stats();
+        $adapter = Apprco_Import_Adapter::get_instance();
+        $stats   = $adapter->get_stats();
 
         return array(
-            'last_sync'        => $last_sync,
-            'last_sync_human'  => $last_sync ? human_time_diff( $last_sync ) . ' ago' : 'Never',
-            'total_vacancies'  => $total_vacancies->publish ?? 0,
-            'draft_vacancies'  => $total_vacancies->draft ?? 0,
+            'last_sync'        => $stats['last_sync'],
+            'last_sync_human'  => $stats['last_sync_human'],
+            'total_vacancies'  => $stats['total_vacancies'],
+            'draft_vacancies'  => $stats['draft_vacancies'],
             'is_configured'    => ! empty( $this->options['api_subscription_key'] ),
-            'last_import'      => $log_stats['last_run'],
-            'total_imports'    => $log_stats['total_runs'],
+            'last_import'      => $stats['last_import'],
+            'total_imports'    => $stats['total_imports'],
         );
     }
 
