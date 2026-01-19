@@ -189,8 +189,17 @@ class Apprco_Admin {
         $current_page = isset( $_GET['page'] ) ? sanitize_text_field( wp_unslash( $_GET['page'] ) ) : '';
 
         if ( in_array( $current_page, $apprco_pages, true ) ) {
-            wp_enqueue_style( 'apprco-admin', APPRCO_PLUGIN_URL . 'assets/css/admin.css', array(), APPRCO_PLUGIN_VERSION );
-            wp_enqueue_script( 'apprco-admin', APPRCO_PLUGIN_URL . 'assets/js/admin.js', array( 'jquery' ), APPRCO_PLUGIN_VERSION, true );
+            // Load modern built admin assets
+            $admin_asset_file = APPRCO_PLUGIN_DIR . 'assets/build/admin.asset.php';
+            if ( file_exists( $admin_asset_file ) ) {
+                $admin_asset = include $admin_asset_file;
+                wp_enqueue_style( 'apprco-admin', APPRCO_PLUGIN_URL . 'assets/build/style-admin.css', array(), $admin_asset['version'] );
+                wp_enqueue_script( 'apprco-admin', APPRCO_PLUGIN_URL . 'assets/build/admin.js', $admin_asset['dependencies'], $admin_asset['version'], true );
+            } else {
+                // Fallback to old assets if build doesn't exist
+                wp_enqueue_style( 'apprco-admin', APPRCO_PLUGIN_URL . 'assets/css/admin.css', array(), APPRCO_PLUGIN_VERSION );
+                wp_enqueue_script( 'apprco-admin', APPRCO_PLUGIN_URL . 'assets/js/admin.js', array( 'jquery' ), APPRCO_PLUGIN_VERSION, true );
+            }
             wp_enqueue_media();
 
             wp_localize_script( 'apprco-admin', 'apprcoAjax', array(
@@ -209,8 +218,15 @@ class Apprco_Admin {
 
         // Import wizard specific assets
         if ( 'apprco-import-wizard' === $current_page ) {
-            wp_enqueue_style( 'apprco-import-wizard', APPRCO_PLUGIN_URL . 'assets/css/import-wizard.css', array(), APPRCO_PLUGIN_VERSION );
-            wp_enqueue_script( 'apprco-import-wizard', APPRCO_PLUGIN_URL . 'assets/js/import-wizard.js', array( 'jquery' ), APPRCO_PLUGIN_VERSION, true );
+            $wizard_asset_file = APPRCO_PLUGIN_DIR . 'assets/build/import-wizard.asset.php';
+            if ( file_exists( $wizard_asset_file ) ) {
+                $wizard_asset = include $wizard_asset_file;
+                wp_enqueue_script( 'apprco-import-wizard', APPRCO_PLUGIN_URL . 'assets/build/import-wizard.js', $wizard_asset['dependencies'], $wizard_asset['version'], true );
+            } else {
+                // Fallback to old assets if build doesn't exist
+                wp_enqueue_style( 'apprco-import-wizard', APPRCO_PLUGIN_URL . 'assets/css/import-wizard.css', array(), APPRCO_PLUGIN_VERSION );
+                wp_enqueue_script( 'apprco-import-wizard', APPRCO_PLUGIN_URL . 'assets/js/import-wizard.js', array( 'jquery' ), APPRCO_PLUGIN_VERSION, true );
+            }
 
             $wizard = Apprco_Import_Wizard::get_instance();
             wp_localize_script( 'apprco-import-wizard', 'apprcoWizard', $wizard->get_js_data() );

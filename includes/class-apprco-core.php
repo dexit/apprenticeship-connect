@@ -175,7 +175,16 @@ class Apprco_Core {
      * Enqueue scripts and styles
      */
     public function enqueue_scripts(): void {
-        wp_enqueue_style( 'apprco-style', APPRCO_PLUGIN_URL . 'assets/css/apprco.css', array(), APPRCO_PLUGIN_VERSION );
+        // Load modern built frontend assets
+        $frontend_asset_file = APPRCO_PLUGIN_DIR . 'assets/build/frontend.asset.php';
+        if ( file_exists( $frontend_asset_file ) ) {
+            $frontend_asset = include $frontend_asset_file;
+            wp_enqueue_style( 'apprco-style', APPRCO_PLUGIN_URL . 'assets/build/style-frontend.css', array(), $frontend_asset['version'] );
+            wp_enqueue_script( 'apprco-frontend', APPRCO_PLUGIN_URL . 'assets/build/frontend.js', $frontend_asset['dependencies'], $frontend_asset['version'], true );
+        } else {
+            // Fallback to old assets if build doesn't exist
+            wp_enqueue_style( 'apprco-style', APPRCO_PLUGIN_URL . 'assets/css/apprco.css', array(), APPRCO_PLUGIN_VERSION );
+        }
     }
 
     /**
