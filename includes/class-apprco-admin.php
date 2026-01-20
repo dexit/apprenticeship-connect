@@ -189,8 +189,17 @@ class Apprco_Admin {
         $current_page = isset( $_GET['page'] ) ? sanitize_text_field( wp_unslash( $_GET['page'] ) ) : '';
 
         if ( in_array( $current_page, $apprco_pages, true ) ) {
-            wp_enqueue_style( 'apprco-admin', APPRCO_PLUGIN_URL . 'assets/css/admin.css', array(), APPRCO_PLUGIN_VERSION );
-            wp_enqueue_script( 'apprco-admin', APPRCO_PLUGIN_URL . 'assets/js/admin.js', array( 'jquery' ), APPRCO_PLUGIN_VERSION, true );
+            // Load modern built admin assets
+            $admin_asset_file = APPRCO_PLUGIN_DIR . 'assets/build/admin.asset.php';
+            if ( file_exists( $admin_asset_file ) ) {
+                $admin_asset = include $admin_asset_file;
+                wp_enqueue_style( 'apprco-admin', APPRCO_PLUGIN_URL . 'assets/build/style-admin.css', array(), $admin_asset['version'] );
+                wp_enqueue_script( 'apprco-admin', APPRCO_PLUGIN_URL . 'assets/build/admin.js', $admin_asset['dependencies'], $admin_asset['version'], true );
+            } else {
+                // Fallback to old assets if build doesn't exist
+                wp_enqueue_style( 'apprco-admin', APPRCO_PLUGIN_URL . 'assets/css/admin.css', array(), APPRCO_PLUGIN_VERSION );
+                wp_enqueue_script( 'apprco-admin', APPRCO_PLUGIN_URL . 'assets/js/admin.js', array( 'jquery' ), APPRCO_PLUGIN_VERSION, true );
+            }
             wp_enqueue_media();
 
             wp_localize_script( 'apprco-admin', 'apprcoAjax', array(
@@ -207,10 +216,35 @@ class Apprco_Admin {
             ) );
         }
 
+        // Dashboard React app
+        if ( 'apprco-dashboard' === $current_page ) {
+            $dashboard_asset_file = APPRCO_PLUGIN_DIR . 'assets/build/dashboard.asset.php';
+            if ( file_exists( $dashboard_asset_file ) ) {
+                $dashboard_asset = include $dashboard_asset_file;
+                wp_enqueue_script( 'apprco-dashboard', APPRCO_PLUGIN_URL . 'assets/build/dashboard.js', $dashboard_asset['dependencies'], $dashboard_asset['version'], true );
+            }
+        }
+
+        // Settings React app
+        if ( 'apprco-settings' === $current_page ) {
+            $settings_asset_file = APPRCO_PLUGIN_DIR . 'assets/build/settings.asset.php';
+            if ( file_exists( $settings_asset_file ) ) {
+                $settings_asset = include $settings_asset_file;
+                wp_enqueue_script( 'apprco-settings', APPRCO_PLUGIN_URL . 'assets/build/settings.js', $settings_asset['dependencies'], $settings_asset['version'], true );
+            }
+        }
+
         // Import wizard specific assets
         if ( 'apprco-import-wizard' === $current_page ) {
-            wp_enqueue_style( 'apprco-import-wizard', APPRCO_PLUGIN_URL . 'assets/css/import-wizard.css', array(), APPRCO_PLUGIN_VERSION );
-            wp_enqueue_script( 'apprco-import-wizard', APPRCO_PLUGIN_URL . 'assets/js/import-wizard.js', array( 'jquery' ), APPRCO_PLUGIN_VERSION, true );
+            $wizard_asset_file = APPRCO_PLUGIN_DIR . 'assets/build/import-wizard.asset.php';
+            if ( file_exists( $wizard_asset_file ) ) {
+                $wizard_asset = include $wizard_asset_file;
+                wp_enqueue_script( 'apprco-import-wizard', APPRCO_PLUGIN_URL . 'assets/build/import-wizard.js', $wizard_asset['dependencies'], $wizard_asset['version'], true );
+            } else {
+                // Fallback to old assets if build doesn't exist
+                wp_enqueue_style( 'apprco-import-wizard', APPRCO_PLUGIN_URL . 'assets/css/import-wizard.css', array(), APPRCO_PLUGIN_VERSION );
+                wp_enqueue_script( 'apprco-import-wizard', APPRCO_PLUGIN_URL . 'assets/js/import-wizard.js', array( 'jquery' ), APPRCO_PLUGIN_VERSION, true );
+            }
 
             $wizard = Apprco_Import_Wizard::get_instance();
             wp_localize_script( 'apprco-import-wizard', 'apprcoWizard', $wizard->get_js_data() );
@@ -295,6 +329,46 @@ class Apprco_Admin {
         $sanitized['show_apply_button']    = isset( $input['show_apply_button'] ) ? true : false;
         $sanitized['no_vacancy_image']     = isset( $input['no_vacancy_image'] ) ? esc_url_raw( $input['no_vacancy_image'] ) : '';
         $sanitized['show_no_vacancy_image'] = isset( $input['show_no_vacancy_image'] ) ? true : false;
+
+        // Validate API credentials
+        if ( ! empty( $sanitized['api_base_url'] ) && ! filter_var( $sanitized['api_base_url'], FILTER_VALIDATE_URL ) ) {
+            add_settings_error(
+                'apprco_plugin_options',
+                'invalid_api_url',
+                __( 'API Base URL must be a valid URL.', 'apprenticeship-connect' ),
+                'error'
+            );
+            $sanitized['api_base_url'] = '';
+        }
+
+        if ( ! empty( $sanitized['api_subscription_key'] ) && strlen( $sanitized['api_subscription_key'] ) < 10 ) {
+            add_settings_error(
+                'apprco_plugin_options',
+                'invalid_api_key',
+                __( 'API Subscription Key appears to be invalid (too short).', 'apprenticeship-connect' ),
+                'warning'
+            );
+        }
+
+        if ( $sanitized['expire_after_days'] < 1 || $sanitized['expire_after_days'] > 365 ) {
+            add_settings_error(
+                'apprco_plugin_options',
+                'invalid_expire_days',
+                __( 'Expire after days must be between 1 and 365.', 'apprenticeship-connect' ),
+                'error'
+            );
+            $sanitized['expire_after_days'] = 7;
+        }
+
+        if ( $sanitized['display_count'] < 1 || $sanitized['display_count'] > 100 ) {
+            add_settings_error(
+                'apprco_plugin_options',
+                'invalid_display_count',
+                __( 'Display count must be between 1 and 100.', 'apprenticeship-connect' ),
+                'error'
+            );
+            $sanitized['display_count'] = 10;
+        }
 
         // Reschedule sync if frequency changed
         $old_options = get_option( 'apprco_plugin_options', array() );
@@ -477,67 +551,10 @@ class Apprco_Admin {
      * Dashboard page
      */
     public function dashboard_page(): void {
-        $sync_status = $this->get_sync_status();
-        $scheduler   = Apprco_Scheduler::get_instance();
-        $sched_status = $scheduler->get_status();
-        $logger      = new Apprco_Import_Logger();
-        $log_stats   = $logger->get_stats();
         ?>
-        <div class="wrap apprco-dashboard">
-            <h1><?php esc_html_e( 'Apprenticeship Connect Dashboard', 'apprenticeship-connect' ); ?></h1>
-
-            <div class="apprco-dashboard-grid">
-                <!-- Status Cards -->
-                <div class="apprco-card">
-                    <h2><?php esc_html_e( 'Sync Status', 'apprenticeship-connect' ); ?></h2>
-                    <div class="apprco-stat">
-                        <span class="apprco-stat-value"><?php echo esc_html( $sync_status['total_vacancies'] ); ?></span>
-                        <span class="apprco-stat-label"><?php esc_html_e( 'Published Vacancies', 'apprenticeship-connect' ); ?></span>
-                    </div>
-                    <p><strong><?php esc_html_e( 'Last Sync:', 'apprenticeship-connect' ); ?></strong> <?php echo esc_html( $sync_status['last_sync_human'] ); ?></p>
-                    <p><strong><?php esc_html_e( 'Next Sync:', 'apprenticeship-connect' ); ?></strong> <?php echo esc_html( $sched_status['next_sync_formatted'] ?? __( 'Not scheduled', 'apprenticeship-connect' ) ); ?></p>
-                </div>
-
-                <div class="apprco-card">
-                    <h2><?php esc_html_e( 'Quick Actions', 'apprenticeship-connect' ); ?></h2>
-                    <p>
-                        <a href="<?php echo esc_url( admin_url( 'admin.php?page=apprco-import-wizard' ) ); ?>" class="button button-primary"><?php esc_html_e( 'Import Wizard', 'apprenticeship-connect' ); ?></a>
-                        <button type="button" id="apprco-dashboard-sync" class="button"><?php esc_html_e( 'Quick Sync', 'apprenticeship-connect' ); ?></button>
-                    </p>
-                    <p>
-                        <a href="<?php echo esc_url( admin_url( 'edit.php?post_type=apprco_vacancy' ) ); ?>" class="button"><?php esc_html_e( 'View Vacancies', 'apprenticeship-connect' ); ?></a>
-                        <a href="<?php echo esc_url( admin_url( 'admin.php?page=apprco-logs' ) ); ?>" class="button"><?php esc_html_e( 'View Logs', 'apprenticeship-connect' ); ?></a>
-                        <a href="<?php echo esc_url( admin_url( 'admin.php?page=apprco-settings' ) ); ?>" class="button"><?php esc_html_e( 'Settings', 'apprenticeship-connect' ); ?></a>
-                    </p>
-                    <div id="apprco-dashboard-result"></div>
-                </div>
-
-                <div class="apprco-card">
-                    <h2><?php esc_html_e( 'Import Statistics', 'apprenticeship-connect' ); ?></h2>
-                    <p><strong><?php esc_html_e( 'Total Imports:', 'apprenticeship-connect' ); ?></strong> <?php echo esc_html( $log_stats['total_runs'] ); ?></p>
-                    <?php if ( $log_stats['last_run'] ) : ?>
-                        <p><strong><?php esc_html_e( 'Last Import:', 'apprenticeship-connect' ); ?></strong></p>
-                        <ul>
-                            <li><?php esc_html_e( 'Fetched:', 'apprenticeship-connect' ); ?> <?php echo esc_html( $log_stats['last_run']['total_fetched'] ); ?></li>
-                            <li><?php esc_html_e( 'Created:', 'apprenticeship-connect' ); ?> <?php echo esc_html( $log_stats['last_run']['total_created'] ); ?></li>
-                            <li><?php esc_html_e( 'Updated:', 'apprenticeship-connect' ); ?> <?php echo esc_html( $log_stats['last_run']['total_updated'] ); ?></li>
-                            <li><?php esc_html_e( 'Status:', 'apprenticeship-connect' ); ?> <?php echo esc_html( $log_stats['last_run']['status'] ); ?></li>
-                        </ul>
-                    <?php endif; ?>
-                </div>
-
-                <div class="apprco-card">
-                    <h2><?php esc_html_e( 'Elementor Integration', 'apprenticeship-connect' ); ?></h2>
-                    <?php if ( Apprco_Elementor::is_elementor_active() ) : ?>
-                        <p class="apprco-badge apprco-badge-success"><?php esc_html_e( 'Elementor Active', 'apprenticeship-connect' ); ?></p>
-                        <p><?php esc_html_e( 'Use Dynamic Tags in Elementor to display vacancy data in your templates.', 'apprenticeship-connect' ); ?></p>
-                        <p><?php esc_html_e( 'Available in Loop Grid, Single Post templates, and more.', 'apprenticeship-connect' ); ?></p>
-                    <?php else : ?>
-                        <p class="apprco-badge apprco-badge-info"><?php esc_html_e( 'Elementor Not Detected', 'apprenticeship-connect' ); ?></p>
-                        <p><?php esc_html_e( 'Install Elementor to use dynamic tags and loop grid features.', 'apprenticeship-connect' ); ?></p>
-                    <?php endif; ?>
-                </div>
-            </div>
+        <div class="wrap">
+            <!-- React Dashboard will render here -->
+            <div id="apprco-dashboard-root"></div>
         </div>
         <?php
     }
@@ -666,15 +683,9 @@ class Apprco_Admin {
      */
     public function admin_page(): void {
         ?>
-        <div class="wrap apprco-settings">
-            <h1><?php echo esc_html( get_admin_page_title() ); ?></h1>
-            <form method="post" action="options.php" class="apprco-form">
-                <?php
-                settings_fields( 'apprco_plugin_options' );
-                do_settings_sections( 'apprco-settings' );
-                submit_button();
-                ?>
-            </form>
+        <div class="wrap">
+            <!-- React Settings will render here -->
+            <div id="apprco-settings-root"></div>
         </div>
         <?php
     }
@@ -1625,6 +1636,28 @@ class Apprco_Admin {
             'schedule_enabled'   => isset( $_POST['schedule_enabled'] ) ? 1 : 0,
             'schedule_frequency' => sanitize_text_field( wp_unslash( $_POST['schedule_frequency'] ?? 'daily' ) ),
         );
+
+        // Validate required fields
+        $validation_errors = array();
+        if ( empty( $data['name'] ) ) {
+            $validation_errors[] = __( 'Task name is required.', 'apprenticeship-connect' );
+        }
+        if ( empty( $data['api_base_url'] ) || ! filter_var( $data['api_base_url'], FILTER_VALIDATE_URL ) ) {
+            $validation_errors[] = __( 'Valid API Base URL is required.', 'apprenticeship-connect' );
+        }
+        if ( empty( $data['unique_id_field'] ) ) {
+            $validation_errors[] = __( 'Unique ID field is required for duplicate detection.', 'apprenticeship-connect' );
+        }
+        if ( $data['page_size'] < 1 || $data['page_size'] > 1000 ) {
+            $validation_errors[] = __( 'Page size must be between 1 and 1000.', 'apprenticeship-connect' );
+        }
+
+        if ( ! empty( $validation_errors ) ) {
+            wp_send_json_error( array(
+                'message' => __( 'Validation failed:', 'apprenticeship-connect' ),
+                'errors'  => $validation_errors,
+            ) );
+        }
 
         $tasks_manager = Apprco_Import_Tasks::get_instance();
 

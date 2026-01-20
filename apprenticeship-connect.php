@@ -30,12 +30,15 @@ define( 'APPRCO_PLUGIN_BASENAME', plugin_basename( __FILE__ ) );
 define( 'APPRCO_DB_VERSION', '2.0.0' );
 
 // Include required files
+require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-database.php';
+require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-settings-manager.php';
 require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-import-logger.php';
 require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-api-client.php';
 require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-geocoder.php';
 require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-employer.php';
 require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-import-wizard.php';
 require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-import-tasks.php';
+require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-import-adapter.php';
 require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-task-scheduler.php';
 require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-db-upgrade.php';
 
@@ -54,6 +57,7 @@ require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-setup-wizard.php';
 require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-elementor.php';
 require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-meta-box.php';
 require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-rest-api.php';
+require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-rest-controller.php';
 require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-shortcodes.php';
 
 /**
@@ -120,6 +124,10 @@ class Apprco_Connector {
      * Initialize plugin
      */
     public function init(): void {
+        // Initialize database manager (ensures tables exist)
+        $database = Apprco_Database::get_instance();
+        $database->init();
+
         // Initialize and register providers
         $this->register_providers();
 

@@ -1,0 +1,113 @@
+/**
+ * Dashboard Styles
+ *
+ * @package ApprenticeshipConnect
+ */
+
+.apprco-dashboard {
+	max-width: 1400px;
+	margin: 20px 0;
+
+	&-loading {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 10px;
+		padding: 40px;
+	}
+
+	&-header {
+		margin-bottom: 24px;
+	}
+}
+
+.apprco-stats-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+	gap: 16px;
+	margin: 24px 0;
+}
+
+.apprco-stat-widget {
+	.apprco-stat-title {
+		display: block;
+		margin-bottom: 8px;
+		font-size: 12px;
+		text-transform: uppercase;
+		letter-spacing: 0.5px;
+	}
+
+	.apprco-stat-value {
+		font-size: 32px;
+		font-weight: 600;
+		line-height: 1.2;
+	}
+
+	.apprco-stat-icon {
+		opacity: 0.7;
+	}
+
+	&.apprco-stat-blue .apprco-stat-icon {
+		color: #2271b1;
+	}
+
+	&.apprco-stat-green .apprco-stat-icon {
+		color: #00a32a;
+	}
+
+	&.apprco-stat-purple .apprco-stat-icon {
+		color: #8a2be2;
+	}
+
+	&.apprco-stat-red .apprco-stat-icon {
+		color: #d63638;
+	}
+
+	&.apprco-stat-orange .apprco-stat-icon {
+		color: #f0b849;
+	}
+}
+
+.apprco-quick-actions {
+	margin: 24px 0;
+}
+
+.apprco-recent-imports {
+	margin: 24px 0;
+
+	table {
+		margin-top: 16px;
+	}
+
+	.apprco-error-count {
+		color: #d63638;
+		font-weight: 600;
+	}
+
+	.apprco-status {
+		padding: 4px 8px;
+		border-radius: 3px;
+		font-size: 11px;
+		text-transform: uppercase;
+		font-weight: 600;
+
+		&-completed {
+			background: #00a32a20;
+			color: #00a32a;
+		}
+
+		&-running {
+			background: #2271b120;
+			color: #2271b1;
+		}
+
+		&-failed {
+			background: #d6363820;
+			color: #d63638;
+		}
+	}
+}
+
+.apprco-api-status {
+	margin: 24px 0;
+}
