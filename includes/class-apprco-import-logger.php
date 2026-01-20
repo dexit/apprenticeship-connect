@@ -468,6 +468,16 @@ class Apprco_Import_Logger {
     }
 
     /**
+     * Get recent import runs (alias for REST API)
+     *
+     * @param int $limit Number of import runs to retrieve.
+     * @return array
+     */
+    public function get_recent( int $limit = 5 ): array {
+        return $this->get_import_runs( $limit );
+    }
+
+    /**
      * Get logs for a specific import
      *
      * @param string $import_id Import ID.

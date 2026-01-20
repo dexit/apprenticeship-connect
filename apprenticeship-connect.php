@@ -31,6 +31,7 @@ define( 'APPRCO_DB_VERSION', '2.0.0' );
 
 // Include required files
 require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-database.php';
+require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-settings-manager.php';
 require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-import-logger.php';
 require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-api-client.php';
 require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-geocoder.php';
@@ -56,6 +57,7 @@ require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-setup-wizard.php';
 require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-elementor.php';
 require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-meta-box.php';
 require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-rest-api.php';
+require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-rest-controller.php';
 require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-shortcodes.php';
 
 /**

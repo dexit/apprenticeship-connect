@@ -15,6 +15,8 @@ module.exports = {
 	entry: {
 		// Admin scripts
 		'admin': path.resolve(process.cwd(), 'src/admin', 'index.js'),
+		'dashboard': path.resolve(process.cwd(), 'src/admin', 'dashboard.js'),
+		'settings': path.resolve(process.cwd(), 'src/admin', 'settings.js'),
 		'import-wizard': path.resolve(process.cwd(), 'src/admin/import-wizard', 'index.js'),
 		'meta-box': path.resolve(process.cwd(), 'src/admin/meta-box', 'index.js'),
 
