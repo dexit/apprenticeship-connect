@@ -124,8 +124,9 @@ class Apprco_Scheduler {
      * @param bool $force Force rescheduling even if already scheduled.
      */
     public function schedule_sync( bool $force = false ): void {
-        $options   = get_option( 'apprco_plugin_options', array() );
-        $frequency = $options['sync_frequency'] ?? 'daily';
+        // Get settings from Settings Manager (unified settings system)
+        $settings_manager = Apprco_Settings_Manager::get_instance();
+        $frequency = $settings_manager->get( 'schedule', 'frequency' ) ?? 'daily';
 
         $intervals = array(
             'hourly'     => HOUR_IN_SECONDS,
@@ -407,7 +408,9 @@ class Apprco_Scheduler {
         $next_sync     = $this->get_next_sync_time();
         $is_running    = $this->is_import_running();
         $pending_count = $this->get_pending_count();
-        $options       = get_option( 'apprco_plugin_options', array() );
+
+        // Get settings from Settings Manager (unified settings system)
+        $settings_manager = Apprco_Settings_Manager::get_instance();
 
         return array(
             'action_scheduler_available' => self::has_action_scheduler(),
@@ -415,7 +418,7 @@ class Apprco_Scheduler {
             'next_sync'                  => $next_sync,
             'next_sync_formatted'        => $next_sync ? wp_date( 'Y-m-d H:i:s', $next_sync ) : null,
             'pending_actions'            => $pending_count,
-            'frequency'                  => $options['sync_frequency'] ?? 'daily',
+            'frequency'                  => $settings_manager->get( 'schedule', 'frequency' ) ?? 'daily',
             'last_sync'                  => get_option( 'apprco_last_sync' ),
         );
     }
