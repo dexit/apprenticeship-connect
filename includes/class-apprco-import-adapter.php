@@ -78,16 +78,7 @@ class Apprco_Import_Adapter {
 	public function run_manual_sync( array $override_options = array() ): array {
 		// Get settings from Settings Manager (unified settings system)
 		$settings_manager = Apprco_Settings_Manager::get_instance();
-
-		// Build options array from Settings Manager
-		$options = array(
-			'api_subscription_key' => $settings_manager->get( 'api', 'subscription_key' ),
-			'api_base_url'         => $settings_manager->get( 'api', 'base_url' ),
-			'api_ukprn'            => $settings_manager->get( 'api', 'ukprn' ),
-			'batch_size'           => $settings_manager->get( 'import', 'batch_size' ),
-			'max_pages'            => $settings_manager->get( 'import', 'max_pages' ),
-			'post_status'          => $settings_manager->get( 'import', 'post_status' ),
-		);
+		$options          = $settings_manager->get_options_array();
 
 		// Merge with overrides
 		$options = array_merge( $options, $override_options );

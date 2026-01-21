@@ -158,18 +158,9 @@ class Apprco_Core {
     private function __construct() {
         // Load options from Settings Manager (unified settings system)
         $settings_manager = Apprco_Settings_Manager::get_instance();
-        $this->options = array(
-            'api_subscription_key' => $settings_manager->get( 'api', 'subscription_key' ),
-            'api_base_url'         => $settings_manager->get( 'api', 'base_url' ),
-            'api_ukprn'            => $settings_manager->get( 'api', 'ukprn' ),
-            'batch_size'           => $settings_manager->get( 'import', 'batch_size' ),
-            'max_pages'            => $settings_manager->get( 'import', 'max_pages' ),
-            'post_status'          => $settings_manager->get( 'import', 'post_status' ),
-            'delete_expired'       => $settings_manager->get( 'import', 'delete_expired' ),
-            'expire_after_days'    => $settings_manager->get( 'import', 'expire_after_days' ),
-        );
-        $this->logger   = new Apprco_Import_Logger();
-        $this->importer = new Apprco_API_Importer( $this->options, $this->logger );
+        $this->options    = $settings_manager->get_options_array();
+        $this->logger     = new Apprco_Import_Logger();
+        $this->importer   = new Apprco_API_Importer( $this->options, $this->logger );
         $this->init_hooks();
     }
 

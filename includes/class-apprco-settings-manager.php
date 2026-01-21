@@ -435,6 +435,57 @@ class Apprco_Settings_Manager {
 	}
 
 	/**
+	 * Get settings as flat options array (legacy format)
+	 *
+	 * Converts categorized settings into the flat array format
+	 * expected by legacy code components.
+	 *
+	 * @return array Flat options array with legacy key names.
+	 */
+	public function get_options_array(): array {
+		return array(
+			// API settings
+			'api_subscription_key' => $this->get( 'api', 'subscription_key' ),
+			'api_base_url'         => $this->get( 'api', 'base_url' ),
+			'api_ukprn'            => $this->get( 'api', 'ukprn' ),
+			'api_version'          => $this->get( 'api', 'version' ),
+			'api_timeout'          => $this->get( 'api', 'timeout' ),
+			'retry_max'            => $this->get( 'api', 'retry_max' ),
+			'retry_delay'          => $this->get( 'api', 'retry_delay' ),
+
+			// Import settings
+			'batch_size'           => $this->get( 'import', 'batch_size' ),
+			'max_pages'            => $this->get( 'import', 'max_pages' ),
+			'rate_limit_delay'     => $this->get( 'import', 'rate_limit_delay' ),
+			'duplicate_action'     => $this->get( 'import', 'duplicate_action' ),
+			'post_status'          => $this->get( 'import', 'post_status' ),
+			'delete_expired'       => $this->get( 'import', 'delete_expired' ),
+			'expire_after_days'    => $this->get( 'import', 'expire_after_days' ),
+
+			// Schedule settings
+			'sync_frequency'       => $this->get( 'schedule', 'frequency' ),
+			'sync_time'            => $this->get( 'schedule', 'time' ),
+			'use_action_scheduler' => $this->get( 'schedule', 'use_action_scheduler' ),
+
+			// Display settings
+			'display_count'        => $this->get( 'display', 'items_per_page' ),
+			'show_employer'        => $this->get( 'display', 'show_employer' ),
+			'show_location'        => $this->get( 'display', 'show_location' ),
+			'show_salary'          => $this->get( 'display', 'show_salary' ),
+			'show_closing_date'    => $this->get( 'display', 'show_closing_date' ),
+			'show_apply_button'    => $this->get( 'display', 'show_apply_button' ),
+			'date_format'          => $this->get( 'display', 'date_format' ),
+
+			// Advanced settings
+			'enable_geocoding'     => $this->get( 'advanced', 'enable_geocoding' ),
+			'enable_employers'     => $this->get( 'advanced', 'enable_employers' ),
+			'enable_logging'       => $this->get( 'advanced', 'enable_logging' ),
+			'log_retention_days'   => $this->get( 'advanced', 'log_retention_days' ),
+			'debug_mode'           => $this->get( 'advanced', 'debug_mode' ),
+		);
+	}
+
+	/**
 	 * Register REST API routes
 	 */
 	public function register_rest_routes(): void {
