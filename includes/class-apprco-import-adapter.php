@@ -97,7 +97,7 @@ class Apprco_Import_Adapter {
 			'description'        => 'Temporary task for manual sync from settings page',
 			'provider_id'        => 'uk-gov-apprenticeships',
 			'api_base_url'       => $options['api_base_url'],
-			'api_endpoint'       => '/vacancy',
+			'api_endpoint'       => '',
 			'api_method'         => 'GET',
 			'api_auth_type'      => 'header_key',
 			'api_auth_key'       => 'Ocp-Apim-Subscription-Key',
