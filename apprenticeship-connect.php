@@ -58,6 +58,8 @@ require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-elementor.php';
 require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-meta-box.php';
 require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-rest-api.php';
 require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-rest-controller.php';
+require_once APPRCO_PLUGIN_DIR . 'includes/rest/class-apprco-rest-proxy.php';
+require_once APPRCO_PLUGIN_DIR . 'includes/rest/class-apprco-rest-geocoding.php';
 require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-shortcodes.php';
 
 /**
@@ -717,6 +719,21 @@ class Apprco_Connector {
                 },
             )
         );
+
+        // Register CORS proxy endpoints for Display Advert API v2
+        $proxy = new Apprco_REST_Proxy();
+        $proxy->register_routes();
+
+        // Register geocoding endpoints for location lookup
+        $geocoding = new Apprco_REST_Geocoding();
+        $geocoding->register_routes();
+
+        // Register settings and import REST endpoints
+        $rest_controller = Apprco_REST_Controller::get_instance();
+        $rest_controller->register_routes();
+
+        $settings_manager = Apprco_Settings_Manager::get_instance();
+        $settings_manager->register_rest_routes();
     }
 
     /**

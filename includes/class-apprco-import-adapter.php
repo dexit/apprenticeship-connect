@@ -76,7 +76,9 @@ class Apprco_Import_Adapter {
 	 * @return array Import result with success, fetched, created, updated, errors.
 	 */
 	public function run_manual_sync( array $override_options = array() ): array {
-		$options = get_option( 'apprco_plugin_options', array() );
+		// Get settings from Settings Manager (unified settings system)
+		$settings_manager = Apprco_Settings_Manager::get_instance();
+		$options          = $settings_manager->get_options_array();
 
 		// Merge with overrides
 		$options = array_merge( $options, $override_options );
@@ -108,11 +110,11 @@ class Apprco_Import_Adapter {
 			'pagination_type'    => 'page_number',
 			'page_param'         => 'PageNumber',
 			'page_size_param'    => 'PageSize',
-			'page_size'          => 100,
+			'page_size'          => ! empty( $options['batch_size'] ) ? (int) $options['batch_size'] : 100,
 			'field_mappings'     => $this->get_default_field_mapping(),
 			'unique_id_field'    => 'vacancyReference',
 			'target_post_type'   => 'apprco_vacancy',
-			'post_status'        => 'publish',
+			'post_status'        => ! empty( $options['post_status'] ) ? $options['post_status'] : 'publish',
 			'transforms_enabled' => 0,
 			'transforms_code'    => '',
 			'schedule_enabled'   => 0,
@@ -122,7 +124,7 @@ class Apprco_Import_Adapter {
 
 		// Add UKPRN filter if configured
 		if ( ! empty( $options['api_ukprn'] ) ) {
-			$task_data['api_params']['ukprn'] = $options['api_ukprn'];
+			$task_data['api_params']['Ukprn'] = $options['api_ukprn'];
 		}
 
 		// Create task

@@ -99,8 +99,9 @@ class Apprco_Import_Logger {
      * @return string
      */
     public function get_configured_level(): string {
-        $options = get_option( 'apprco_plugin_options', array() );
-        return $options['log_level'] ?? 'trace'; // MAX logging by default
+        $settings_manager = Apprco_Settings_Manager::get_instance();
+        $debug_mode       = $settings_manager->get( 'advanced', 'debug_mode' );
+        return $debug_mode ? 'trace' : 'info'; // Trace if debug mode, otherwise info
     }
 
     /**

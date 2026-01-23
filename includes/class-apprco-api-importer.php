@@ -69,7 +69,12 @@ class Apprco_API_Importer {
      * @param Apprco_Import_Logger $logger  Optional. Logger instance.
      */
     public function __construct( array $options = array(), Apprco_Import_Logger $logger = null ) {
-        $this->options = ! empty( $options ) ? $options : get_option( 'apprco_plugin_options', array() );
+        // If no options provided, load from Settings Manager (unified settings system)
+        if ( empty( $options ) ) {
+            $settings_manager = Apprco_Settings_Manager::get_instance();
+            $options          = $settings_manager->get_options_array();
+        }
+        $this->options = $options;
         $this->logger  = $logger ?? new Apprco_Import_Logger();
     }
 

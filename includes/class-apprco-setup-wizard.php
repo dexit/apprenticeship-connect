@@ -449,6 +449,16 @@ class Apprco_Setup_Wizard {
                 }
                 update_option( 'apprco_plugin_options', $options );
 
+                // Sync to unified Settings Manager
+                $settings_manager = Apprco_Settings_Manager::get_instance();
+                $settings_manager->update_bulk( array(
+                    'api' => array(
+                        'subscription_key' => isset( $options['api_subscription_key'] ) ? $options['api_subscription_key'] : '',
+                        'base_url'         => isset( $options['api_base_url'] ) ? $options['api_base_url'] : '',
+                        'ukprn'            => isset( $options['api_ukprn'] ) ? $options['api_ukprn'] : '',
+                    ),
+                ) );
+
                 // Ensure no output has been sent before redirect
                 ob_end_clean();
                 wp_safe_redirect( html_entity_decode( wp_nonce_url( admin_url( 'admin.php?page=apprco-setup&step=3' ), 'apprco_setup_wizard' ) ) );
@@ -465,6 +475,18 @@ class Apprco_Setup_Wizard {
                 $options['show_closing_date'] = isset( $_POST['show_closing_date'] ) && $_POST['show_closing_date'] === '1';
                 $options['show_apply_button'] = isset( $_POST['show_apply_button'] ) && $_POST['show_apply_button'] === '1';
                 update_option( 'apprco_plugin_options', $options );
+
+                // Sync to unified Settings Manager
+                $settings_manager = Apprco_Settings_Manager::get_instance();
+                $settings_manager->update_bulk( array(
+                    'display' => array(
+                        'items_per_page'    => isset( $options['display_count'] ) ? $options['display_count'] : 10,
+                        'show_employer'     => isset( $options['show_employer'] ) ? $options['show_employer'] : true,
+                        'show_location'     => isset( $options['show_location'] ) ? $options['show_location'] : true,
+                        'show_closing_date' => isset( $options['show_closing_date'] ) ? $options['show_closing_date'] : true,
+                        'show_apply_button' => isset( $options['show_apply_button'] ) ? $options['show_apply_button'] : true,
+                    ),
+                ) );
 
                 // Ensure no output has been sent before redirect
                 ob_end_clean();

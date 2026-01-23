@@ -156,9 +156,11 @@ class Apprco_Core {
      * Constructor
      */
     private function __construct() {
-        $this->options  = get_option( 'apprco_plugin_options', array() );
-        $this->logger   = new Apprco_Import_Logger();
-        $this->importer = new Apprco_API_Importer( $this->options, $this->logger );
+        // Load options from Settings Manager (unified settings system)
+        $settings_manager = Apprco_Settings_Manager::get_instance();
+        $this->options    = $settings_manager->get_options_array();
+        $this->logger     = new Apprco_Import_Logger();
+        $this->importer   = new Apprco_API_Importer( $this->options, $this->logger );
         $this->init_hooks();
     }
 
