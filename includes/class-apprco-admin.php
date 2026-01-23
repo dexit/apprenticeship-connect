@@ -231,6 +231,13 @@ class Apprco_Admin {
             if ( file_exists( $settings_asset_file ) ) {
                 $settings_asset = include $settings_asset_file;
                 wp_enqueue_script( 'apprco-settings', APPRCO_PLUGIN_URL . 'assets/build/settings.js', $settings_asset['dependencies'], $settings_asset['version'], true );
+            } else {
+                // Fallback: Show build instructions
+                add_action('admin_notices', function() {
+                    echo '<div class="notice notice-error"><p>';
+                    echo '<strong>Settings UI Missing:</strong> Run <code>npm install && npm run build</code> in plugin directory to compile React assets.';
+                    echo '</p></div>';
+                });
             }
         }
 
