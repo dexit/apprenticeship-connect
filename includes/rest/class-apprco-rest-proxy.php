@@ -231,15 +231,16 @@ class Apprco_REST_Proxy {
 			$url = add_query_arg( $query_params, $url );
 		}
 
-		// Make request with proper headers
+		// Make request with ALL required headers
 		$response = wp_remote_get(
 			$url,
 			array(
 				'timeout' => 30,
 				'headers' => array(
-					'X-Version'                => '2',
+					'X-Version'                 => '2',
 					'Ocp-Apim-Subscription-Key' => $api_key,
-					'Accept'                   => 'application/json',
+					'Accept'                    => 'application/json',
+					'Content-Type'              => 'application/json',
 				),
 			)
 		);

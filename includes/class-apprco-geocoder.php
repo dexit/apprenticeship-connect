@@ -140,13 +140,14 @@ class Apprco_Geocoder {
         // Apply rate limiting
         $this->apply_rate_limit();
 
-        // Build search query
+        // Build search query - Using jsonv2 format with full details
         $params = array(
-            'format'         => 'json',
-            'postalcode'     => $postcode,
-            'countrycodes'   => 'gb',
+            'q'              => $postcode,
             'addressdetails' => 1,
-            'limit'          => 1,
+            'extratags'      => 1,
+            'namedetails'    => 1,
+            'format'         => 'jsonv2',
+            'limit'          => 1, // Only want best match
         );
 
         $result = $this->make_request( '/search', $params );
@@ -227,12 +228,14 @@ class Apprco_Geocoder {
         // Apply rate limiting
         $this->apply_rate_limit();
 
-        // Build reverse geocode query
+        // Build reverse geocode query - EXACT format per user specification
         $params = array(
-            'format'         => 'json',
             'lat'            => $latitude,
             'lon'            => $longitude,
             'addressdetails' => 1,
+            'extratags'      => 1,
+            'namedetails'    => 1,
+            'format'         => 'jsonv2',
         );
 
         $result = $this->make_request( '/reverse', $params );
@@ -286,6 +289,43 @@ class Apprco_Geocoder {
     }
 
     /**
+     * Forward geocode - convert any location string to coordinates
+     *
+     * This method intelligently handles postcodes, addresses, or location names.
+     *
+     * @param string $location Location to geocode (postcode, address, city, etc).
+     * @return array|WP_Error Result array or WP_Error on failure.
+     */
+    public function forward_geocode( string $location ) {
+        $location = trim( $location );
+
+        if ( empty( $location ) ) {
+            return new WP_Error( 'empty_location', 'Location cannot be empty' );
+        }
+
+        // If it looks like a postcode (alphanumeric without spaces or with one space), use postcode method
+        $normalized = str_replace( ' ', '', strtoupper( $location ) );
+        if ( preg_match( '/^[A-Z]{1,2}[0-9]{1,2}[A-Z]?[0-9][A-Z]{2}$/', $normalized ) ) {
+            $result = $this->geocode_postcode( $location );
+        } else {
+            // Otherwise treat as general address/location
+            $result = $this->geocode_address( $location );
+        }
+
+        if ( ! $result['success'] ) {
+            return new WP_Error( 'geocode_failed', $result['error'] ?? 'Geocoding failed' );
+        }
+
+        // Return in format expected by REST API
+        return array(
+            'lat'          => $result['latitude'],
+            'lon'          => $result['longitude'],
+            'display_name' => $result['display_name'] ?? $location,
+            '_source'      => $result['cached'] ? 'cache' : 'osm',
+        );
+    }
+
+    /**
      * Geocode a full address string
      *
      * @param string $address  Full address string.
@@ -318,12 +358,14 @@ class Apprco_Geocoder {
         // Apply rate limiting
         $this->apply_rate_limit();
 
+        // Using jsonv2 format with full details
         $params = array(
-            'format'         => 'json',
             'q'              => $query,
-            'countrycodes'   => 'gb',
             'addressdetails' => 1,
-            'limit'          => 1,
+            'extratags'      => 1,
+            'namedetails'    => 1,
+            'format'         => 'jsonv2',
+            'limit'          => 1, // Only want best match
         );
 
         $result = $this->make_request( '/search', $params );
