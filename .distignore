@@ -20,20 +20,33 @@ phpunit.xml
 phpunit.xml.dist
 .phpunit.result.cache
 
-# Build tools
+# Build tools and scripts
 webpack.config.js
 package.json
 package-lock.json
 composer.json
 composer.lock
+build-plugin.sh
+verify.php
 
 # Source files (we include the built assets, not source)
 /src/
 
-# Documentation
+# Development documentation (keep only README.md)
+ARCHITECTURE-ANALYSIS.md
+BUILD-SETUP.md
+CODEBASE-ANALYSIS-AND-CRITICAL-BUGS.md
+DEPLOYMENT.md
+ENDPOINT-TESTS.md
+IMPLEMENTATION-SUMMARY.md
+IMPORT-TASKS-GUIDE.md
+PRODUCTION-READY.md
+REALITY-CHECK.md
+SESSION-PROGRESS.md
+SETTINGS-FIX-SUMMARY.md
+UPGRADE-PLAN.md
+UPGRADE-STATUS.md
 /docs/
-*.md
-!README.md
 
 # Testing
 /tests/
@@ -67,5 +80,9 @@ yarn-error.log*
 
 # Git
 .gitattributes
-.gitignore
 .gitmodules
+
+# Build artifacts
+/build/
+/dist/
+*.zip
