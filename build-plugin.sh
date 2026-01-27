@@ -39,31 +39,12 @@ rm -f "${ZIP_NAME}"
 mkdir -p "${BUILD_DIR}/${PLUGIN_SLUG}"
 mkdir -p "${DIST_DIR}"
 
-# Install Node dependencies
-echo -e "${BLUE}→ Installing Node dependencies...${NC}"
-if ! command -v npm &> /dev/null; then
-    echo -e "${RED}✗ npm is not installed${NC}"
-    exit 1
-fi
-npm ci --prefer-offline --no-audit
+# Prepare assets directory (no build needed for traditional PHP forms)
+echo -e "${BLUE}→ Preparing assets directory...${NC}"
+mkdir -p assets/build
+echo "/* Apprenticeship Connect - Import Tasks Plugin */" > assets/build/.keep
 
-# Build JavaScript/CSS assets
-echo -e "${BLUE}→ Building JavaScript and CSS assets...${NC}"
-npm run build
-if [ ! -d "assets/build" ]; then
-    echo -e "${RED}✗ Build failed - assets/build directory not found${NC}"
-    exit 1
-fi
-
-# Install Composer dependencies (production only)
-echo -e "${BLUE}→ Installing Composer dependencies (production only)...${NC}"
-if command -v composer &> /dev/null; then
-    composer install --no-dev --optimize-autoloader --no-interaction
-    COMPOSER_INSTALLED=true
-else
-    echo -e "${YELLOW}⚠ Composer not found - skipping PHP dependencies${NC}"
-    COMPOSER_INSTALLED=false
-fi
+# No external dependencies needed for lean version
 
 # Copy plugin files to build directory
 echo -e "${BLUE}→ Copying plugin files...${NC}"
@@ -130,19 +111,10 @@ for file in "${REQUIRED_FILES[@]}"; do
     fi
 done
 
-# Verify built assets exist
-BUILT_ASSETS=(
-    "${BUILD_DIR}/${PLUGIN_SLUG}/assets/build/admin.js"
-    "${BUILD_DIR}/${PLUGIN_SLUG}/assets/build/dashboard.js"
-    "${BUILD_DIR}/${PLUGIN_SLUG}/assets/build/settings.js"
-)
-
-for asset in "${BUILT_ASSETS[@]}"; do
-    if [ ! -f "$asset" ]; then
-        echo -e "${RED}✗ Built asset missing: ${asset}${NC}"
-        exit 1
-    fi
-done
+# Verify at least some built assets exist (if any)
+if [ -d "${BUILD_DIR}/${PLUGIN_SLUG}/assets/build" ] && [ ! -z "$(find ${BUILD_DIR}/${PLUGIN_SLUG}/assets/build -type f)" ]; then
+    echo -e "${GREEN}✓ Built assets found${NC}"
+fi
 
 echo -e "${GREEN}✓ All required files present${NC}"
 
@@ -178,12 +150,6 @@ echo ""
 # Cleanup build directory (keep dist)
 echo -e "${BLUE}→ Cleaning up...${NC}"
 rm -rf "${BUILD_DIR}"
-
-# Restore dev dependencies if composer was used
-if [ "$COMPOSER_INSTALLED" = true ]; then
-    echo -e "${BLUE}→ Restoring dev dependencies...${NC}"
-    composer install --no-interaction
-fi
 
 # Final summary
 echo ""

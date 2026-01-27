@@ -29,37 +29,17 @@ define( 'APPRCO_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'APPRCO_PLUGIN_BASENAME', plugin_basename( __FILE__ ) );
 define( 'APPRCO_DB_VERSION', '2.0.0' );
 
-// Include required files
+// Include required files - Core only (Import Tasks focused)
 require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-database.php';
-require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-settings-manager.php';
 require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-import-logger.php';
 require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-api-client.php';
-require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-geocoder.php';
-require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-employer.php';
-require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-import-wizard.php';
 require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-import-tasks.php';
 require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-import-adapter.php';
 require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-task-scheduler.php';
 require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-db-upgrade.php';
 
-// Provider abstraction layer
-require_once APPRCO_PLUGIN_DIR . 'includes/interfaces/interface-apprco-provider.php';
-require_once APPRCO_PLUGIN_DIR . 'includes/providers/abstract-apprco-provider.php';
-require_once APPRCO_PLUGIN_DIR . 'includes/providers/class-apprco-provider-registry.php';
-require_once APPRCO_PLUGIN_DIR . 'includes/providers/class-apprco-uk-gov-provider.php';
-
-// Core functionality
-require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-api-importer.php';
-require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-scheduler.php';
-require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-core.php';
+// Admin interface
 require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-admin.php';
-require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-setup-wizard.php';
-require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-elementor.php';
-require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-meta-box.php';
-require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-rest-api.php';
-require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-rest-controller.php';
-require_once APPRCO_PLUGIN_DIR . 'includes/rest/class-apprco-rest-proxy.php';
-require_once APPRCO_PLUGIN_DIR . 'includes/rest/class-apprco-rest-geocoding.php';
 require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-shortcodes.php';
 
 /**
@@ -74,19 +54,6 @@ class Apprco_Connector {
      */
     private static $instance = null;
 
-    /**
-     * Core instance
-     *
-     * @var Apprco_Core|null
-     */
-    private $core = null;
-
-    /**
-     * Scheduler instance
-     *
-     * @var Apprco_Scheduler|null
-     */
-    private $scheduler = null;
 
     /**
      * Get plugin instance
@@ -113,7 +80,6 @@ class Apprco_Connector {
     private function init_hooks(): void {
         add_action( 'init', array( $this, 'init' ) );
         add_action( 'plugins_loaded', array( $this, 'load_textdomain' ) );
-        add_action( 'plugins_loaded', array( $this, 'init_integrations' ), 20 );
 
         register_activation_hook( __FILE__, array( $this, 'activate' ) );
         register_deactivation_hook( __FILE__, array( $this, 'deactivate' ) );
@@ -130,15 +96,6 @@ class Apprco_Connector {
         $database = Apprco_Database::get_instance();
         $database->init();
 
-        // Initialize and register providers
-        $this->register_providers();
-
-        // Initialize core
-        $this->core = Apprco_Core::get_instance();
-
-        // Initialize scheduler
-        $this->scheduler = Apprco_Scheduler::get_instance();
-
         // Initialize import task scheduler
         $task_scheduler = Apprco_Task_Scheduler::get_instance();
         $task_scheduler->init();
@@ -146,35 +103,18 @@ class Apprco_Connector {
         // Initialize admin
         if ( is_admin() ) {
             new Apprco_Admin();
-            new Apprco_Setup_Wizard();
-            Apprco_Meta_Box::get_instance();
-            Apprco_Import_Wizard::get_instance();
         }
 
-        // Initialize REST API (extended endpoints)
-        Apprco_REST_API::get_instance();
-
-        // Initialize shortcodes and templating
-        Apprco_Shortcodes::get_instance();
-
-        // Register custom post type
+        // Register custom post type (needed for import tasks)
         $this->register_vacancy_cpt();
-
-        // Register taxonomies
-        $this->register_taxonomies();
 
         // Add shortcode
         add_shortcode( 'apprco_vacancies', array( $this, 'vacancies_shortcode' ) );
 
-        // Enqueue frontend styles and scripts
+        // Enqueue frontend styles
         add_action( 'wp_enqueue_scripts', array( $this, 'enqueue_frontend_styles' ) );
-        add_action( 'wp_enqueue_scripts', array( $this, 'enqueue_frontend_scripts' ) );
-
-        // Add REST API endpoints
-        add_action( 'rest_api_init', array( $this, 'register_rest_routes' ) );
 
         // AJAX handlers for frontend forms
-        add_action( 'wp_ajax_apprco_frontend_edit', array( $this, 'ajax_frontend_edit' ) );
         add_action( 'wp_ajax_apprco_search_vacancies', array( $this, 'ajax_search_vacancies' ) );
         add_action( 'wp_ajax_nopriv_apprco_search_vacancies', array( $this, 'ajax_search_vacancies' ) );
     }
@@ -191,44 +131,6 @@ class Apprco_Connector {
     }
 
     /**
-     * Register vacancy data providers
-     */
-    private function register_providers(): void {
-        $registry = Apprco_Provider_Registry::get_instance();
-
-        // Register UK Government Apprenticeships provider
-        $uk_gov_provider = new Apprco_UK_Gov_Provider();
-        $registry->register( $uk_gov_provider );
-
-        // Load provider configurations from plugin options
-        $options = get_option( 'apprco_plugin_options', array() );
-
-        // Configure UK Gov provider from existing settings
-        $uk_gov_provider->set_config( array(
-            'subscription_key' => $options['api_subscription_key'] ?? '',
-            'base_url'         => $options['api_base_url'] ?? Apprco_UK_Gov_Provider::BASE_URL,
-            'ukprn'            => $options['api_ukprn'] ?? '',
-        ) );
-
-        /**
-         * Allow other plugins/themes to register additional providers
-         *
-         * @param Apprco_Provider_Registry $registry The provider registry instance.
-         */
-        do_action( 'apprco_register_providers', $registry );
-    }
-
-    /**
-     * Initialize integrations (Elementor, etc.)
-     */
-    public function init_integrations(): void {
-        // Initialize Elementor integration
-        if ( Apprco_Elementor::is_elementor_active() ) {
-            Apprco_Elementor::get_instance();
-        }
-    }
-
-    /**
      * Enqueue frontend styles
      */
     public function enqueue_frontend_styles(): void {
@@ -240,36 +142,6 @@ class Apprco_Connector {
         );
     }
 
-    /**
-     * Enqueue frontend scripts
-     */
-    public function enqueue_frontend_scripts(): void {
-        wp_register_script(
-            'apprco-frontend',
-            APPRCO_PLUGIN_URL . 'assets/js/frontend.js',
-            array( 'jquery' ),
-            APPRCO_PLUGIN_VERSION,
-            true
-        );
-
-        wp_localize_script( 'apprco-frontend', 'apprcoFrontend', array(
-            'ajaxurl'  => admin_url( 'admin-ajax.php' ),
-            'restUrl'  => rest_url( 'apprco/v1/' ),
-            'nonce'    => wp_create_nonce( 'wp_rest' ),
-            'strings'  => array(
-                'loading'   => __( 'Loading...', 'apprenticeship-connect' ),
-                'saving'    => __( 'Saving...', 'apprenticeship-connect' ),
-                'saved'     => __( 'Saved!', 'apprenticeship-connect' ),
-                'error'     => __( 'An error occurred.', 'apprenticeship-connect' ),
-                'noResults' => __( 'No vacancies found.', 'apprenticeship-connect' ),
-            ),
-        ) );
-
-        // Enqueue on vacancy pages and pages with shortcodes
-        if ( is_singular( 'apprco_vacancy' ) || is_post_type_archive( 'apprco_vacancy' ) ) {
-            wp_enqueue_script( 'apprco-frontend' );
-        }
-    }
 
     /**
      * AJAX handler for frontend vacancy editing
@@ -436,25 +308,6 @@ class Apprco_Connector {
         ) );
     }
 
-    /**
-     * Allow overriding options for a one-off sync (used by Test & Sync without saving)
-     *
-     * @param array $overrides Options to override.
-     */
-    public function override_options_for_sync( array $overrides ): void {
-        if ( $this->core ) {
-            $this->core->override_options_for_sync( $overrides );
-        }
-    }
-
-    /**
-     * Manual sync function
-     *
-     * @return bool
-     */
-    public function manual_sync(): bool {
-        return $this->core ? $this->core->fetch_and_save_vacancies( 'manual' ) : false;
-    }
 
     /**
      * Plugin activation
@@ -487,17 +340,6 @@ class Apprco_Connector {
      * Plugin deactivation
      */
     public function deactivate(): void {
-        // Clear all scheduled events
-        if ( $this->scheduler ) {
-            $this->scheduler->unschedule_all();
-        }
-
-        // Legacy WP-Cron cleanup
-        $timestamp = wp_next_scheduled( 'apprco_daily_fetch_vacancies' );
-        if ( $timestamp ) {
-            wp_unschedule_event( $timestamp, 'apprco_daily_fetch_vacancies' );
-        }
-
         // Flush rewrite rules
         flush_rewrite_rules();
     }
@@ -521,20 +363,11 @@ class Apprco_Connector {
      */
     private function set_default_options(): void {
         $default_options = array(
-            'api_base_url'           => 'https://api.apprenticeships.education.gov.uk/vacancies',
-            'api_subscription_key'   => '',
-            'api_ukprn'              => '',
-            'vacancy_page_url'       => '',
-            'auto_create_page'       => true,
-            'display_count'          => 10,
-            'show_employer'          => true,
-            'show_location'          => true,
-            'show_closing_date'      => true,
-            'show_apply_button'      => true,
-            'sync_frequency'         => 'daily',
-            'delete_expired'         => true,
-            'expire_after_days'      => 7,
-            'enable_elementor_tags'  => true,
+            'display_count'     => 10,
+            'show_employer'     => true,
+            'show_location'     => true,
+            'show_closing_date' => true,
+            'show_apply_button' => true,
         );
 
         $existing_options = get_option( 'apprco_plugin_options', array() );
@@ -663,209 +496,6 @@ class Apprco_Connector {
         );
     }
 
-    /**
-     * Register REST API routes
-     */
-    public function register_rest_routes(): void {
-        register_rest_route(
-            'apprco/v1',
-            '/vacancies',
-            array(
-                'methods'             => 'GET',
-                'callback'            => array( $this, 'rest_get_vacancies' ),
-                'permission_callback' => '__return_true',
-                'args'                => array(
-                    'per_page' => array(
-                        'default'           => 10,
-                        'sanitize_callback' => 'absint',
-                    ),
-                    'page'     => array(
-                        'default'           => 1,
-                        'sanitize_callback' => 'absint',
-                    ),
-                    'level'    => array(
-                        'sanitize_callback' => 'sanitize_text_field',
-                    ),
-                    'route'    => array(
-                        'sanitize_callback' => 'sanitize_text_field',
-                    ),
-                    'employer' => array(
-                        'sanitize_callback' => 'sanitize_text_field',
-                    ),
-                ),
-            )
-        );
-
-        register_rest_route(
-            'apprco/v1',
-            '/sync',
-            array(
-                'methods'             => 'POST',
-                'callback'            => array( $this, 'rest_trigger_sync' ),
-                'permission_callback' => function () {
-                    return current_user_can( 'manage_options' );
-                },
-            )
-        );
-
-        register_rest_route(
-            'apprco/v1',
-            '/status',
-            array(
-                'methods'             => 'GET',
-                'callback'            => array( $this, 'rest_get_status' ),
-                'permission_callback' => function () {
-                    return current_user_can( 'manage_options' );
-                },
-            )
-        );
-
-        // Register CORS proxy endpoints for Display Advert API v2
-        $proxy = new Apprco_REST_Proxy();
-        $proxy->register_routes();
-
-        // Register geocoding endpoints for location lookup
-        $geocoding = new Apprco_REST_Geocoding();
-        $geocoding->register_routes();
-
-        // Register settings and import REST endpoints
-        $rest_controller = Apprco_REST_Controller::get_instance();
-        $rest_controller->register_routes();
-
-        $settings_manager = Apprco_Settings_Manager::get_instance();
-        $settings_manager->register_rest_routes();
-    }
-
-    /**
-     * REST API: Get vacancies
-     *
-     * @param WP_REST_Request $request Request object.
-     * @return WP_REST_Response
-     */
-    public function rest_get_vacancies( WP_REST_Request $request ): WP_REST_Response {
-        $args = array(
-            'post_type'      => 'apprco_vacancy',
-            'post_status'    => 'publish',
-            'posts_per_page' => $request->get_param( 'per_page' ),
-            'paged'          => $request->get_param( 'page' ),
-            'orderby'        => 'meta_value',
-            'meta_key'       => '_apprco_posted_date',
-            'order'          => 'DESC',
-        );
-
-        // Add taxonomy filters
-        $tax_query = array();
-
-        if ( $request->get_param( 'level' ) ) {
-            $tax_query[] = array(
-                'taxonomy' => 'apprco_level',
-                'field'    => 'slug',
-                'terms'    => $request->get_param( 'level' ),
-            );
-        }
-
-        if ( $request->get_param( 'route' ) ) {
-            $tax_query[] = array(
-                'taxonomy' => 'apprco_route',
-                'field'    => 'slug',
-                'terms'    => $request->get_param( 'route' ),
-            );
-        }
-
-        if ( $request->get_param( 'employer' ) ) {
-            $tax_query[] = array(
-                'taxonomy' => 'apprco_employer',
-                'field'    => 'slug',
-                'terms'    => $request->get_param( 'employer' ),
-            );
-        }
-
-        if ( ! empty( $tax_query ) ) {
-            $args['tax_query'] = $tax_query;
-        }
-
-        $query = new WP_Query( $args );
-        $vacancies = array();
-
-        foreach ( $query->posts as $post ) {
-            $vacancies[] = $this->format_vacancy_for_rest( $post );
-        }
-
-        return new WP_REST_Response(
-            array(
-                'vacancies'   => $vacancies,
-                'total'       => $query->found_posts,
-                'total_pages' => $query->max_num_pages,
-                'page'        => $request->get_param( 'page' ),
-            ),
-            200
-        );
-    }
-
-    /**
-     * Format vacancy post for REST response
-     *
-     * @param WP_Post $post Post object.
-     * @return array
-     */
-    private function format_vacancy_for_rest( WP_Post $post ): array {
-        $meta_fields = Apprco_Elementor::get_vacancy_meta_fields();
-        $meta_data   = array();
-
-        foreach ( array_keys( $meta_fields ) as $meta_key ) {
-            $clean_key              = str_replace( '_apprco_', '', $meta_key );
-            $meta_data[ $clean_key ] = get_post_meta( $post->ID, $meta_key, true );
-        }
-
-        return array(
-            'id'           => $post->ID,
-            'title'        => $post->post_title,
-            'content'      => $post->post_content,
-            'excerpt'      => $post->post_excerpt,
-            'permalink'    => get_permalink( $post->ID ),
-            'date'         => $post->post_date,
-            'modified'     => $post->post_modified,
-            'meta'         => $meta_data,
-            'levels'       => wp_get_post_terms( $post->ID, 'apprco_level', array( 'fields' => 'names' ) ),
-            'routes'       => wp_get_post_terms( $post->ID, 'apprco_route', array( 'fields' => 'names' ) ),
-            'employers'    => wp_get_post_terms( $post->ID, 'apprco_employer', array( 'fields' => 'names' ) ),
-        );
-    }
-
-    /**
-     * REST API: Trigger sync
-     *
-     * @return WP_REST_Response
-     */
-    public function rest_trigger_sync(): WP_REST_Response {
-        $result = $this->manual_sync();
-
-        return new WP_REST_Response(
-            array(
-                'success' => $result,
-                'message' => $result ? 'Sync completed successfully.' : 'Sync failed.',
-            ),
-            $result ? 200 : 500
-        );
-    }
-
-    /**
-     * REST API: Get status
-     *
-     * @return WP_REST_Response
-     */
-    public function rest_get_status(): WP_REST_Response {
-        $scheduler_status = $this->scheduler->get_status();
-        $sync_status      = $this->core->get_sync_status();
-
-        return new WP_REST_Response(
-            array(
-                'scheduler' => $scheduler_status,
-                'sync'      => $sync_status,
-            ),
-            200
-        );
-    }
 
     /**
      * Shortcode to display vacancies
