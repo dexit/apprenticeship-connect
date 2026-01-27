@@ -33,6 +33,41 @@ class Apprco_REST_Proxy {
 	 * Register REST API routes
 	 */
 	public function register_routes(): void {
+		// Generic import task proxy endpoint (requires nonce)
+		register_rest_route(
+			'apprco/v1',
+			'/proxy/import',
+			array(
+				'methods'             => array( WP_REST_Server::READABLE, WP_REST_Server::CREATABLE ),
+				'callback'            => array( $this, 'proxy_import_request' ),
+				'permission_callback' => function () {
+					return current_user_can( 'manage_options' );
+				},
+				'args'                => array(
+					'url'      => array(
+						'description' => 'Full API endpoint URL',
+						'type'        => 'string',
+						'required'    => true,
+					),
+					'method'   => array(
+						'description' => 'HTTP method (GET, POST, etc)',
+						'type'        => 'string',
+						'default'     => 'GET',
+					),
+					'headers'  => array(
+						'description' => 'Custom HTTP headers as JSON',
+						'type'        => 'object',
+						'default'     => array(),
+					),
+					'params'   => array(
+						'description' => 'Query parameters',
+						'type'        => 'object',
+						'default'     => array(),
+					),
+				),
+			)
+		);
+
 		// Proxy vacancy list with location/filter support
 		register_rest_route(
 			'apprco/v1',
@@ -147,6 +182,97 @@ class Apprco_REST_Proxy {
 				'enum'        => array( 3, 7, 14, 28 ),
 			),
 		);
+	}
+
+	/**
+	 * Generic proxy endpoint for Import Tasks
+	 *
+	 * Routes API requests from import tasks through the proxy with custom
+	 * headers and authentication as configured in the import task.
+	 *
+	 * @param WP_REST_Request $request REST request object.
+	 * @return WP_REST_Response|WP_Error
+	 */
+	public function proxy_import_request( WP_REST_Request $request ) {
+		$url     = $request->get_param( 'url' );
+		$method  = $request->get_param( 'method' ) ?? 'GET';
+		$headers = $request->get_param( 'headers' ) ?? array();
+		$params  = $request->get_param( 'params' ) ?? array();
+
+		// Validate URL
+		if ( empty( $url ) ) {
+			return new WP_Error(
+				'missing_url',
+				'API URL is required',
+				array( 'status' => 400 )
+			);
+		}
+
+		// Only allow HTTPS URLs for security
+		if ( strpos( $url, 'https://' ) !== 0 ) {
+			return new WP_Error(
+				'insecure_url',
+				'Only HTTPS API endpoints are allowed',
+				array( 'status' => 400 )
+			);
+		}
+
+		// Build full URL with query parameters
+		if ( ! empty( $params ) && is_array( $params ) ) {
+			$url = add_query_arg( $params, $url );
+		}
+
+		// Ensure headers is an array
+		$headers = (array) $headers;
+		$headers['Accept'] = 'application/json';
+
+		// Log the request (sanitized)
+		error_log( sprintf(
+			'Import Task Proxy: %s %s (headers: %s)',
+			$method,
+			preg_replace( '/(key|subscription|auth|token)=[^&]+/i', '$1=***', $url ),
+			implode( ', ', array_keys( $headers ) )
+		) );
+
+		// Make the proxied request
+		$args = array(
+			'method'  => strtoupper( $method ),
+			'headers' => $headers,
+			'timeout' => 60,
+		);
+
+		$response = wp_remote_request( $url, $args );
+
+		// Handle connection errors
+		if ( is_wp_error( $response ) ) {
+			return new WP_Error(
+				'api_request_failed',
+				'Failed to connect to API: ' . $response->get_error_message(),
+				array( 'status' => 503 )
+			);
+		}
+
+		$status_code = wp_remote_retrieve_response_code( $response );
+		$body        = wp_remote_retrieve_body( $response );
+
+		// Parse JSON response
+		$data = json_decode( $body, true );
+
+		if ( null === $data && JSON_ERROR_NONE !== json_last_error() ) {
+			// If not JSON, return raw body
+			$data = array(
+				'raw_response' => substr( $body, 0, 5000 ),
+				'error'        => 'Response was not valid JSON',
+			);
+		}
+
+		// Return response with CORS headers
+		$rest_response = new WP_REST_Response( $data, $status_code );
+		$rest_response->header( 'Access-Control-Allow-Origin', '*' );
+		$rest_response->header( 'Access-Control-Allow-Methods', 'GET, POST, OPTIONS' );
+		$rest_response->header( 'Access-Control-Allow-Headers', 'Content-Type' );
+
+		return $rest_response;
 	}
 
 	/**

@@ -399,6 +399,113 @@ class Apprco_Import_Tasks {
     }
 
     /**
+     * Make an API request through the CORS proxy
+     *
+     * Routes the request through the WordPress REST API proxy endpoint instead of
+     * making direct API calls. This allows for better control, CORS handling, and
+     * centralized logging.
+     *
+     * @param array $task Task configuration.
+     * @param array $params Query parameters.
+     * @param array $headers Custom headers.
+     * @return array Response with success/error status.
+     */
+    private function make_proxied_request( array $task, array $params = array(), array $headers = array() ): array {
+        // Build the external API URL
+        $api_url = rtrim( $task['api_base_url'], '/' ) . $task['api_endpoint'];
+
+        // Merge task headers with provided headers
+        $request_headers = array_merge( $task['api_headers'] ?? array(), $headers );
+        $request_headers['Accept'] = 'application/json';
+
+        // Add authentication header
+        if ( $task['api_auth_type'] === 'header_key' && ! empty( $task['api_auth_key'] ) && ! empty( $task['api_auth_value'] ) ) {
+            $request_headers[ $task['api_auth_key'] ] = $task['api_auth_value'];
+        }
+
+        // Build proxy request to local REST API
+        $proxy_url = rest_url( 'apprco/v1/proxy/import' );
+
+        $proxy_args = array(
+            'method'  => 'POST',
+            'headers' => array(
+                'Content-Type'  => 'application/json',
+                'X-WP-Nonce'    => wp_create_nonce( 'wp_rest' ),
+            ),
+            'body'    => wp_json_encode( array(
+                'url'     => $api_url,
+                'method'  => $task['api_method'] ?? 'GET',
+                'headers' => $request_headers,
+                'params'  => $params,
+            ) ),
+            'timeout' => 60,
+        );
+
+        // Log proxy request (sanitized)
+        $sanitized_url = preg_replace( '/(key|subscription|auth|token)=[^&]+/i', '$1=***', $api_url );
+        $this->logger->debug(
+            sprintf( 'Proxy Request: %s %s', $task['api_method'] ?? 'GET', $sanitized_url ),
+            null,
+            'proxy'
+        );
+
+        // Make proxy request
+        $response = wp_remote_request( $proxy_url, $proxy_args );
+
+        if ( is_wp_error( $response ) ) {
+            $this->logger->error(
+                sprintf( 'Proxy request failed: %s', $response->get_error_message() ),
+                null,
+                'proxy'
+            );
+            return array(
+                'success' => false,
+                'error'   => 'Proxy request failed: ' . $response->get_error_message(),
+            );
+        }
+
+        $status_code = wp_remote_retrieve_response_code( $response );
+        $body        = wp_remote_retrieve_body( $response );
+
+        // Parse response
+        $data = json_decode( $body, true );
+
+        if ( json_last_error() !== JSON_ERROR_NONE ) {
+            $this->logger->error(
+                sprintf( 'Invalid JSON from proxy: %s', json_last_error_msg() ),
+                null,
+                'proxy'
+            );
+            return array(
+                'success' => false,
+                'error'   => 'Invalid JSON response from API',
+            );
+        }
+
+        // Check for HTTP errors
+        if ( $status_code >= 400 ) {
+            $error_msg = $data['message'] ?? "HTTP {$status_code}";
+            $this->logger->warning(
+                sprintf( 'API error (%d): %s', $status_code, $error_msg ),
+                null,
+                'proxy'
+            );
+            return array(
+                'success'      => false,
+                'error'        => $error_msg,
+                'status_code'  => $status_code,
+                'raw_response' => substr( $body, 0, 1000 ),
+            );
+        }
+
+        return array(
+            'success' => true,
+            'data'    => $data,
+            'status'  => $status_code,
+        );
+    }
+
+    /**
      * Test API connection for a task
      *
      * @param int $task_id Task ID.
@@ -424,9 +531,6 @@ class Apprco_Import_Tasks {
      * @return array Result with data or error.
      */
     public function execute_api_request( array $task, int $limit = 100, bool $test_mode = false ): array {
-        // Build URL
-        $url = rtrim( $task['api_base_url'], '/' ) . $task['api_endpoint'];
-
         // Build params
         $params = $task['api_params'] ?? array();
         if ( $task['pagination_type'] === 'page_number' ) {
@@ -434,59 +538,15 @@ class Apprco_Import_Tasks {
             $params[ $task['page_size_param'] ] = min( $limit, $task['page_size'] );
         }
 
-        $url .= '?' . http_build_query( $params );
+        // Make proxied request instead of direct API call
+        $result = $this->make_proxied_request( $task, $params );
 
-        // Build headers
-        $headers = $task['api_headers'] ?? array();
-        $headers['Accept'] = 'application/json';
-
-        // Add auth
-        if ( $task['api_auth_type'] === 'header_key' && ! empty( $task['api_auth_key'] ) && ! empty( $task['api_auth_value'] ) ) {
-            $headers[ $task['api_auth_key'] ] = $task['api_auth_value'];
+        if ( ! $result['success'] ) {
+            return $result;
         }
 
-        $this->logger->debug( sprintf( 'API Request: %s %s', $task['api_method'], preg_replace( '/Subscription-Key=[^&]+/', 'Subscription-Key=***', $url ) ), null, 'api' );
-
-        // Make request
-        $args = array(
-            'method'  => $task['api_method'],
-            'headers' => $headers,
-            'timeout' => 60,
-        );
-
-        $response = wp_remote_request( $url, $args );
-
-        if ( is_wp_error( $response ) ) {
-            return array(
-                'success' => false,
-                'error'   => $response->get_error_message(),
-            );
-        }
-
-        $status_code = wp_remote_retrieve_response_code( $response );
-        $body        = wp_remote_retrieve_body( $response );
-
-        if ( $status_code !== 200 ) {
-            $error_data = json_decode( $body, true );
-            $error_msg  = $error_data['message'] ?? "HTTP {$status_code}";
-
-            return array(
-                'success'     => false,
-                'error'       => $error_msg,
-                'status_code' => $status_code,
-                'raw_response' => substr( $body, 0, 1000 ),
-            );
-        }
-
-        // Parse response
-        $data = json_decode( $body, true );
-
-        if ( json_last_error() !== JSON_ERROR_NONE ) {
-            return array(
-                'success' => false,
-                'error'   => 'Invalid JSON response: ' . json_last_error_msg(),
-            );
-        }
+        // Parse response data
+        $data = $result['data'];
 
         // Extract data array using data_path
         $items = $this->get_nested_value( $data, $task['data_path'] );
@@ -636,60 +696,37 @@ class Apprco_Import_Tasks {
      * @return array Result.
      */
     private function fetch_page( array $task, int $page ): array {
-        $url = rtrim( $task['api_base_url'], '/' ) . $task['api_endpoint'];
-
         $params = $task['api_params'] ?? array();
         $params[ $task['page_param'] ]      = $page;
         $params[ $task['page_size_param'] ] = $task['page_size'];
 
-        $url .= '?' . http_build_query( $params );
+        // Make proxied request instead of direct API call
+        $result = $this->make_proxied_request( $task, $params );
 
-        $headers = $task['api_headers'] ?? array();
-        $headers['Accept'] = 'application/json';
+        if ( ! $result['success'] ) {
+            $error_message = $result['error'];
 
-        if ( $task['api_auth_type'] === 'header_key' && ! empty( $task['api_auth_value'] ) ) {
-            $headers[ $task['api_auth_key'] ] = $task['api_auth_value'];
-        }
-
-        $response = wp_remote_get( $url, array(
-            'headers' => $headers,
-            'timeout' => 60,
-        ) );
-
-        if ( is_wp_error( $response ) ) {
-            $error_message = sprintf(
-                'API request failed: %s. Please check your API Base URL and network connection.',
-                $response->get_error_message()
-            );
+            // Map HTTP status codes to friendly messages
+            if ( isset( $result['status_code'] ) ) {
+                $error_details = array(
+                    401 => 'Unauthorized. Please check your API authentication key.',
+                    403 => 'Forbidden. Your API key may not have permission to access this resource.',
+                    404 => 'Not found. Please check your API endpoint.',
+                    429 => 'Rate limit exceeded. Please try again later.',
+                    500 => 'Server error. The API service is experiencing issues.',
+                    503 => 'Service unavailable. The API is temporarily down.',
+                );
+                $error_message = $error_details[ $result['status_code'] ] ?? 'Request failed.';
+                return array(
+                    'success' => false,
+                    'error'   => sprintf( 'HTTP %d: %s', $result['status_code'], $error_message )
+                );
+            }
             return array( 'success' => false, 'error' => $error_message );
         }
 
-        $response_code = wp_remote_retrieve_response_code( $response );
-        if ( $response_code !== 200 ) {
-            $error_details = array(
-                401 => 'Unauthorized. Please check your API authentication key.',
-                403 => 'Forbidden. Your API key may not have permission to access this resource.',
-                404 => 'Not found. Please check your API endpoint.',
-                429 => 'Rate limit exceeded. Please try again later.',
-                500 => 'Server error. The API service is experiencing issues.',
-                503 => 'Service unavailable. The API is temporarily down.',
-            );
-            $error_message = $error_details[ $response_code ] ?? 'Request failed.';
-            return array(
-                'success' => false,
-                'error'   => sprintf( 'HTTP %d: %s', $response_code, $error_message )
-            );
-        }
-
-        $body = wp_remote_retrieve_body( $response );
-        $data = json_decode( $body, true );
-
-        if ( json_last_error() !== JSON_ERROR_NONE ) {
-            return array(
-                'success' => false,
-                'error'   => sprintf( 'Invalid JSON response: %s', json_last_error_msg() )
-            );
-        }
+        // Parse data from proxy response
+        $data = $result['data'];
 
         $items = $this->get_nested_value( $data, $task['data_path'] ) ?? array();
 
