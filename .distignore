@@ -1,0 +1,71 @@
+# Deployment .distignore
+# Files/folders to EXCLUDE from WordPress plugin zip
+
+# Development dependencies
+/node_modules/
+/.git/
+/.github/
+
+# Development config
+.gitignore
+.distignore
+.editorconfig
+.eslintrc.js
+.eslintignore
+.prettierrc
+.prettierignore
+phpcs.xml
+phpcs.xml.dist
+phpunit.xml
+phpunit.xml.dist
+.phpunit.result.cache
+
+# Build tools
+webpack.config.js
+package.json
+package-lock.json
+composer.json
+composer.lock
+
+# Source files (we include the built assets, not source)
+/src/
+
+# Documentation
+/docs/
+*.md
+!README.md
+
+# Testing
+/tests/
+/coverage/
+/.wp-env.json
+
+# IDE
+/.idea/
+/.vscode/
+*.sublime-project
+*.sublime-workspace
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment
+.env
+.env.*
+
+# Temporary
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+# Git
+.gitattributes
+.gitignore
+.gitmodules
