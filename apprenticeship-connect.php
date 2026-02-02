@@ -21,6 +21,11 @@
 
 if ( ! defined( 'ABSPATH' ) ) exit; // Exit if accessed directly
 
+// Load Composer autoloader if it exists
+if ( file_exists( __DIR__ . '/vendor/autoload.php' ) ) {
+    require_once __DIR__ . '/vendor/autoload.php';
+}
+
 // Define plugin constants
 define( 'APPRCO_PLUGIN_VERSION', '2.1.0' );
 define( 'APPRCO_PLUGIN_FILE', __FILE__ );
@@ -36,11 +41,9 @@ require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-import-logger.php';
 require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-api-client.php';
 require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-geocoder.php';
 require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-employer.php';
-require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-import-wizard.php';
 require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-import-tasks.php';
 require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-import-adapter.php';
 require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-task-scheduler.php';
-require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-db-upgrade.php';
 
 // Provider abstraction layer
 require_once APPRCO_PLUGIN_DIR . 'includes/interfaces/interface-apprco-provider.php';
@@ -49,11 +52,7 @@ require_once APPRCO_PLUGIN_DIR . 'includes/providers/class-apprco-provider-regis
 require_once APPRCO_PLUGIN_DIR . 'includes/providers/class-apprco-uk-gov-provider.php';
 
 // Core functionality
-require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-api-importer.php';
-require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-scheduler.php';
-require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-core.php';
 require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-admin.php';
-require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-setup-wizard.php';
 require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-elementor.php';
 require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-meta-box.php';
 require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-rest-api.php';
@@ -74,19 +73,6 @@ class Apprco_Connector {
      */
     private static $instance = null;
 
-    /**
-     * Core instance
-     *
-     * @var Apprco_Core|null
-     */
-    private $core = null;
-
-    /**
-     * Scheduler instance
-     *
-     * @var Apprco_Scheduler|null
-     */
-    private $scheduler = null;
 
     /**
      * Get plugin instance
@@ -133,12 +119,6 @@ class Apprco_Connector {
         // Initialize and register providers
         $this->register_providers();
 
-        // Initialize core
-        $this->core = Apprco_Core::get_instance();
-
-        // Initialize scheduler
-        $this->scheduler = Apprco_Scheduler::get_instance();
-
         // Initialize import task scheduler
         $task_scheduler = Apprco_Task_Scheduler::get_instance();
         $task_scheduler->init();
@@ -146,9 +126,7 @@ class Apprco_Connector {
         // Initialize admin
         if ( is_admin() ) {
             new Apprco_Admin();
-            new Apprco_Setup_Wizard();
             Apprco_Meta_Box::get_instance();
-            Apprco_Import_Wizard::get_instance();
         }
 
         // Initialize REST API (extended endpoints)
@@ -166,9 +144,8 @@ class Apprco_Connector {
         // Add shortcode
         add_shortcode( 'apprco_vacancies', array( $this, 'vacancies_shortcode' ) );
 
-        // Enqueue frontend styles and scripts
-        add_action( 'wp_enqueue_scripts', array( $this, 'enqueue_frontend_styles' ) );
-        add_action( 'wp_enqueue_scripts', array( $this, 'enqueue_frontend_scripts' ) );
+        // Enqueue frontend assets
+        add_action( 'wp_enqueue_scripts', array( $this, 'enqueue_frontend_assets' ) );
 
         // Add REST API endpoints
         add_action( 'rest_api_init', array( $this, 'register_rest_routes' ) );
@@ -200,14 +177,14 @@ class Apprco_Connector {
         $uk_gov_provider = new Apprco_UK_Gov_Provider();
         $registry->register( $uk_gov_provider );
 
-        // Load provider configurations from plugin options
-        $options = get_option( 'apprco_plugin_options', array() );
+        // Load provider configurations from Settings Manager
+        $settings_manager = Apprco_Settings_Manager::get_instance();
 
-        // Configure UK Gov provider from existing settings
+        // Configure UK Gov provider from settings
         $uk_gov_provider->set_config( array(
-            'subscription_key' => $options['api_subscription_key'] ?? '',
-            'base_url'         => $options['api_base_url'] ?? Apprco_UK_Gov_Provider::BASE_URL,
-            'ukprn'            => $options['api_ukprn'] ?? '',
+            'subscription_key' => $settings_manager->get( 'api', 'subscription_key' ),
+            'base_url'         => $settings_manager->get( 'api', 'base_url', Apprco_UK_Gov_Provider::BASE_URL ),
+            'ukprn'            => $settings_manager->get( 'api', 'ukprn' ),
         ) );
 
         /**
@@ -229,28 +206,21 @@ class Apprco_Connector {
     }
 
     /**
-     * Enqueue frontend styles
+     * Enqueue frontend assets
      */
-    public function enqueue_frontend_styles(): void {
-        wp_enqueue_style(
-            'apprco-style',
-            APPRCO_PLUGIN_URL . 'assets/css/apprco.css',
-            array(),
-            APPRCO_PLUGIN_VERSION
-        );
-    }
+    public function enqueue_frontend_assets(): void {
+        // Load modern built frontend assets
+        $frontend_asset_file = APPRCO_PLUGIN_DIR . 'assets/build/frontend.asset.php';
 
-    /**
-     * Enqueue frontend scripts
-     */
-    public function enqueue_frontend_scripts(): void {
-        wp_register_script(
-            'apprco-frontend',
-            APPRCO_PLUGIN_URL . 'assets/js/frontend.js',
-            array( 'jquery' ),
-            APPRCO_PLUGIN_VERSION,
-            true
-        );
+        if ( file_exists( $frontend_asset_file ) ) {
+            $frontend_asset = include $frontend_asset_file;
+            wp_enqueue_style( 'apprco-style', APPRCO_PLUGIN_URL . 'assets/build/style-frontend.css', array(), $frontend_asset['version'] );
+            wp_register_script( 'apprco-frontend', APPRCO_PLUGIN_URL . 'assets/build/frontend.js', $frontend_asset['dependencies'], $frontend_asset['version'], true );
+        } else {
+            // Fallback to legacy assets
+            wp_enqueue_style( 'apprco-style', APPRCO_PLUGIN_URL . 'assets/css/apprco.css', array(), APPRCO_PLUGIN_VERSION );
+            wp_register_script( 'apprco-frontend', APPRCO_PLUGIN_URL . 'assets/js/frontend.js', array( 'jquery' ), APPRCO_PLUGIN_VERSION, true );
+        }
 
         wp_localize_script( 'apprco-frontend', 'apprcoFrontend', array(
             'ajaxurl'  => admin_url( 'admin-ajax.php' ),
@@ -265,7 +235,7 @@ class Apprco_Connector {
             ),
         ) );
 
-        // Enqueue on vacancy pages and pages with shortcodes
+        // Enqueue on vacancy pages and archives
         if ( is_singular( 'apprco_vacancy' ) || is_post_type_archive( 'apprco_vacancy' ) ) {
             wp_enqueue_script( 'apprco-frontend' );
         }
@@ -437,23 +407,14 @@ class Apprco_Connector {
     }
 
     /**
-     * Allow overriding options for a one-off sync (used by Test & Sync without saving)
-     *
-     * @param array $overrides Options to override.
-     */
-    public function override_options_for_sync( array $overrides ): void {
-        if ( $this->core ) {
-            $this->core->override_options_for_sync( $overrides );
-        }
-    }
-
-    /**
      * Manual sync function
      *
      * @return bool
      */
     public function manual_sync(): bool {
-        return $this->core ? $this->core->fetch_and_save_vacancies( 'manual' ) : false;
+        $adapter = Apprco_Import_Adapter::get_instance();
+        $result  = $adapter->run_manual_sync();
+        return $result['success'] ?? false;
     }
 
     /**
@@ -464,9 +425,6 @@ class Apprco_Connector {
         Apprco_Import_Logger::create_table();
         Apprco_Employer::create_table();
         Apprco_Import_Tasks::create_table();
-
-        // Set default options
-        $this->set_default_options();
 
         // Register CPT for rewrite rules
         $this->register_vacancy_cpt();
@@ -488,9 +446,8 @@ class Apprco_Connector {
      */
     public function deactivate(): void {
         // Clear all scheduled events
-        if ( $this->scheduler ) {
-            $this->scheduler->unschedule_all();
-        }
+        $task_scheduler = Apprco_Task_Scheduler::get_instance();
+        $task_scheduler->unschedule_all();
 
         // Legacy WP-Cron cleanup
         $timestamp = wp_next_scheduled( 'apprco_daily_fetch_vacancies' );
@@ -506,41 +463,8 @@ class Apprco_Connector {
      * Maybe upgrade database
      */
     public function maybe_upgrade_db(): void {
-        $current_version = get_option( 'apprco_db_version', '1.0.0' );
-
-        if ( version_compare( $current_version, APPRCO_DB_VERSION, '<' ) ) {
-            Apprco_Import_Logger::create_table();
-            Apprco_Employer::create_table();
-            Apprco_Import_Tasks::create_table();
-            update_option( 'apprco_db_version', APPRCO_DB_VERSION );
-        }
-    }
-
-    /**
-     * Set default options
-     */
-    private function set_default_options(): void {
-        $default_options = array(
-            'api_base_url'           => 'https://api.apprenticeships.education.gov.uk/vacancies',
-            'api_subscription_key'   => '',
-            'api_ukprn'              => '',
-            'vacancy_page_url'       => '',
-            'auto_create_page'       => true,
-            'display_count'          => 10,
-            'show_employer'          => true,
-            'show_location'          => true,
-            'show_closing_date'      => true,
-            'show_apply_button'      => true,
-            'sync_frequency'         => 'daily',
-            'delete_expired'         => true,
-            'expire_after_days'      => 7,
-            'enable_elementor_tags'  => true,
-        );
-
-        $existing_options = get_option( 'apprco_plugin_options', array() );
-        $merged_options   = array_merge( $default_options, $existing_options );
-
-        update_option( 'apprco_plugin_options', $merged_options );
+        $database = Apprco_Database::get_instance();
+        $database->maybe_upgrade();
     }
 
     /**
@@ -855,13 +779,12 @@ class Apprco_Connector {
      * @return WP_REST_Response
      */
     public function rest_get_status(): WP_REST_Response {
-        $scheduler_status = $this->scheduler->get_status();
-        $sync_status      = $this->core->get_sync_status();
+        $adapter = Apprco_Import_Adapter::get_instance();
+        $stats   = $adapter->get_stats();
 
         return new WP_REST_Response(
             array(
-                'scheduler' => $scheduler_status,
-                'sync'      => $sync_status,
+                'sync' => $stats,
             ),
             200
         );
@@ -874,17 +797,17 @@ class Apprco_Connector {
      * @return string
      */
     public function vacancies_shortcode( $atts ): string {
-        $options = get_option( 'apprco_plugin_options', array() );
+        $settings_manager = Apprco_Settings_Manager::get_instance();
 
         // Use only settings, no shortcode parameters
         $display_settings = array(
-            'count'               => isset( $options['display_count'] ) ? $options['display_count'] : 10,
-            'show_employer'       => isset( $options['show_employer'] ) ? $options['show_employer'] : true,
-            'show_location'       => isset( $options['show_location'] ) ? $options['show_location'] : true,
-            'show_closing_date'   => isset( $options['show_closing_date'] ) ? $options['show_closing_date'] : true,
-            'show_apply_button'   => isset( $options['show_apply_button'] ) ? $options['show_apply_button'] : true,
-            'no_vacancy_image'    => ! empty( $options['no_vacancy_image'] ) ? $options['no_vacancy_image'] : APPRCO_PLUGIN_URL . 'assets/images/bg-no-vacancy.png',
-            'show_no_vacancy_image' => isset( $options['show_no_vacancy_image'] ) ? $options['show_no_vacancy_image'] : true,
+            'count'               => $settings_manager->get( 'display', 'items_per_page', 10 ),
+            'show_employer'       => $settings_manager->get( 'display', 'show_employer', true ),
+            'show_location'       => $settings_manager->get( 'display', 'show_location', true ),
+            'show_closing_date'   => $settings_manager->get( 'display', 'show_closing_date', true ),
+            'show_apply_button'   => $settings_manager->get( 'display', 'show_apply_button', true ),
+            'no_vacancy_image'    => $settings_manager->get( 'display', 'no_vacancy_image', APPRCO_PLUGIN_URL . 'assets/images/bg-no-vacancy.png' ),
+            'show_no_vacancy_image' => $settings_manager->get( 'display', 'show_no_vacancy_image', true ),
         );
 
         $args = array(

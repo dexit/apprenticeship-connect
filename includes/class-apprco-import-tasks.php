@@ -157,40 +157,49 @@ class Apprco_Import_Tasks {
         return array(
             // Post fields
             'post_title'       => 'title',
-            'post_content'     => 'description',
-            'post_excerpt'     => 'shortDescription',
+            'post_content'     => 'fullDescription',
+            'post_excerpt'     => 'description',
 
             // Meta fields
-            '_apprco_vacancy_reference'      => 'vacancyReference',
-            '_apprco_vacancy_url'            => 'vacancyUrl',
-            '_apprco_employer_name'          => 'employerName',
-            '_apprco_employer_website'       => 'employerWebsiteUrl',
-            '_apprco_employer_description'   => 'employerDescription',
-            '_apprco_provider_name'          => 'providerName',
-            '_apprco_provider_ukprn'         => 'ukprn',
-            '_apprco_course_title'           => 'courseTitle',
-            '_apprco_course_level'           => 'courseLevel',
-            '_apprco_apprenticeship_level'   => 'apprenticeshipLevel',
-            '_apprco_wage_type'              => 'wageType',
-            '_apprco_wage_amount'            => 'wageAmount',
-            '_apprco_wage_unit'              => 'wageUnit',
-            '_apprco_wage_text'              => 'wageText',
-            '_apprco_working_week'           => 'workingWeek',
-            '_apprco_hours_per_week'         => 'hoursPerWeek',
-            '_apprco_expected_duration'      => 'expectedDuration',
-            '_apprco_positions_available'    => 'numberOfPositions',
-            '_apprco_posted_date'            => 'postedDate',
-            '_apprco_closing_date'           => 'closingDate',
-            '_apprco_start_date'             => 'startDate',
-            '_apprco_address_line1'          => 'addresses[0].addressLine1',
-            '_apprco_address_line2'          => 'addresses[0].addressLine2',
-            '_apprco_address_line3'          => 'addresses[0].addressLine3',
-            '_apprco_postcode'               => 'addresses[0].postcode',
-            '_apprco_latitude'               => 'addresses[0].latitude',
-            '_apprco_longitude'              => 'addresses[0].longitude',
-            '_apprco_skills'                 => 'skills',
-            '_apprco_qualifications'         => 'qualifications',
-            '_apprco_is_disability_confident' => 'isDisabilityConfident',
+            '_apprco_vacancy_reference'           => 'vacancyReference',
+            '_apprco_vacancy_url'                 => 'vacancyUrl',
+            '_apprco_employer_name'               => 'employerName',
+            '_apprco_employer_website_url'        => 'employerWebsiteUrl',
+            '_apprco_employer_description'        => 'employerDescription',
+            '_apprco_employer_contact_name'       => 'employerContactName',
+            '_apprco_employer_contact_email'      => 'employerContactEmail',
+            '_apprco_employer_contact_phone'      => 'employerContactPhone',
+            '_apprco_provider_name'               => 'providerName',
+            '_apprco_ukprn'                       => 'ukprn',
+            '_apprco_course_title'                => 'course.title',
+            '_apprco_course_level'                => 'course.level',
+            '_apprco_course_route'                => 'course.route',
+            '_apprco_course_lars_code'            => 'course.larsCode',
+            '_apprco_apprenticeship_level'        => 'apprenticeshipLevel',
+            '_apprco_wage_type'                   => 'wage.wageType',
+            '_apprco_wage_amount'                 => 'wage.wageAmount',
+            '_apprco_wage_unit'                   => 'wage.wageUnit',
+            '_apprco_wage_additional_information' => 'wage.wageAdditionalInformation',
+            '_apprco_working_week_description'    => 'wage.workingWeekDescription',
+            '_apprco_hours_per_week'              => 'hoursPerWeek',
+            '_apprco_expected_duration'           => 'expectedDuration',
+            '_apprco_number_of_positions'         => 'numberOfPositions',
+            '_apprco_posted_date'                 => 'postedDate',
+            '_apprco_closing_date'                => 'closingDate',
+            '_apprco_start_date'                  => 'startDate',
+            '_apprco_address_line_1'              => 'addresses[0].addressLine1',
+            '_apprco_address_line_2'              => 'addresses[0].addressLine2',
+            '_apprco_address_line_3'              => 'addresses[0].addressLine3',
+            '_apprco_postcode'                    => 'addresses[0].postcode',
+            '_apprco_latitude'                    => 'addresses[0].latitude',
+            '_apprco_longitude'                   => 'addresses[0].longitude',
+            '_apprco_distance'                    => 'distance',
+            '_apprco_skills'                      => 'skills',
+            '_apprco_qualifications'              => 'qualifications',
+            '_apprco_outcome_description'         => 'outcomeDescription',
+            '_apprco_things_to_consider'          => 'thingsToConsider',
+            '_apprco_is_disability_confident'     => 'isDisabilityConfident',
+            '_apprco_is_national_vacancy'         => 'isNationalVacancy',
         );
     }
 
@@ -424,8 +433,14 @@ class Apprco_Import_Tasks {
      * @return array Result with data or error.
      */
     public function execute_api_request( array $task, int $limit = 100, bool $test_mode = false ): array {
-        // Build URL
-        $url = rtrim( $task['api_base_url'], '/' ) . $task['api_endpoint'];
+        $client = new Apprco_API_Client( $task['api_base_url'], array(), $this->logger );
+
+        // Build headers
+        $headers = $task['api_headers'] ?? array();
+        if ( $task['api_auth_type'] === 'header_key' && ! empty( $task['api_auth_key'] ) && ! empty( $task['api_auth_value'] ) ) {
+            $headers[ $task['api_auth_key'] ] = $task['api_auth_value'];
+        }
+        $client->set_default_headers( $headers );
 
         // Build params
         $params = $task['api_params'] ?? array();
@@ -434,70 +449,29 @@ class Apprco_Import_Tasks {
             $params[ $task['page_size_param'] ] = min( $limit, $task['page_size'] );
         }
 
-        $url .= '?' . http_build_query( $params );
+        $result = $client->get( $task['api_endpoint'], $params );
 
-        // Build headers
-        $headers = $task['api_headers'] ?? array();
-        $headers['Accept'] = 'application/json';
-
-        // Add auth
-        if ( $task['api_auth_type'] === 'header_key' && ! empty( $task['api_auth_key'] ) && ! empty( $task['api_auth_value'] ) ) {
-            $headers[ $task['api_auth_key'] ] = $task['api_auth_value'];
-        }
-
-        $this->logger->debug( sprintf( 'API Request: %s %s', $task['api_method'], preg_replace( '/Subscription-Key=[^&]+/', 'Subscription-Key=***', $url ) ), null, 'api' );
-
-        // Make request
-        $args = array(
-            'method'  => $task['api_method'],
-            'headers' => $headers,
-            'timeout' => 60,
-        );
-
-        $response = wp_remote_request( $url, $args );
-
-        if ( is_wp_error( $response ) ) {
+        if ( ! $result['success'] ) {
             return array(
-                'success' => false,
-                'error'   => $response->get_error_message(),
+                'success'      => false,
+                'error'        => $result['error'] ?? 'Request failed',
+                'status_code'  => $result['status_code'] ?? 0,
+                'raw_response' => isset( $result['data'] ) ? wp_json_encode( $result['data'] ) : '',
             );
         }
 
-        $status_code = wp_remote_retrieve_response_code( $response );
-        $body        = wp_remote_retrieve_body( $response );
-
-        if ( $status_code !== 200 ) {
-            $error_data = json_decode( $body, true );
-            $error_msg  = $error_data['message'] ?? "HTTP {$status_code}";
-
-            return array(
-                'success'     => false,
-                'error'       => $error_msg,
-                'status_code' => $status_code,
-                'raw_response' => substr( $body, 0, 1000 ),
-            );
-        }
-
-        // Parse response
-        $data = json_decode( $body, true );
-
-        if ( json_last_error() !== JSON_ERROR_NONE ) {
-            return array(
-                'success' => false,
-                'error'   => 'Invalid JSON response: ' . json_last_error_msg(),
-            );
-        }
+        $data = $result['data'];
 
         // Extract data array using data_path
         $items = $this->get_nested_value( $data, $task['data_path'] );
-        $total = $this->get_nested_value( $data, $task['total_path'] ) ?? count( $items );
+        $total = $this->get_nested_value( $data, $task['total_path'] ) ?? ( is_array( $items ) ? count( $items ) : 0 );
 
         if ( ! is_array( $items ) ) {
             return array(
                 'success'       => false,
                 'error'         => sprintf( 'Data path "%s" did not return an array', $task['data_path'] ),
                 'response_keys' => array_keys( $data ),
-                'raw_response'  => substr( $body, 0, 2000 ),
+                'raw_response'  => substr( wp_json_encode( $data ), 0, 2000 ),
             );
         }
 
@@ -542,43 +516,50 @@ class Apprco_Import_Tasks {
         $import_id = $this->logger->start_import();
         $this->logger->info( sprintf( 'Starting import task: %s (ID: %d)', $task['name'], $task_id ), $import_id, 'core' );
 
-        $all_items = array();
-        $page      = 1;
+        $client = new Apprco_API_Client( $task['api_base_url'], array(), $this->logger );
+        $client->set_import_id( $import_id );
+
+        // Build headers
+        $headers = $task['api_headers'] ?? array();
+        if ( $task['api_auth_type'] === 'header_key' && ! empty( $task['api_auth_key'] ) && ! empty( $task['api_auth_value'] ) ) {
+            $headers[ $task['api_auth_key'] ] = $task['api_auth_value'];
+        }
+        $client->set_default_headers( $headers );
+
         $max_pages = 100;
+        $params = $task['api_params'] ?? array();
 
-        // Fetch all pages
-        do {
-            $result = $this->fetch_page( $task, $page );
-
-            if ( ! $result['success'] ) {
-                $this->logger->error( sprintf( 'Failed to fetch page %d: %s', $page, $result['error'] ), $import_id, 'api' );
-                break;
+        $fetch_result = $client->fetch_all_pages(
+            $task['api_endpoint'],
+            $params,
+            $task['page_param'],
+            $task['data_path'],
+            $task['total_path'],
+            $max_pages,
+            function( $progress ) use ( $on_progress ) {
+                if ( is_callable( $on_progress ) ) {
+                    call_user_func( $on_progress, array(
+                        'phase'   => 'fetching',
+                        'page'    => $progress['page'],
+                        'fetched' => $progress['total_so_far'],
+                        'total'   => $progress['total_pages'],
+                    ) );
+                }
             }
+        );
 
-            $all_items = array_merge( $all_items, $result['items'] );
+        if ( ! $fetch_result['success'] && empty( $fetch_result['items'] ) ) {
+            $this->logger->error( sprintf( 'Import failed: %s', $fetch_result['error'] ?? 'Unknown error' ), $import_id, 'api' );
+            return array( 'success' => false, 'error' => $fetch_result['error'] ?? 'Fetch failed' );
+        }
 
-            $this->logger->debug( sprintf( 'Fetched page %d: %d items (total: %d)', $page, count( $result['items'] ), count( $all_items ) ), $import_id, 'api' );
-
-            if ( is_callable( $on_progress ) ) {
-                call_user_func( $on_progress, array(
-                    'phase'   => 'fetching',
-                    'page'    => $page,
-                    'fetched' => count( $all_items ),
-                    'total'   => $result['total'] ?? 0,
-                ) );
-            }
-
-            $page++;
-
-            // Rate limiting
-            usleep( 250000 );
-
-        } while ( ! empty( $result['items'] ) && $page <= $max_pages && count( $result['items'] ) >= $task['page_size'] );
+        $all_items = $fetch_result['items'];
 
         // Process items
         $created = 0;
         $updated = 0;
         $errors  = 0;
+        $api_references = array();
 
         foreach ( $all_items as $index => $item ) {
             $result = $this->process_item( $task, $item, $import_id );
@@ -588,6 +569,11 @@ class Apprco_Import_Tasks {
                     $created++;
                 } else {
                     $updated++;
+                }
+
+                $ref = $this->get_nested_value( $item, $task['unique_id_field'] );
+                if ( $ref ) {
+                    $api_references[] = $ref;
                 }
             } else {
                 $errors++;
@@ -603,6 +589,12 @@ class Apprco_Import_Tasks {
                     'errors'    => $errors,
                 ) );
             }
+        }
+
+        // Handle deletion of expired/missing vacancies if enabled in global settings
+        $settings_manager = Apprco_Settings_Manager::get_instance();
+        if ( $settings_manager->get( 'import', 'delete_expired' ) ) {
+            $this->cleanup_expired_vacancies( $api_references, $import_id );
         }
 
         // Update task stats
@@ -628,86 +620,6 @@ class Apprco_Import_Tasks {
         );
     }
 
-    /**
-     * Fetch a single page from API
-     *
-     * @param array $task Task config.
-     * @param int   $page Page number.
-     * @return array Result.
-     */
-    private function fetch_page( array $task, int $page ): array {
-        $url = rtrim( $task['api_base_url'], '/' ) . $task['api_endpoint'];
-
-        $params = $task['api_params'] ?? array();
-        $params[ $task['page_param'] ]      = $page;
-        $params[ $task['page_size_param'] ] = $task['page_size'];
-
-        $url .= '?' . http_build_query( $params );
-
-        $headers = $task['api_headers'] ?? array();
-        $headers['Accept'] = 'application/json';
-
-        if ( $task['api_auth_type'] === 'header_key' && ! empty( $task['api_auth_value'] ) ) {
-            $headers[ $task['api_auth_key'] ] = $task['api_auth_value'];
-        }
-
-        $response = wp_remote_get( $url, array(
-            'headers' => $headers,
-            'timeout' => 60,
-        ) );
-
-        if ( is_wp_error( $response ) ) {
-            $error_message = sprintf(
-                'API request failed: %s. Please check your API Base URL and network connection.',
-                $response->get_error_message()
-            );
-            return array( 'success' => false, 'error' => $error_message );
-        }
-
-        $response_code = wp_remote_retrieve_response_code( $response );
-        if ( $response_code !== 200 ) {
-            $error_details = array(
-                401 => 'Unauthorized. Please check your API authentication key.',
-                403 => 'Forbidden. Your API key may not have permission to access this resource.',
-                404 => 'Not found. Please check your API endpoint.',
-                429 => 'Rate limit exceeded. Please try again later.',
-                500 => 'Server error. The API service is experiencing issues.',
-                503 => 'Service unavailable. The API is temporarily down.',
-            );
-            $error_message = $error_details[ $response_code ] ?? 'Request failed.';
-            return array(
-                'success' => false,
-                'error'   => sprintf( 'HTTP %d: %s', $response_code, $error_message )
-            );
-        }
-
-        $body = wp_remote_retrieve_body( $response );
-        $data = json_decode( $body, true );
-
-        if ( json_last_error() !== JSON_ERROR_NONE ) {
-            return array(
-                'success' => false,
-                'error'   => sprintf( 'Invalid JSON response: %s', json_last_error_msg() )
-            );
-        }
-
-        $items = $this->get_nested_value( $data, $task['data_path'] ) ?? array();
-
-        if ( ! is_array( $items ) ) {
-            return array(
-                'success' => false,
-                'error'   => sprintf( 'Data path "%s" did not return an array. Check your data path configuration.', $task['data_path'] )
-            );
-        }
-
-        $total = $this->get_nested_value( $data, $task['total_path'] );
-
-        return array(
-            'success' => true,
-            'items'   => $items,
-            'total'   => $total,
-        );
-    }
 
     /**
      * Process a single item (create/update post)
@@ -897,5 +809,63 @@ class Apprco_Import_Tasks {
         return $this->get_all( array(
             'status' => self::STATUS_ACTIVE,
         ) );
+    }
+
+    /**
+     * Cleanup expired or missing vacancies
+     *
+     * @param array  $api_references References found in current import.
+     * @param string $import_id      Current import session ID.
+     */
+    private function cleanup_expired_vacancies( array $api_references, string $import_id ): void {
+        $settings_manager = Apprco_Settings_Manager::get_instance();
+        $expire_after_days = (int) $settings_manager->get( 'import', 'expire_after_days', 30 );
+
+        $query = new WP_Query( array(
+            'post_type'      => 'apprco_vacancy',
+            'post_status'    => 'any',
+            'posts_per_page' => -1,
+            'fields'         => 'ids',
+        ) );
+
+        if ( ! $query->have_posts() ) {
+            return;
+        }
+
+        $api_ref_set = array_flip( $api_references );
+        $deleted_count = 0;
+
+        foreach ( $query->posts as $post_id ) {
+            $ref = get_post_meta( $post_id, '_apprco_vacancy_reference', true );
+
+            if ( ! $ref || isset( $api_ref_set[ $ref ] ) ) {
+                continue;
+            }
+
+            $closing_date = get_post_meta( $post_id, '_apprco_closing_date', true );
+            $should_delete = false;
+
+            if ( $closing_date ) {
+                $closing_timestamp = strtotime( $closing_date );
+                $expire_timestamp  = $closing_timestamp + ( $expire_after_days * DAY_IN_SECONDS );
+                if ( time() > $expire_timestamp ) {
+                    $should_delete = true;
+                }
+            } else {
+                $last_modified = get_post_modified_time( 'U', false, $post_id );
+                if ( time() > $last_modified + ( $expire_after_days * DAY_IN_SECONDS ) ) {
+                    $should_delete = true;
+                }
+            }
+
+            if ( $should_delete ) {
+                wp_delete_post( $post_id, true );
+                $deleted_count++;
+            }
+        }
+
+        if ( $deleted_count > 0 ) {
+            $this->logger->info( sprintf( 'Cleaned up %d expired or missing vacancies.', $deleted_count ), $import_id, 'core' );
+        }
     }
 }

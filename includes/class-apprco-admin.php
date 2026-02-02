@@ -27,7 +27,6 @@ class Apprco_Admin {
             add_action( 'admin_menu', array( $this, 'cleanup_duplicate_submenu' ), 999 );
         }
 
-        add_action( 'admin_init', array( $this, 'init_settings' ) );
         add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_admin_scripts' ) );
 
         // AJAX handlers
@@ -116,7 +115,16 @@ class Apprco_Admin {
             30
         );
 
-        // Submenus
+        // Submenus (Import Tasks is now the primary submenu)
+        add_submenu_page(
+            'apprco-dashboard',
+            __( 'Import Tasks', 'apprenticeship-connect' ),
+            __( 'Import Tasks', 'apprenticeship-connect' ),
+            'manage_options',
+            'apprco-import-tasks',
+            array( $this, 'import_tasks_page' )
+        );
+
         add_submenu_page(
             'apprco-dashboard',
             __( 'Dashboard', 'apprenticeship-connect' ),
@@ -149,24 +157,6 @@ class Apprco_Admin {
             'manage_options',
             'apprco-logs',
             array( $this, 'logs_page' )
-        );
-
-        add_submenu_page(
-            'apprco-dashboard',
-            __( 'Import Wizard', 'apprenticeship-connect' ),
-            __( 'Import Wizard', 'apprenticeship-connect' ),
-            'manage_options',
-            'apprco-import-wizard',
-            array( $this, 'import_wizard_page' )
-        );
-
-        add_submenu_page(
-            'apprco-dashboard',
-            __( 'Import Tasks', 'apprenticeship-connect' ),
-            __( 'Import Tasks', 'apprenticeship-connect' ),
-            'manage_options',
-            'apprco-import-tasks',
-            array( $this, 'import_tasks_page' )
         );
 
         add_submenu_page(
@@ -241,318 +231,8 @@ class Apprco_Admin {
             }
         }
 
-        // Import wizard specific assets
-        if ( 'apprco-import-wizard' === $current_page ) {
-            $wizard_asset_file = APPRCO_PLUGIN_DIR . 'assets/build/import-wizard.asset.php';
-            if ( file_exists( $wizard_asset_file ) ) {
-                $wizard_asset = include $wizard_asset_file;
-                wp_enqueue_script( 'apprco-import-wizard', APPRCO_PLUGIN_URL . 'assets/build/import-wizard.js', $wizard_asset['dependencies'], $wizard_asset['version'], true );
-            } else {
-                // Fallback to old assets if build doesn't exist
-                wp_enqueue_style( 'apprco-import-wizard', APPRCO_PLUGIN_URL . 'assets/css/import-wizard.css', array(), APPRCO_PLUGIN_VERSION );
-                wp_enqueue_script( 'apprco-import-wizard', APPRCO_PLUGIN_URL . 'assets/js/import-wizard.js', array( 'jquery' ), APPRCO_PLUGIN_VERSION, true );
-            }
-
-            $wizard = Apprco_Import_Wizard::get_instance();
-            wp_localize_script( 'apprco-import-wizard', 'apprcoWizard', $wizard->get_js_data() );
-        }
     }
 
-    /**
-     * Initialize settings
-     */
-    public function init_settings(): void {
-        register_setting( 'apprco_plugin_options', 'apprco_plugin_options', array( $this, 'sanitize_options' ) );
-
-        // API Settings Section
-        add_settings_section(
-            'apprco_api_settings',
-            __( 'API Configuration', 'apprenticeship-connect' ),
-            array( $this, 'api_settings_section_callback' ),
-            'apprco-settings'
-        );
-
-        add_settings_field( 'api_base_url', __( 'API Base URL', 'apprenticeship-connect' ), array( $this, 'api_base_url_callback' ), 'apprco-settings', 'apprco_api_settings' );
-        add_settings_field( 'api_subscription_key', __( 'API Subscription Key', 'apprenticeship-connect' ), array( $this, 'api_subscription_key_callback' ), 'apprco-settings', 'apprco_api_settings' );
-        add_settings_field( 'api_ukprn', __( 'UKPRN (Optional)', 'apprenticeship-connect' ), array( $this, 'api_ukprn_callback' ), 'apprco-settings', 'apprco_api_settings' );
-        add_settings_field( 'test_and_sync', __( 'Test & Sync', 'apprenticeship-connect' ), array( $this, 'test_and_sync_callback' ), 'apprco-settings', 'apprco_api_settings' );
-
-        // Scheduler Settings Section
-        add_settings_section(
-            'apprco_scheduler_settings',
-            __( 'Scheduler Settings', 'apprenticeship-connect' ),
-            array( $this, 'scheduler_settings_section_callback' ),
-            'apprco-settings'
-        );
-
-        add_settings_field( 'sync_frequency', __( 'Sync Frequency', 'apprenticeship-connect' ), array( $this, 'sync_frequency_callback' ), 'apprco-settings', 'apprco_scheduler_settings' );
-        add_settings_field( 'delete_expired', __( 'Delete Expired', 'apprenticeship-connect' ), array( $this, 'delete_expired_callback' ), 'apprco-settings', 'apprco_scheduler_settings' );
-        add_settings_field( 'expire_after_days', __( 'Expire After Days', 'apprenticeship-connect' ), array( $this, 'expire_after_days_callback' ), 'apprco-settings', 'apprco_scheduler_settings' );
-
-        // Shortcode section
-        add_settings_section(
-            'apprco_shortcode_info',
-            __( 'Shortcode', 'apprenticeship-connect' ),
-            array( $this, 'shortcode_section_callback' ),
-            'apprco-settings'
-        );
-
-        // Display Settings Section
-        add_settings_section(
-            'apprco_display_settings',
-            __( 'Display Settings', 'apprenticeship-connect' ),
-            array( $this, 'display_settings_section_callback' ),
-            'apprco-settings'
-        );
-
-        add_settings_field( 'display_count', __( 'Default Display Count', 'apprenticeship-connect' ), array( $this, 'display_count_callback' ), 'apprco-settings', 'apprco_display_settings' );
-        add_settings_field( 'show_employer', __( 'Show Employer', 'apprenticeship-connect' ), array( $this, 'show_employer_callback' ), 'apprco-settings', 'apprco_display_settings' );
-        add_settings_field( 'show_location', __( 'Show Location', 'apprenticeship-connect' ), array( $this, 'show_location_callback' ), 'apprco-settings', 'apprco_display_settings' );
-        add_settings_field( 'show_closing_date', __( 'Show Closing Date', 'apprenticeship-connect' ), array( $this, 'show_closing_date_callback' ), 'apprco-settings', 'apprco_display_settings' );
-        add_settings_field( 'show_apply_button', __( 'Show Apply Button', 'apprenticeship-connect' ), array( $this, 'show_apply_button_callback' ), 'apprco-settings', 'apprco_display_settings' );
-        add_settings_field( 'show_no_vacancy_image', __( 'Show "No Vacancy" Image', 'apprenticeship-connect' ), array( $this, 'show_no_vacancy_image_callback' ), 'apprco-settings', 'apprco_display_settings' );
-        add_settings_field( 'no_vacancy_image', __( 'No Vacancy Image', 'apprenticeship-connect' ), array( $this, 'no_vacancy_image_callback' ), 'apprco-settings', 'apprco_display_settings' );
-    }
-
-    /**
-     * Sanitize options
-     *
-     * @param array $input Input options.
-     * @return array
-     */
-    public function sanitize_options( array $input ): array {
-        $sanitized = array();
-
-        $sanitized['api_base_url']         = isset( $input['api_base_url'] ) ? esc_url_raw( $input['api_base_url'] ) : '';
-        $sanitized['api_subscription_key'] = isset( $input['api_subscription_key'] ) ? sanitize_text_field( $input['api_subscription_key'] ) : '';
-        $sanitized['api_ukprn']            = isset( $input['api_ukprn'] ) ? sanitize_text_field( $input['api_ukprn'] ) : '';
-        $sanitized['sync_frequency']       = isset( $input['sync_frequency'] ) ? sanitize_text_field( $input['sync_frequency'] ) : 'daily';
-        $sanitized['delete_expired']       = isset( $input['delete_expired'] ) ? true : false;
-        $sanitized['expire_after_days']    = isset( $input['expire_after_days'] ) ? absint( $input['expire_after_days'] ) : 7;
-        $sanitized['display_count']        = isset( $input['display_count'] ) ? absint( $input['display_count'] ) : 10;
-        $sanitized['show_employer']        = isset( $input['show_employer'] ) ? true : false;
-        $sanitized['show_location']        = isset( $input['show_location'] ) ? true : false;
-        $sanitized['show_closing_date']    = isset( $input['show_closing_date'] ) ? true : false;
-        $sanitized['show_apply_button']    = isset( $input['show_apply_button'] ) ? true : false;
-        $sanitized['no_vacancy_image']     = isset( $input['no_vacancy_image'] ) ? esc_url_raw( $input['no_vacancy_image'] ) : '';
-        $sanitized['show_no_vacancy_image'] = isset( $input['show_no_vacancy_image'] ) ? true : false;
-
-        // Validate API credentials
-        if ( ! empty( $sanitized['api_base_url'] ) && ! filter_var( $sanitized['api_base_url'], FILTER_VALIDATE_URL ) ) {
-            add_settings_error(
-                'apprco_plugin_options',
-                'invalid_api_url',
-                __( 'API Base URL must be a valid URL.', 'apprenticeship-connect' ),
-                'error'
-            );
-            $sanitized['api_base_url'] = '';
-        }
-
-        if ( ! empty( $sanitized['api_subscription_key'] ) && strlen( $sanitized['api_subscription_key'] ) < 10 ) {
-            add_settings_error(
-                'apprco_plugin_options',
-                'invalid_api_key',
-                __( 'API Subscription Key appears to be invalid (too short).', 'apprenticeship-connect' ),
-                'warning'
-            );
-        }
-
-        if ( $sanitized['expire_after_days'] < 1 || $sanitized['expire_after_days'] > 365 ) {
-            add_settings_error(
-                'apprco_plugin_options',
-                'invalid_expire_days',
-                __( 'Expire after days must be between 1 and 365.', 'apprenticeship-connect' ),
-                'error'
-            );
-            $sanitized['expire_after_days'] = 7;
-        }
-
-        if ( $sanitized['display_count'] < 1 || $sanitized['display_count'] > 100 ) {
-            add_settings_error(
-                'apprco_plugin_options',
-                'invalid_display_count',
-                __( 'Display count must be between 1 and 100.', 'apprenticeship-connect' ),
-                'error'
-            );
-            $sanitized['display_count'] = 10;
-        }
-
-        // Reschedule sync if frequency changed
-        $old_options = get_option( 'apprco_plugin_options', array() );
-        if ( isset( $old_options['sync_frequency'] ) && $old_options['sync_frequency'] !== $sanitized['sync_frequency'] ) {
-            $scheduler = Apprco_Scheduler::get_instance();
-            $scheduler->reschedule();
-        }
-
-        return $sanitized;
-    }
-
-    // Section callbacks
-    public function api_settings_section_callback(): void {
-        echo '<p>' . esc_html__( 'Configure your API credentials to connect to the UK Government Apprenticeship service.', 'apprenticeship-connect' ) . '</p>';
-    }
-
-    public function scheduler_settings_section_callback(): void {
-        $scheduler = Apprco_Scheduler::get_instance();
-        $status    = $scheduler->get_status();
-
-        echo '<p>' . esc_html__( 'Configure automated sync schedule.', 'apprenticeship-connect' ) . '</p>';
-
-        echo '<div class="apprco-scheduler-status">';
-        echo '<strong>' . esc_html__( 'Scheduler Status:', 'apprenticeship-connect' ) . '</strong> ';
-
-        if ( $status['action_scheduler_available'] ) {
-            echo '<span class="apprco-badge apprco-badge-success">' . esc_html__( 'Action Scheduler Active', 'apprenticeship-connect' ) . '</span>';
-        } else {
-            echo '<span class="apprco-badge apprco-badge-warning">' . esc_html__( 'Using WP-Cron', 'apprenticeship-connect' ) . '</span>';
-        }
-
-        if ( $status['next_sync_formatted'] ) {
-            echo '<br><strong>' . esc_html__( 'Next Sync:', 'apprenticeship-connect' ) . '</strong> ' . esc_html( $status['next_sync_formatted'] );
-        }
-
-        if ( $status['is_running'] ) {
-            echo '<br><span class="apprco-badge apprco-badge-info">' . esc_html__( 'Import Running...', 'apprenticeship-connect' ) . '</span>';
-        }
-
-        echo '</div>';
-    }
-
-    public function shortcode_section_callback(): void {
-        echo '<div class="apprco-shortcode-inline">';
-        echo '<p>' . esc_html__( 'Use this shortcode to display vacancies on any page:', 'apprenticeship-connect' ) . '</p>';
-        echo '<code>[apprco_vacancies]</code>';
-        echo '<p class="description">' . esc_html__( 'Or use the Vacancies archive page, Elementor Loop Grid, or REST API.', 'apprenticeship-connect' ) . '</p>';
-        echo '</div>';
-    }
-
-    public function display_settings_section_callback(): void {
-        echo '<p>' . esc_html__( 'Configure how vacancies are displayed on your website.', 'apprenticeship-connect' ) . '</p>';
-    }
-
-    // Field callbacks
-    public function api_base_url_callback(): void {
-        $options = get_option( 'apprco_plugin_options', array() );
-        $value   = $options['api_base_url'] ?? 'https://api.apprenticeships.education.gov.uk/vacancies';
-        echo '<input type="url" id="api_base_url" name="apprco_plugin_options[api_base_url]" value="' . esc_attr( $value ) . '" class="regular-text" />';
-        echo '<p class="description">' . esc_html__( 'The base URL for the API endpoint.', 'apprenticeship-connect' ) . '</p>';
-    }
-
-    public function api_subscription_key_callback(): void {
-        $options = get_option( 'apprco_plugin_options', array() );
-        $value   = $options['api_subscription_key'] ?? '';
-        echo '<input type="password" id="api_subscription_key" name="apprco_plugin_options[api_subscription_key]" value="' . esc_attr( $value ) . '" class="regular-text" autocomplete="off" />';
-        echo '<p class="description">' . esc_html__( 'Your API subscription key from the UK Government Apprenticeship service.', 'apprenticeship-connect' ) . '</p>';
-    }
-
-    public function api_ukprn_callback(): void {
-        $options = get_option( 'apprco_plugin_options', array() );
-        $value   = $options['api_ukprn'] ?? '';
-        echo '<input type="text" id="api_ukprn" name="apprco_plugin_options[api_ukprn]" value="' . esc_attr( $value ) . '" class="regular-text" />';
-        echo '<p class="description">' . esc_html__( 'UKPRN for your provider (optional). Leave blank to show all vacancies.', 'apprenticeship-connect' ) . '</p>';
-    }
-
-    public function test_and_sync_callback(): void {
-        $sync_status     = $this->get_sync_status();
-        $is_configured   = $sync_status['is_configured'];
-        $last_sync       = $sync_status['last_sync'];
-        $total_vacancies = $sync_status['total_vacancies'];
-
-        echo '<button type="button" id="apprco-test-and-sync" class="button button-primary">';
-        echo $is_configured ? esc_html__( 'Test & Sync Vacancies', 'apprenticeship-connect' ) : esc_html__( 'Configure API to Test & Sync', 'apprenticeship-connect' );
-        echo '</button>';
-
-        echo ' <button type="button" id="apprco-clear-cache" class="button">' . esc_html__( 'Clear Cache', 'apprenticeship-connect' ) . '</button>';
-
-        echo '<div id="apprco-test-sync-result" style="margin-top: 10px;"></div>';
-
-        if ( $is_configured ) {
-            echo '<p class="description">' . esc_html__( 'Last synced: ', 'apprenticeship-connect' ) . '<span id="apprco-last-sync">' . ( $last_sync ? esc_html( wp_date( 'Y-m-d H:i:s', $last_sync ) ) : esc_html__( 'Never', 'apprenticeship-connect' ) ) . '</span></p>';
-            echo '<p class="description">' . esc_html__( 'Total vacancies: ', 'apprenticeship-connect' ) . '<span id="apprco-total-vacancies">' . esc_html( $total_vacancies ) . '</span></p>';
-        }
-    }
-
-    public function sync_frequency_callback(): void {
-        $options = get_option( 'apprco_plugin_options', array() );
-        $value   = $options['sync_frequency'] ?? 'daily';
-
-        $frequencies = array(
-            'hourly'     => __( 'Hourly', 'apprenticeship-connect' ),
-            'twicedaily' => __( 'Twice Daily', 'apprenticeship-connect' ),
-            'daily'      => __( 'Daily', 'apprenticeship-connect' ),
-            'weekly'     => __( 'Weekly', 'apprenticeship-connect' ),
-        );
-
-        echo '<select id="sync_frequency" name="apprco_plugin_options[sync_frequency]">';
-        foreach ( $frequencies as $freq => $label ) {
-            echo '<option value="' . esc_attr( $freq ) . '"' . selected( $value, $freq, false ) . '>' . esc_html( $label ) . '</option>';
-        }
-        echo '</select>';
-        echo '<p class="description">' . esc_html__( 'How often to automatically sync vacancies from the API.', 'apprenticeship-connect' ) . '</p>';
-    }
-
-    public function delete_expired_callback(): void {
-        $options = get_option( 'apprco_plugin_options', array() );
-        $checked = $options['delete_expired'] ?? true;
-        echo '<input type="checkbox" id="delete_expired" name="apprco_plugin_options[delete_expired]" ' . checked( $checked, true, false ) . ' />';
-        echo '<label for="delete_expired">' . esc_html__( 'Automatically delete expired vacancies', 'apprenticeship-connect' ) . '</label>';
-    }
-
-    public function expire_after_days_callback(): void {
-        $options = get_option( 'apprco_plugin_options', array() );
-        $value   = $options['expire_after_days'] ?? 7;
-        echo '<input type="number" id="expire_after_days" name="apprco_plugin_options[expire_after_days]" value="' . esc_attr( $value ) . '" min="1" max="90" />';
-        echo '<p class="description">' . esc_html__( 'Days after closing date to keep vacancies before deleting.', 'apprenticeship-connect' ) . '</p>';
-    }
-
-    public function display_count_callback(): void {
-        $options = get_option( 'apprco_plugin_options', array() );
-        $value   = $options['display_count'] ?? 10;
-        echo '<input type="number" id="display_count" name="apprco_plugin_options[display_count]" value="' . esc_attr( $value ) . '" min="1" max="100" />';
-    }
-
-    public function show_employer_callback(): void {
-        $options = get_option( 'apprco_plugin_options', array() );
-        $checked = $options['show_employer'] ?? true;
-        echo '<input type="checkbox" id="show_employer" name="apprco_plugin_options[show_employer]" ' . checked( $checked, true, false ) . ' />';
-        echo '<label for="show_employer">' . esc_html__( 'Show employer name in vacancy listings', 'apprenticeship-connect' ) . '</label>';
-    }
-
-    public function show_location_callback(): void {
-        $options = get_option( 'apprco_plugin_options', array() );
-        $checked = $options['show_location'] ?? true;
-        echo '<input type="checkbox" id="show_location" name="apprco_plugin_options[show_location]" ' . checked( $checked, true, false ) . ' />';
-        echo '<label for="show_location">' . esc_html__( 'Show location in vacancy listings', 'apprenticeship-connect' ) . '</label>';
-    }
-
-    public function show_closing_date_callback(): void {
-        $options = get_option( 'apprco_plugin_options', array() );
-        $checked = $options['show_closing_date'] ?? true;
-        echo '<input type="checkbox" id="show_closing_date" name="apprco_plugin_options[show_closing_date]" ' . checked( $checked, true, false ) . ' />';
-        echo '<label for="show_closing_date">' . esc_html__( 'Show closing date in vacancy listings', 'apprenticeship-connect' ) . '</label>';
-    }
-
-    public function show_apply_button_callback(): void {
-        $options = get_option( 'apprco_plugin_options', array() );
-        $checked = $options['show_apply_button'] ?? true;
-        echo '<input type="checkbox" id="show_apply_button" name="apprco_plugin_options[show_apply_button]" ' . checked( $checked, true, false ) . ' />';
-        echo '<label for="show_apply_button">' . esc_html__( 'Show apply button in vacancy listings', 'apprenticeship-connect' ) . '</label>';
-    }
-
-    public function show_no_vacancy_image_callback(): void {
-        $options = get_option( 'apprco_plugin_options', array() );
-        $checked = $options['show_no_vacancy_image'] ?? true;
-        echo '<input type="checkbox" id="show_no_vacancy_image" name="apprco_plugin_options[show_no_vacancy_image]" ' . checked( $checked, true, false ) . ' />';
-        echo '<label for="show_no_vacancy_image">' . esc_html__( 'Show "No Vacancy" image when no vacancies are available', 'apprenticeship-connect' ) . '</label>';
-    }
-
-    public function no_vacancy_image_callback(): void {
-        $options       = get_option( 'apprco_plugin_options', array() );
-        $default_image = APPRCO_PLUGIN_URL . 'assets/images/bg-no-vacancy.png';
-        $value         = $options['no_vacancy_image'] ?? $default_image;
-        echo '<input type="url" id="no_vacancy_image" name="apprco_plugin_options[no_vacancy_image]" value="' . esc_attr( $value ) . '" class="regular-text" />';
-        echo '<button type="button" id="no_vacancy_image_button" class="button">' . esc_html__( 'Choose Image', 'apprenticeship-connect' ) . '</button>';
-    }
 
     /**
      * Dashboard page
@@ -635,55 +315,6 @@ class Apprco_Admin {
         <?php
     }
 
-    /**
-     * Import Wizard page
-     */
-    public function import_wizard_page(): void {
-        ?>
-        <div class="wrap">
-            <h1><?php esc_html_e( 'Import Wizard', 'apprenticeship-connect' ); ?></h1>
-            <p><?php esc_html_e( 'Use this wizard to import apprenticeship vacancies from external APIs.', 'apprenticeship-connect' ); ?></p>
-
-            <div id="apprco-import-wizard">
-                <ul class="wizard-steps">
-                    <li class="step active" data-step="connect">
-                        <span class="step-number">1</span>
-                        <?php esc_html_e( 'Test Connection', 'apprenticeship-connect' ); ?>
-                    </li>
-                    <li class="step" data-step="configure">
-                        <span class="step-number">2</span>
-                        <?php esc_html_e( 'Configure Import', 'apprenticeship-connect' ); ?>
-                    </li>
-                    <li class="step" data-step="preview">
-                        <span class="step-number">3</span>
-                        <?php esc_html_e( 'Preview Data', 'apprenticeship-connect' ); ?>
-                    </li>
-                    <li class="step" data-step="execute">
-                        <span class="step-number">4</span>
-                        <?php esc_html_e( 'Execute Import', 'apprenticeship-connect' ); ?>
-                    </li>
-                </ul>
-
-                <div class="wizard-content">
-                    <!-- Step content rendered by JavaScript -->
-                </div>
-
-                <div class="wizard-navigation">
-                    <button type="button" class="button wizard-prev" disabled>
-                        &larr; <?php esc_html_e( 'Previous', 'apprenticeship-connect' ); ?>
-                    </button>
-                    <button type="button" class="button button-primary wizard-next" disabled>
-                        <?php esc_html_e( 'Next', 'apprenticeship-connect' ); ?> &rarr;
-                    </button>
-                </div>
-
-                <div class="wizard-status">
-                    <?php esc_html_e( 'Select a provider to begin.', 'apprenticeship-connect' ); ?>
-                </div>
-            </div>
-        </div>
-        <?php
-    }
 
     /**
      * Admin settings page
@@ -703,15 +334,16 @@ class Apprco_Admin {
      * @return array
      */
     private function get_sync_status(): array {
-        $last_sync       = get_option( 'apprco_last_sync' );
-        $total_vacancies = wp_count_posts( 'apprco_vacancy' );
-        $options         = get_option( 'apprco_plugin_options', array() );
+        $last_sync        = get_option( 'apprco_last_sync' );
+        $total_vacancies  = wp_count_posts( 'apprco_vacancy' );
+        $settings_manager = Apprco_Settings_Manager::get_instance();
+        $api_key          = $settings_manager->get( 'api', 'subscription_key' );
 
         return array(
             'last_sync'       => $last_sync,
             'last_sync_human' => $last_sync ? human_time_diff( $last_sync ) . ' ago' : 'Never',
             'total_vacancies' => $total_vacancies->publish ?? 0,
-            'is_configured'   => ! empty( $options['api_subscription_key'] ),
+            'is_configured'   => ! empty( $api_key ),
         );
     }
 
@@ -723,11 +355,16 @@ class Apprco_Admin {
             wp_send_json_error( __( 'Permission denied.', 'apprenticeship-connect' ) );
         }
 
-        $core   = Apprco_Core::get_instance();
-        $result = $core->manual_sync();
-        $stats  = $core->get_import_stats();
+        $adapter = Apprco_Import_Adapter::get_instance();
+        $result_data = $adapter->run_manual_sync();
+        $result = $result_data['success'] ?? false;
 
         if ( $result ) {
+            $stats = array(
+                'created' => $result_data['created'] ?? 0,
+                'updated' => $result_data['updated'] ?? 0,
+                'deleted' => $result_data['deleted'] ?? 0,
+            );
             wp_send_json_success( array(
                 'message' => sprintf(
                     __( 'Sync completed! Created: %d, Updated: %d, Deleted: %d', 'apprenticeship-connect' ),
@@ -749,8 +386,14 @@ class Apprco_Admin {
             wp_send_json_error( __( 'Permission denied.', 'apprenticeship-connect' ) );
         }
 
-        $core   = Apprco_Core::get_instance();
-        $result = $core->test_api_connection();
+        $registry = Apprco_Provider_Registry::get_instance();
+        $provider = $registry->get( 'uk-gov-apprenticeships' );
+
+        if ( ! $provider ) {
+            wp_send_json_error( __( 'UK Gov Provider not found.', 'apprenticeship-connect' ) );
+        }
+
+        $result = $provider->test_connection();
 
         if ( $result['success'] ) {
             wp_send_json_success( $result['message'] );
@@ -766,7 +409,8 @@ class Apprco_Admin {
             wp_send_json_error( __( 'Permission denied.', 'apprenticeship-connect' ) );
         }
 
-        $saved = get_option( 'apprco_plugin_options', array() );
+        $settings_manager = Apprco_Settings_Manager::get_instance();
+        $saved = $settings_manager->get_options_array();
 
         $api_base_url = isset( $_POST['api_base_url'] ) && $_POST['api_base_url'] !== '' ? esc_url_raw( wp_unslash( $_POST['api_base_url'] ) ) : ( $saved['api_base_url'] ?? '' );
         $api_key      = isset( $_POST['api_subscription_key'] ) && $_POST['api_subscription_key'] !== '' ? sanitize_text_field( wp_unslash( $_POST['api_subscription_key'] ) ) : ( $saved['api_subscription_key'] ?? '' );
@@ -776,14 +420,15 @@ class Apprco_Admin {
             wp_send_json_error( __( 'API credentials not configured.', 'apprenticeship-connect' ) );
         }
 
-        $main_plugin = Apprco_Connector::get_instance();
-        $main_plugin->override_options_for_sync( array(
+        // Run manual sync with overrides
+        $adapter = Apprco_Import_Adapter::get_instance();
+        $sync_result_data = $adapter->run_manual_sync( array(
             'api_base_url'         => $api_base_url,
             'api_subscription_key' => $api_key,
             'api_ukprn'            => $api_ukprn,
         ) );
 
-        $sync_result = $main_plugin->manual_sync();
+        $sync_result = $sync_result_data['success'] ?? false;
         $sync_status = $this->get_sync_status();
 
         if ( $sync_result ) {
@@ -815,12 +460,11 @@ class Apprco_Admin {
             wp_send_json_error( __( 'Missing API settings.', 'apprenticeship-connect' ) );
         }
 
-        $options                        = get_option( 'apprco_plugin_options', array() );
-        $options['api_base_url']        = $api_base_url;
-        $options['api_subscription_key'] = $api_key;
-        $options['api_ukprn']           = $api_ukprn;
+        $settings_manager = Apprco_Settings_Manager::get_instance();
+        $settings_manager->update( 'api', 'base_url', $api_base_url );
+        $settings_manager->update( 'api', 'subscription_key', $api_key );
+        $settings_manager->update( 'api', 'ukprn', $api_ukprn );
 
-        update_option( 'apprco_plugin_options', $options );
         wp_send_json_success( __( 'API settings saved.', 'apprenticeship-connect' ) );
     }
 
@@ -887,8 +531,12 @@ class Apprco_Admin {
             wp_send_json_error( __( 'Permission denied.', 'apprenticeship-connect' ) );
         }
 
-        $core = Apprco_Core::get_instance();
-        $core->clear_cache();
+        // Clear API Client cache
+        $api_client = new Apprco_API_Client( '' );
+        $api_client->clear_cache();
+
+        // Clear object cache
+        wp_cache_delete( 'apprco_existing_vacancy_references' );
 
         wp_send_json_success( __( 'Cache cleared successfully.', 'apprenticeship-connect' ) );
     }
@@ -902,13 +550,12 @@ class Apprco_Admin {
 
         // If frequency is provided, save it first
         if ( isset( $_POST['frequency'] ) ) {
-            $options = get_option( 'apprco_plugin_options', array() );
-            $options['sync_frequency'] = sanitize_text_field( wp_unslash( $_POST['frequency'] ) );
-            update_option( 'apprco_plugin_options', $options );
+            $settings_manager = Apprco_Settings_Manager::get_instance();
+            $settings_manager->update( 'schedule', 'frequency', sanitize_text_field( wp_unslash( $_POST['frequency'] ) ) );
         }
 
-        $scheduler = Apprco_Scheduler::get_instance();
-        $scheduler->reschedule();
+        $task_scheduler = Apprco_Task_Scheduler::get_instance();
+        $task_scheduler->init();
 
         wp_send_json_success( __( 'Sync rescheduled.', 'apprenticeship-connect' ) );
     }
@@ -932,7 +579,15 @@ class Apprco_Admin {
      */
     private function render_tasks_list(): void {
         $tasks_manager = Apprco_Import_Tasks::get_instance();
-        $tasks = $tasks_manager->get_all();
+        $scheduler     = Apprco_Task_Scheduler::get_instance();
+        $tasks         = $tasks_manager->get_all();
+        $scheduled     = $scheduler->get_scheduled_tasks();
+
+        // Map scheduled tasks by ID for easy lookup
+        $scheduled_map = array();
+        foreach ( $scheduled as $s ) {
+            $scheduled_map[ $s['task_id'] ] = $s;
+        }
         ?>
         <div class="wrap apprco-import-tasks">
             <h1 class="wp-heading-inline"><?php esc_html_e( 'Import Tasks', 'apprenticeship-connect' ); ?></h1>
@@ -944,23 +599,29 @@ class Apprco_Admin {
             <table class="wp-list-table widefat fixed striped">
                 <thead>
                     <tr>
-                        <th scope="col" class="column-name"><?php esc_html_e( 'Name', 'apprenticeship-connect' ); ?></th>
-                        <th scope="col" class="column-status"><?php esc_html_e( 'Status', 'apprenticeship-connect' ); ?></th>
-                        <th scope="col" class="column-provider"><?php esc_html_e( 'API Endpoint', 'apprenticeship-connect' ); ?></th>
-                        <th scope="col" class="column-last-run"><?php esc_html_e( 'Last Run', 'apprenticeship-connect' ); ?></th>
-                        <th scope="col" class="column-stats"><?php esc_html_e( 'Last Results', 'apprenticeship-connect' ); ?></th>
-                        <th scope="col" class="column-actions"><?php esc_html_e( 'Actions', 'apprenticeship-connect' ); ?></th>
+                        <th scope="col" class="column-name" style="width: 20%;"><?php esc_html_e( 'Name', 'apprenticeship-connect' ); ?></th>
+                        <th scope="col" class="column-status" style="width: 10%;"><?php esc_html_e( 'Status', 'apprenticeship-connect' ); ?></th>
+                        <th scope="col" class="column-schedule" style="width: 15%;"><?php esc_html_e( 'Schedule', 'apprenticeship-connect' ); ?></th>
+                        <th scope="col" class="column-next-run" style="width: 15%;"><?php esc_html_e( 'Next Run', 'apprenticeship-connect' ); ?></th>
+                        <th scope="col" class="column-last-run" style="width: 15%;"><?php esc_html_e( 'Last Run', 'apprenticeship-connect' ); ?></th>
+                        <th scope="col" class="column-stats" style="width: 10%;"><?php esc_html_e( 'Results', 'apprenticeship-connect' ); ?></th>
+                        <th scope="col" class="column-actions" style="width: 15%;"><?php esc_html_e( 'Actions', 'apprenticeship-connect' ); ?></th>
                     </tr>
                 </thead>
                 <tbody id="apprco-tasks-list">
                     <?php if ( empty( $tasks ) ) : ?>
-                        <tr><td colspan="6"><?php esc_html_e( 'No import tasks found. Create one to get started.', 'apprenticeship-connect' ); ?></td></tr>
+                        <tr><td colspan="7"><?php esc_html_e( 'No import tasks found. Create one to get started.', 'apprenticeship-connect' ); ?></td></tr>
                     <?php else : ?>
                         <?php foreach ( $tasks as $task ) : ?>
-                            <tr data-task-id="<?php echo esc_attr( $task['id'] ); ?>">
+                            <?php
+                            $task_id = $task['id'];
+                            $is_scheduled = $task['schedule_enabled'] && $task['status'] === 'active';
+                            $next_run = $scheduled_map[ $task_id ] ?? null;
+                            ?>
+                            <tr data-task-id="<?php echo esc_attr( $task_id ); ?>">
                                 <td class="column-name">
                                     <strong>
-                                        <a href="<?php echo esc_url( admin_url( 'admin.php?page=apprco-import-tasks&action=edit&task_id=' . $task['id'] ) ); ?>">
+                                        <a href="<?php echo esc_url( admin_url( 'admin.php?page=apprco-import-tasks&action=edit&task_id=' . $task_id ) ); ?>">
                                             <?php echo esc_html( $task['name'] ); ?>
                                         </a>
                                     </strong>
@@ -972,13 +633,25 @@ class Apprco_Admin {
                                     <span class="apprco-badge apprco-badge-<?php echo esc_attr( $task['status'] ); ?>">
                                         <?php echo esc_html( ucfirst( $task['status'] ) ); ?>
                                     </span>
+                                </td>
+                                <td class="column-schedule">
                                     <?php if ( $task['schedule_enabled'] ) : ?>
-                                        <br><small><?php echo esc_html( ucfirst( $task['schedule_frequency'] ) ); ?></small>
+                                        <span class="dashicons dashicons-calendar-alt" style="font-size: 16px; width: 16px; height: 16px; margin-top: 2px;"></span>
+                                        <?php echo esc_html( ucfirst( $task['schedule_frequency'] ) ); ?>
+                                        <br><small><?php echo esc_html( $task['schedule_time'] ); ?></small>
+                                    <?php else : ?>
+                                        <span class="description"><?php esc_html_e( 'Manual Only', 'apprenticeship-connect' ); ?></span>
                                     <?php endif; ?>
                                 </td>
-                                <td class="column-provider">
-                                    <code><?php echo esc_html( $task['api_endpoint'] ); ?></code>
-                                    <br><small><?php echo esc_html( wp_parse_url( $task['api_base_url'], PHP_URL_HOST ) ); ?></small>
+                                <td class="column-next-run">
+                                    <?php if ( $next_run ) : ?>
+                                        <?php echo esc_html( $next_run['next_run_human'] ); ?>
+                                        <br><small><?php echo esc_html( $next_run['method'] ); ?></small>
+                                    <?php elseif ( $is_scheduled ) : ?>
+                                        <span style="color: #dba617;"><?php esc_html_e( 'Pending...', 'apprenticeship-connect' ); ?></span>
+                                    <?php else : ?>
+                                        —
+                                    <?php endif; ?>
                                 </td>
                                 <td class="column-last-run">
                                     <?php if ( $task['last_run_at'] ) : ?>
@@ -992,19 +665,20 @@ class Apprco_Admin {
                                 </td>
                                 <td class="column-stats">
                                     <?php if ( $task['last_run_at'] ) : ?>
-                                        <span title="<?php esc_attr_e( 'Fetched', 'apprenticeship-connect' ); ?>"><?php echo esc_html( $task['last_run_fetched'] ); ?> fetched</span>
+                                        <span title="<?php esc_attr_e( 'Fetched', 'apprenticeship-connect' ); ?>" style="color: #2271b1; font-weight: 600;"><?php echo esc_html( $task['last_run_fetched'] ); ?></span>
                                         <br>
-                                        <span title="<?php esc_attr_e( 'Created', 'apprenticeship-connect' ); ?>" style="color: green;"><?php echo esc_html( $task['last_run_created'] ); ?> new</span> /
-                                        <span title="<?php esc_attr_e( 'Updated', 'apprenticeship-connect' ); ?>"><?php echo esc_html( $task['last_run_updated'] ); ?> updated</span>
+                                        <span title="<?php esc_attr_e( 'Created', 'apprenticeship-connect' ); ?>" style="color: green;">+<?php echo esc_html( $task['last_run_created'] ); ?></span>
+                                        /
+                                        <span title="<?php esc_attr_e( 'Updated', 'apprenticeship-connect' ); ?>" style="color: #646970;">~<?php echo esc_html( $task['last_run_updated'] ); ?></span>
                                         <?php if ( $task['last_run_errors'] > 0 ) : ?>
-                                            <br><span style="color: red;"><?php echo esc_html( $task['last_run_errors'] ); ?> errors</span>
+                                            <br><span style="color: red;">! <?php echo esc_html( $task['last_run_errors'] ); ?></span>
                                         <?php endif; ?>
                                     <?php else : ?>
                                         —
                                     <?php endif; ?>
                                 </td>
                                 <td class="column-actions">
-                                    <button type="button" class="button button-small apprco-run-task" data-task-id="<?php echo esc_attr( $task['id'] ); ?>" <?php echo $task['status'] !== 'active' ? 'disabled' : ''; ?>>
+                                    <button type="button" class="button button-small apprco-run-task" data-task-id="<?php echo esc_attr( $task_id ); ?>" <?php echo $task['status'] !== 'active' ? 'disabled' : ''; ?>>
                                         <?php esc_html_e( 'Run Now', 'apprenticeship-connect' ); ?>
                                     </button>
                                     <a href="<?php echo esc_url( admin_url( 'admin.php?page=apprco-import-tasks&action=edit&task_id=' . $task['id'] ) ); ?>" class="button button-small">
@@ -1151,8 +825,11 @@ class Apprco_Admin {
                     </div>
 
                     <!-- API Configuration -->
-                    <div class="apprco-section">
-                        <h2><?php esc_html_e( 'API Configuration', 'apprenticeship-connect' ); ?></h2>
+                    <div class="apprco-section apprco-section-api">
+                        <div class="apprco-section-header">
+                            <h2><?php esc_html_e( 'API Configuration', 'apprenticeship-connect' ); ?></h2>
+                            <span class="apprco-v2-badge">v2 API Ready</span>
+                        </div>
                         <table class="form-table">
                             <tr>
                                 <th scope="row"><label for="api_base_url"><?php esc_html_e( 'API Base URL', 'apprenticeship-connect' ); ?></label></th>
@@ -1196,18 +873,21 @@ class Apprco_Admin {
                             </tr>
                         </table>
 
-                        <h3><?php esc_html_e( 'Test API Connection', 'apprenticeship-connect' ); ?></h3>
-                        <p>
-                            <button type="button" id="apprco-test-connection" class="button button-primary"><?php esc_html_e( 'Test Connection & Fetch Sample', 'apprenticeship-connect' ); ?></button>
-                            <span id="apprco-test-status"></span>
-                        </p>
-                        <div id="apprco-test-result" class="apprco-test-result" style="display:none;">
-                            <h4><?php esc_html_e( 'API Response', 'apprenticeship-connect' ); ?></h4>
-                            <div id="apprco-test-summary"></div>
-                            <h4><?php esc_html_e( 'Available Fields (click to copy path)', 'apprenticeship-connect' ); ?></h4>
-                            <div id="apprco-available-fields"></div>
-                            <h4><?php esc_html_e( 'Sample Data (First 10 Records)', 'apprenticeship-connect' ); ?></h4>
-                            <div id="apprco-sample-data" style="max-height: 400px; overflow: auto;"></div>
+                        <div class="apprco-test-drive">
+                            <h3><?php esc_html_e( 'Connection Test Drive', 'apprenticeship-connect' ); ?></h3>
+                            <p class="description"><?php esc_html_e( 'Verify your credentials and see live data before saving.', 'apprenticeship-connect' ); ?></p>
+                            <p>
+                                <button type="button" id="apprco-test-connection" class="button button-large"><?php esc_html_e( 'Test Connection & Fetch Sample', 'apprenticeship-connect' ); ?></button>
+                                <span id="apprco-test-status"></span>
+                            </p>
+                            <div id="apprco-test-result" class="apprco-test-result" style="display:none;">
+                                <h4><?php esc_html_e( 'API Response', 'apprenticeship-connect' ); ?></h4>
+                                <div id="apprco-test-summary"></div>
+                                <h4><?php esc_html_e( 'Available Fields (click to copy path)', 'apprenticeship-connect' ); ?></h4>
+                                <div id="apprco-available-fields"></div>
+                                <h4><?php esc_html_e( 'Sample Data (First 10 Records)', 'apprenticeship-connect' ); ?></h4>
+                                <div id="apprco-sample-data" style="max-height: 400px; overflow: auto;"></div>
+                            </div>
                         </div>
                     </div>
 
@@ -1338,17 +1018,23 @@ class Apprco_Admin {
 
         <style>
             .apprco-task-sections { max-width: 1000px; }
-            .apprco-section { background: #fff; border: 1px solid #ccd0d4; padding: 20px; margin-bottom: 20px; }
-            .apprco-section h2 { margin-top: 0; padding-bottom: 10px; border-bottom: 1px solid #eee; }
-            .apprco-test-result { background: #f9f9f9; padding: 15px; margin-top: 15px; border: 1px solid #ddd; }
+            .apprco-section { background: #fff; border: 1px solid #ccd0d4; padding: 20px; margin-bottom: 20px; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+            .apprco-section-header { display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #eee; margin-bottom: 15px; padding-bottom: 10px; }
+            .apprco-section h2 { margin: 0; }
+            .apprco-v2-badge { background: #e7f5ec; color: #1e8a44; padding: 4px 8px; border-radius: 4px; font-weight: 600; font-size: 11px; text-transform: uppercase; border: 1px solid #1e8a44; }
+            .apprco-test-drive { background: #f0f6fb; border: 1px solid #c3d9ef; padding: 20px; margin-top: 20px; border-radius: 4px; }
+            .apprco-test-drive h3 { margin-top: 0; color: #2271b1; }
+            .apprco-test-result { background: #fff; padding: 15px; margin-top: 15px; border: 1px solid #ddd; border-radius: 4px; }
             #apprco-available-fields { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 15px; }
-            #apprco-available-fields .field-tag { background: #e1e1e1; padding: 3px 8px; border-radius: 3px; cursor: pointer; font-family: monospace; font-size: 12px; }
-            #apprco-available-fields .field-tag:hover { background: #0073aa; color: #fff; }
+            #apprco-available-fields .field-tag { background: #f0f0f1; padding: 4px 10px; border-radius: 4px; cursor: pointer; font-family: monospace; font-size: 12px; border: 1px solid #dcdcde; transition: all 0.2s; }
+            #apprco-available-fields .field-tag:hover { background: #2271b1; color: #fff; border-color: #2271b1; }
             #apprco-sample-data table { font-size: 12px; }
             #apprco-field-mappings input { font-family: monospace; }
             .apprco-badge-active { background: #00a32a; color: #fff; }
             .apprco-badge-inactive { background: #dba617; color: #fff; }
             .apprco-badge-draft { background: #72777c; color: #fff; }
+            .apprco-ref-badge { background: #f0f6fb; color: #2271b1; border: 1px solid #2271b1; padding: 2px 6px; border-radius: 3px; font-weight: 600; font-size: 11px; }
+            .apprco-level-badge { background: #3c434a; color: #fff; padding: 2px 6px; border-radius: 3px; font-size: 11px; }
         </style>
 
         <script>

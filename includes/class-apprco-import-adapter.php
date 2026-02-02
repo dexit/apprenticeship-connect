@@ -214,28 +214,7 @@ class Apprco_Import_Adapter {
 	 * @return array Default field mapping configuration.
 	 */
 	private function get_default_field_mapping(): array {
-		return array(
-			'title'               => 'title',
-			'description'         => 'description',
-			'vacancy_reference'   => 'vacancyReference',
-			'provider_name'       => 'standardOrFramework',
-			'employer_name'       => 'employerName',
-			'location'            => 'location',
-			'wage_text'           => 'wageText',
-			'wage_amount'         => 'wageAmount',
-			'hours_per_week'      => 'hoursPerWeek',
-			'working_week'        => 'workingWeek',
-			'posted_date'         => 'postedDate',
-			'closing_date'        => 'closingDate',
-			'start_date'          => 'expectedStartDate',
-			'duration'            => 'expectedDuration',
-			'apprenticeship_level' => 'apprenticeshipLevel',
-			'positions_available' => 'numberOfPositions',
-			'apply_url'           => 'applicationUrl',
-			'contact_name'        => 'contactName',
-			'contact_email'       => 'contactEmail',
-			'contact_phone'       => 'contactPhone',
-		);
+		return Apprco_Import_Tasks::get_default_field_mappings();
 	}
 
 	/**

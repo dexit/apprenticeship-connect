@@ -423,9 +423,33 @@ class Apprco_Meta_Box {
      * Initialize hooks
      */
     private function init_hooks(): void {
+        add_action( 'init', array( $this, 'register_meta' ) );
         add_action( 'add_meta_boxes', array( $this, 'add_meta_boxes' ) );
         add_action( 'save_post_apprco_vacancy', array( $this, 'save_meta_box_data' ), 10, 2 );
         add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_meta_box_scripts' ) );
+    }
+
+    /**
+     * Register meta fields for REST API (Block Editor support)
+     */
+    public function register_meta(): void {
+        foreach ( $this->get_all_fields() as $meta_key => $field ) {
+            $type = 'string';
+            switch ( $field['type'] ) {
+                case 'number':
+                    $type = 'number';
+                    break;
+                case 'checkbox':
+                    $type = 'boolean';
+                    break;
+            }
+
+            register_post_meta( 'apprco_vacancy', $meta_key, array(
+                'show_in_rest' => true,
+                'single'       => true,
+                'type'         => $type,
+            ) );
+        }
     }
 
     /**
