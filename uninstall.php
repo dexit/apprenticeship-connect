@@ -16,10 +16,22 @@ if ( ! defined( 'WP_UNINSTALL_PLUGIN' ) ) {
 
 // Delete plugin options
 delete_option( 'apprco_plugin_options' );
+delete_option( 'apprco_settings' );
+delete_option( 'apprco_settings_migrated' );
 delete_option( 'apprco_last_sync' );
 delete_option( 'apprco_setup_completed' );
 delete_option( 'apprco_plugin_activated' );
 delete_option( 'apprco_vacancy_page_id' );
+delete_option( 'apprco_db_version' );
+delete_option( 'apprco_sync_scheduled' );
+
+// Clear all transients
+global $wpdb;
+$wpdb->query( "DELETE FROM {$wpdb->options} WHERE option_name LIKE '_transient_apprco_%' OR option_name LIKE '_transient_timeout_apprco_%'" );
+
+// Drop custom tables
+require_once plugin_dir_path( __FILE__ ) . 'includes/class-apprco-import-logger.php';
+Apprco_Import_Logger::drop_table();
 
 // Delete all vacancy posts
 $vacancies = get_posts( array(

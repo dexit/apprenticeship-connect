@@ -134,93 +134,26 @@ class Apprco_REST_Controller {
 	 * @return WP_REST_Response
 	 */
 	public static function test_api_connection(): WP_REST_Response {
-		$settings_manager = Apprco_Settings_Manager::get_instance();
+		$registry = Apprco_Provider_Registry::get_instance();
+		$provider = $registry->get( 'uk-gov-apprenticeships' );
 
-		$base_url = $settings_manager->get( 'api', 'base_url' );
-		$api_key  = $settings_manager->get( 'api', 'subscription_key' );
-
-		if ( empty( $api_key ) ) {
+		if ( ! $provider ) {
 			return new WP_REST_Response(
 				array(
 					'success' => false,
-					'error'   => __( 'API credentials not configured. Please configure in Settings.', 'apprenticeship-connect' ),
+					'error'   => __( 'UK Government Provider not found.', 'apprenticeship-connect' ),
 				),
-				400
+				500
 			);
 		}
 
-		// Test API request
-		$response = wp_remote_get(
-			add_query_arg( array( 'PageNumber' => 1, 'PageSize' => 1 ), $base_url ),
-			array(
-				'headers' => array(
-					'Ocp-Apim-Subscription-Key' => $api_key,
-					'X-Version'                => '2',
-				),
-				'timeout' => 30,
-			)
-		);
+		$result = $provider->test_connection();
 
-		if ( is_wp_error( $response ) ) {
-			return new WP_REST_Response(
-				array(
-					'success' => false,
-					'error'   => sprintf(
-						__( 'Connection failed: %s', 'apprenticeship-connect' ),
-						$response->get_error_message()
-					),
-				),
-				400
-			);
+		if ( ! $result['success'] ) {
+			return new WP_REST_Response( $result, 400 );
 		}
 
-		$code = wp_remote_retrieve_response_code( $response );
-
-		if ( $code !== 200 ) {
-			$error_messages = array(
-				401 => __( 'Unauthorized. Please check your API subscription key.', 'apprenticeship-connect' ),
-				403 => __( 'Forbidden. Your API key may not have permission.', 'apprenticeship-connect' ),
-				404 => __( 'Not found. Please check your API base URL.', 'apprenticeship-connect' ),
-				429 => __( 'Rate limit exceeded. Please try again later.', 'apprenticeship-connect' ),
-				500 => __( 'Server error. The API service is experiencing issues.', 'apprenticeship-connect' ),
-			);
-
-			return new WP_REST_Response(
-				array(
-					'success' => false,
-					'error'   => sprintf(
-						__( 'HTTP %d: %s', 'apprenticeship-connect' ),
-						$code,
-						$error_messages[ $code ] ?? __( 'Request failed', 'apprenticeship-connect' )
-					),
-				),
-				400
-			);
-		}
-
-		$body = wp_remote_retrieve_body( $response );
-		$data = json_decode( $body, true );
-
-		if ( json_last_error() !== JSON_ERROR_NONE ) {
-			return new WP_REST_Response(
-				array(
-					'success' => false,
-					'error'   => __( 'Invalid JSON response from API.', 'apprenticeship-connect' ),
-				),
-				400
-			);
-		}
-
-		$sample_count = isset( $data['vacancies'] ) ? count( $data['vacancies'] ) : 0;
-
-		return new WP_REST_Response(
-			array(
-				'success'      => true,
-				'message'      => __( 'API connection successful!', 'apprenticeship-connect' ),
-				'sample_count' => $sample_count,
-			),
-			200
-		);
+		return new WP_REST_Response( $result, 200 );
 	}
 }
 

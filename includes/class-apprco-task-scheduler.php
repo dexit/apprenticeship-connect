@@ -108,16 +108,24 @@ class Apprco_Task_Scheduler {
         // Calculate next run time based on schedule_time
         $next_run = $this->calculate_next_run( $task['schedule_time'], $frequency );
 
-        // Schedule the event
-        wp_schedule_event( $next_run, $frequency, self::HOOK_NAME, array( $task_id ) );
+        if ( function_exists( 'as_schedule_recurring_action' ) ) {
+            $interval = $this->get_interval_seconds( $frequency );
+            as_schedule_recurring_action( $next_run, $interval, self::HOOK_NAME, array( $task_id ), 'apprco' );
+            $method = 'Action Scheduler';
+        } else {
+            // Schedule the event
+            wp_schedule_event( $next_run, $frequency, self::HOOK_NAME, array( $task_id ) );
+            $method = 'WP-Cron';
+        }
 
         $this->logger->info(
             sprintf(
-                'Scheduled task "%s" (ID: %d) to run %s at %s',
+                'Scheduled task "%s" (ID: %d) to run %s at %s via %s',
                 $task['name'],
                 $task_id,
                 $frequency,
-                gmdate( 'Y-m-d H:i:s', $next_run )
+                gmdate( 'Y-m-d H:i:s', $next_run ),
+                $method
             ),
             null,
             'scheduler'
@@ -132,12 +140,19 @@ class Apprco_Task_Scheduler {
      * @param int $task_id Task ID.
      */
     public function unschedule_task( int $task_id ): void {
+        // Clean up Action Scheduler
+        if ( function_exists( 'as_unschedule_all_actions' ) ) {
+            as_unschedule_all_actions( self::HOOK_NAME, array( $task_id ), 'apprco' );
+        }
+
+        // Clean up WP-Cron
         $timestamp = wp_next_scheduled( self::HOOK_NAME, array( $task_id ) );
 
         if ( $timestamp ) {
             wp_unschedule_event( $timestamp, self::HOOK_NAME, array( $task_id ) );
-            $this->logger->info( sprintf( 'Unscheduled task ID: %d', $task_id ), null, 'scheduler' );
         }
+
+        $this->logger->info( sprintf( 'Unscheduled task ID: %d', $task_id ), null, 'scheduler' );
     }
 
     /**
@@ -212,6 +227,23 @@ class Apprco_Task_Scheduler {
     }
 
     /**
+     * Get interval in seconds for frequency
+     *
+     * @param string $frequency Frequency key.
+     * @return int Seconds.
+     */
+    private function get_interval_seconds( string $frequency ): int {
+        $intervals = array(
+            'hourly'      => HOUR_IN_SECONDS,
+            'twicedaily'  => 12 * HOUR_IN_SECONDS,
+            'daily'       => DAY_IN_SECONDS,
+            'weekly'      => WEEK_IN_SECONDS,
+        );
+
+        return $intervals[ $frequency ] ?? DAY_IN_SECONDS;
+    }
+
+    /**
      * Calculate next run timestamp
      *
      * @param string $schedule_time Time in HH:MM:SS format.
@@ -246,8 +278,9 @@ class Apprco_Task_Scheduler {
      */
     public function get_scheduled_tasks(): array {
         $scheduled = array();
-        $cron      = _get_cron_array();
 
+        // WP-Cron tasks
+        $cron = _get_cron_array();
         foreach ( $cron as $timestamp => $hooks ) {
             if ( isset( $hooks[ self::HOOK_NAME ] ) ) {
                 foreach ( $hooks[ self::HOOK_NAME ] as $hook ) {
@@ -261,8 +294,36 @@ class Apprco_Task_Scheduler {
                             'frequency' => $task['schedule_frequency'],
                             'next_run'  => $timestamp,
                             'next_run_human' => human_time_diff( $timestamp ) . ( $timestamp > time() ? ' from now' : ' ago' ),
+                            'method'    => 'WP-Cron',
                         );
                     }
+                }
+            }
+        }
+
+        // Action Scheduler tasks
+        if ( function_exists( 'as_get_scheduled_actions' ) ) {
+            $as_actions = as_get_scheduled_actions( array(
+                'hook'   => self::HOOK_NAME,
+                'status' => 'pending',
+                'group'  => 'apprco',
+            ) );
+
+            foreach ( $as_actions as $action ) {
+                $args = $action->get_args();
+                $task_id = $args[0] ?? 0;
+                $task    = $this->tasks_manager->get( $task_id );
+                $timestamp = $action->get_schedule()->get_date()->getTimestamp();
+
+                if ( $task ) {
+                    $scheduled[] = array(
+                        'task_id'   => $task_id,
+                        'task_name' => $task['name'],
+                        'frequency' => $task['schedule_frequency'],
+                        'next_run'  => $timestamp,
+                        'next_run_human' => human_time_diff( $timestamp ) . ( $timestamp > time() ? ' from now' : ' ago' ),
+                        'method'    => 'Action Scheduler',
+                    );
                 }
             }
         }

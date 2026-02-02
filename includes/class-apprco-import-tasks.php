@@ -424,8 +424,14 @@ class Apprco_Import_Tasks {
      * @return array Result with data or error.
      */
     public function execute_api_request( array $task, int $limit = 100, bool $test_mode = false ): array {
-        // Build URL
-        $url = rtrim( $task['api_base_url'], '/' ) . $task['api_endpoint'];
+        $client = new Apprco_API_Client( $task['api_base_url'], array(), $this->logger );
+
+        // Build headers
+        $headers = $task['api_headers'] ?? array();
+        if ( $task['api_auth_type'] === 'header_key' && ! empty( $task['api_auth_key'] ) && ! empty( $task['api_auth_value'] ) ) {
+            $headers[ $task['api_auth_key'] ] = $task['api_auth_value'];
+        }
+        $client->set_default_headers( $headers );
 
         // Build params
         $params = $task['api_params'] ?? array();
@@ -434,70 +440,29 @@ class Apprco_Import_Tasks {
             $params[ $task['page_size_param'] ] = min( $limit, $task['page_size'] );
         }
 
-        $url .= '?' . http_build_query( $params );
+        $result = $client->get( $task['api_endpoint'], $params );
 
-        // Build headers
-        $headers = $task['api_headers'] ?? array();
-        $headers['Accept'] = 'application/json';
-
-        // Add auth
-        if ( $task['api_auth_type'] === 'header_key' && ! empty( $task['api_auth_key'] ) && ! empty( $task['api_auth_value'] ) ) {
-            $headers[ $task['api_auth_key'] ] = $task['api_auth_value'];
-        }
-
-        $this->logger->debug( sprintf( 'API Request: %s %s', $task['api_method'], preg_replace( '/Subscription-Key=[^&]+/', 'Subscription-Key=***', $url ) ), null, 'api' );
-
-        // Make request
-        $args = array(
-            'method'  => $task['api_method'],
-            'headers' => $headers,
-            'timeout' => 60,
-        );
-
-        $response = wp_remote_request( $url, $args );
-
-        if ( is_wp_error( $response ) ) {
+        if ( ! $result['success'] ) {
             return array(
-                'success' => false,
-                'error'   => $response->get_error_message(),
+                'success'      => false,
+                'error'        => $result['error'] ?? 'Request failed',
+                'status_code'  => $result['status_code'] ?? 0,
+                'raw_response' => isset( $result['data'] ) ? wp_json_encode( $result['data'] ) : '',
             );
         }
 
-        $status_code = wp_remote_retrieve_response_code( $response );
-        $body        = wp_remote_retrieve_body( $response );
-
-        if ( $status_code !== 200 ) {
-            $error_data = json_decode( $body, true );
-            $error_msg  = $error_data['message'] ?? "HTTP {$status_code}";
-
-            return array(
-                'success'     => false,
-                'error'       => $error_msg,
-                'status_code' => $status_code,
-                'raw_response' => substr( $body, 0, 1000 ),
-            );
-        }
-
-        // Parse response
-        $data = json_decode( $body, true );
-
-        if ( json_last_error() !== JSON_ERROR_NONE ) {
-            return array(
-                'success' => false,
-                'error'   => 'Invalid JSON response: ' . json_last_error_msg(),
-            );
-        }
+        $data = $result['data'];
 
         // Extract data array using data_path
         $items = $this->get_nested_value( $data, $task['data_path'] );
-        $total = $this->get_nested_value( $data, $task['total_path'] ) ?? count( $items );
+        $total = $this->get_nested_value( $data, $task['total_path'] ) ?? ( is_array( $items ) ? count( $items ) : 0 );
 
         if ( ! is_array( $items ) ) {
             return array(
                 'success'       => false,
                 'error'         => sprintf( 'Data path "%s" did not return an array', $task['data_path'] ),
                 'response_keys' => array_keys( $data ),
-                'raw_response'  => substr( $body, 0, 2000 ),
+                'raw_response'  => substr( wp_json_encode( $data ), 0, 2000 ),
             );
         }
 
@@ -542,38 +507,44 @@ class Apprco_Import_Tasks {
         $import_id = $this->logger->start_import();
         $this->logger->info( sprintf( 'Starting import task: %s (ID: %d)', $task['name'], $task_id ), $import_id, 'core' );
 
-        $all_items = array();
-        $page      = 1;
+        $client = new Apprco_API_Client( $task['api_base_url'], array(), $this->logger );
+        $client->set_import_id( $import_id );
+
+        // Build headers
+        $headers = $task['api_headers'] ?? array();
+        if ( $task['api_auth_type'] === 'header_key' && ! empty( $task['api_auth_key'] ) && ! empty( $task['api_auth_value'] ) ) {
+            $headers[ $task['api_auth_key'] ] = $task['api_auth_value'];
+        }
+        $client->set_default_headers( $headers );
+
         $max_pages = 100;
+        $params = $task['api_params'] ?? array();
 
-        // Fetch all pages
-        do {
-            $result = $this->fetch_page( $task, $page );
-
-            if ( ! $result['success'] ) {
-                $this->logger->error( sprintf( 'Failed to fetch page %d: %s', $page, $result['error'] ), $import_id, 'api' );
-                break;
+        $fetch_result = $client->fetch_all_pages(
+            $task['api_endpoint'],
+            $params,
+            $task['page_param'],
+            $task['data_path'],
+            $task['total_path'],
+            $max_pages,
+            function( $progress ) use ( $on_progress ) {
+                if ( is_callable( $on_progress ) ) {
+                    call_user_func( $on_progress, array(
+                        'phase'   => 'fetching',
+                        'page'    => $progress['page'],
+                        'fetched' => $progress['total_so_far'],
+                        'total'   => $progress['total_pages'],
+                    ) );
+                }
             }
+        );
 
-            $all_items = array_merge( $all_items, $result['items'] );
+        if ( ! $fetch_result['success'] && empty( $fetch_result['items'] ) ) {
+            $this->logger->error( sprintf( 'Import failed: %s', $fetch_result['error'] ?? 'Unknown error' ), $import_id, 'api' );
+            return array( 'success' => false, 'error' => $fetch_result['error'] ?? 'Fetch failed' );
+        }
 
-            $this->logger->debug( sprintf( 'Fetched page %d: %d items (total: %d)', $page, count( $result['items'] ), count( $all_items ) ), $import_id, 'api' );
-
-            if ( is_callable( $on_progress ) ) {
-                call_user_func( $on_progress, array(
-                    'phase'   => 'fetching',
-                    'page'    => $page,
-                    'fetched' => count( $all_items ),
-                    'total'   => $result['total'] ?? 0,
-                ) );
-            }
-
-            $page++;
-
-            // Rate limiting
-            usleep( 250000 );
-
-        } while ( ! empty( $result['items'] ) && $page <= $max_pages && count( $result['items'] ) >= $task['page_size'] );
+        $all_items = $fetch_result['items'];
 
         // Process items
         $created = 0;
@@ -628,86 +599,6 @@ class Apprco_Import_Tasks {
         );
     }
 
-    /**
-     * Fetch a single page from API
-     *
-     * @param array $task Task config.
-     * @param int   $page Page number.
-     * @return array Result.
-     */
-    private function fetch_page( array $task, int $page ): array {
-        $url = rtrim( $task['api_base_url'], '/' ) . $task['api_endpoint'];
-
-        $params = $task['api_params'] ?? array();
-        $params[ $task['page_param'] ]      = $page;
-        $params[ $task['page_size_param'] ] = $task['page_size'];
-
-        $url .= '?' . http_build_query( $params );
-
-        $headers = $task['api_headers'] ?? array();
-        $headers['Accept'] = 'application/json';
-
-        if ( $task['api_auth_type'] === 'header_key' && ! empty( $task['api_auth_value'] ) ) {
-            $headers[ $task['api_auth_key'] ] = $task['api_auth_value'];
-        }
-
-        $response = wp_remote_get( $url, array(
-            'headers' => $headers,
-            'timeout' => 60,
-        ) );
-
-        if ( is_wp_error( $response ) ) {
-            $error_message = sprintf(
-                'API request failed: %s. Please check your API Base URL and network connection.',
-                $response->get_error_message()
-            );
-            return array( 'success' => false, 'error' => $error_message );
-        }
-
-        $response_code = wp_remote_retrieve_response_code( $response );
-        if ( $response_code !== 200 ) {
-            $error_details = array(
-                401 => 'Unauthorized. Please check your API authentication key.',
-                403 => 'Forbidden. Your API key may not have permission to access this resource.',
-                404 => 'Not found. Please check your API endpoint.',
-                429 => 'Rate limit exceeded. Please try again later.',
-                500 => 'Server error. The API service is experiencing issues.',
-                503 => 'Service unavailable. The API is temporarily down.',
-            );
-            $error_message = $error_details[ $response_code ] ?? 'Request failed.';
-            return array(
-                'success' => false,
-                'error'   => sprintf( 'HTTP %d: %s', $response_code, $error_message )
-            );
-        }
-
-        $body = wp_remote_retrieve_body( $response );
-        $data = json_decode( $body, true );
-
-        if ( json_last_error() !== JSON_ERROR_NONE ) {
-            return array(
-                'success' => false,
-                'error'   => sprintf( 'Invalid JSON response: %s', json_last_error_msg() )
-            );
-        }
-
-        $items = $this->get_nested_value( $data, $task['data_path'] ) ?? array();
-
-        if ( ! is_array( $items ) ) {
-            return array(
-                'success' => false,
-                'error'   => sprintf( 'Data path "%s" did not return an array. Check your data path configuration.', $task['data_path'] )
-            );
-        }
-
-        $total = $this->get_nested_value( $data, $task['total_path'] );
-
-        return array(
-            'success' => true,
-            'items'   => $items,
-            'total'   => $total,
-        );
-    }
 
     /**
      * Process a single item (create/update post)

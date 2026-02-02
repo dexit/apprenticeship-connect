@@ -117,6 +117,8 @@ class Apprco_Settings_Manager {
 				'show_closing_date' => true,
 				'show_apply_button' => true,
 				'date_format'       => 'F j, Y',
+				'no_vacancy_image'  => APPRCO_PLUGIN_URL . 'assets/images/bg-no-vacancy.png',
+				'show_no_vacancy_image' => true,
 			),
 			'advanced' => array(
 				'enable_geocoding'  => true,
@@ -426,6 +428,12 @@ class Apprco_Settings_Manager {
 		if ( isset( $old_options['show_apply_button'] ) ) {
 			$new_settings['display']['show_apply_button'] = $old_options['show_apply_button'];
 		}
+		if ( isset( $old_options['no_vacancy_image'] ) ) {
+			$new_settings['display']['no_vacancy_image'] = $old_options['no_vacancy_image'];
+		}
+		if ( isset( $old_options['show_no_vacancy_image'] ) ) {
+			$new_settings['display']['show_no_vacancy_image'] = $old_options['show_no_vacancy_image'];
+		}
 
 		// Save migrated settings
 		update_option( self::OPTION_NAME, $new_settings );
@@ -475,6 +483,8 @@ class Apprco_Settings_Manager {
 			'show_closing_date'    => $this->get( 'display', 'show_closing_date' ),
 			'show_apply_button'    => $this->get( 'display', 'show_apply_button' ),
 			'date_format'          => $this->get( 'display', 'date_format' ),
+			'no_vacancy_image'     => $this->get( 'display', 'no_vacancy_image' ),
+			'show_no_vacancy_image' => $this->get( 'display', 'show_no_vacancy_image' ),
 
 			// Advanced settings
 			'enable_geocoding'     => $this->get( 'advanced', 'enable_geocoding' ),
