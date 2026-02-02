@@ -21,6 +21,11 @@
 
 if ( ! defined( 'ABSPATH' ) ) exit; // Exit if accessed directly
 
+// Load Composer autoloader if it exists
+if ( file_exists( __DIR__ . '/vendor/autoload.php' ) ) {
+    require_once __DIR__ . '/vendor/autoload.php';
+}
+
 // Define plugin constants
 define( 'APPRCO_PLUGIN_VERSION', '2.1.0' );
 define( 'APPRCO_PLUGIN_FILE', __FILE__ );
