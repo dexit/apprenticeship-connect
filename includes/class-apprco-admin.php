@@ -115,7 +115,16 @@ class Apprco_Admin {
             30
         );
 
-        // Submenus
+        // Submenus (Import Tasks is now the primary submenu)
+        add_submenu_page(
+            'apprco-dashboard',
+            __( 'Import Tasks', 'apprenticeship-connect' ),
+            __( 'Import Tasks', 'apprenticeship-connect' ),
+            'manage_options',
+            'apprco-import-tasks',
+            array( $this, 'import_tasks_page' )
+        );
+
         add_submenu_page(
             'apprco-dashboard',
             __( 'Dashboard', 'apprenticeship-connect' ),
@@ -148,15 +157,6 @@ class Apprco_Admin {
             'manage_options',
             'apprco-logs',
             array( $this, 'logs_page' )
-        );
-
-        add_submenu_page(
-            'apprco-dashboard',
-            __( 'Import Tasks', 'apprenticeship-connect' ),
-            __( 'Import Tasks', 'apprenticeship-connect' ),
-            'manage_options',
-            'apprco-import-tasks',
-            array( $this, 'import_tasks_page' )
         );
 
         add_submenu_page(
@@ -579,7 +579,15 @@ class Apprco_Admin {
      */
     private function render_tasks_list(): void {
         $tasks_manager = Apprco_Import_Tasks::get_instance();
-        $tasks = $tasks_manager->get_all();
+        $scheduler     = Apprco_Task_Scheduler::get_instance();
+        $tasks         = $tasks_manager->get_all();
+        $scheduled     = $scheduler->get_scheduled_tasks();
+
+        // Map scheduled tasks by ID for easy lookup
+        $scheduled_map = array();
+        foreach ( $scheduled as $s ) {
+            $scheduled_map[ $s['task_id'] ] = $s;
+        }
         ?>
         <div class="wrap apprco-import-tasks">
             <h1 class="wp-heading-inline"><?php esc_html_e( 'Import Tasks', 'apprenticeship-connect' ); ?></h1>
@@ -591,23 +599,29 @@ class Apprco_Admin {
             <table class="wp-list-table widefat fixed striped">
                 <thead>
                     <tr>
-                        <th scope="col" class="column-name"><?php esc_html_e( 'Name', 'apprenticeship-connect' ); ?></th>
-                        <th scope="col" class="column-status"><?php esc_html_e( 'Status', 'apprenticeship-connect' ); ?></th>
-                        <th scope="col" class="column-provider"><?php esc_html_e( 'API Endpoint', 'apprenticeship-connect' ); ?></th>
-                        <th scope="col" class="column-last-run"><?php esc_html_e( 'Last Run', 'apprenticeship-connect' ); ?></th>
-                        <th scope="col" class="column-stats"><?php esc_html_e( 'Last Results', 'apprenticeship-connect' ); ?></th>
-                        <th scope="col" class="column-actions"><?php esc_html_e( 'Actions', 'apprenticeship-connect' ); ?></th>
+                        <th scope="col" class="column-name" style="width: 20%;"><?php esc_html_e( 'Name', 'apprenticeship-connect' ); ?></th>
+                        <th scope="col" class="column-status" style="width: 10%;"><?php esc_html_e( 'Status', 'apprenticeship-connect' ); ?></th>
+                        <th scope="col" class="column-schedule" style="width: 15%;"><?php esc_html_e( 'Schedule', 'apprenticeship-connect' ); ?></th>
+                        <th scope="col" class="column-next-run" style="width: 15%;"><?php esc_html_e( 'Next Run', 'apprenticeship-connect' ); ?></th>
+                        <th scope="col" class="column-last-run" style="width: 15%;"><?php esc_html_e( 'Last Run', 'apprenticeship-connect' ); ?></th>
+                        <th scope="col" class="column-stats" style="width: 10%;"><?php esc_html_e( 'Results', 'apprenticeship-connect' ); ?></th>
+                        <th scope="col" class="column-actions" style="width: 15%;"><?php esc_html_e( 'Actions', 'apprenticeship-connect' ); ?></th>
                     </tr>
                 </thead>
                 <tbody id="apprco-tasks-list">
                     <?php if ( empty( $tasks ) ) : ?>
-                        <tr><td colspan="6"><?php esc_html_e( 'No import tasks found. Create one to get started.', 'apprenticeship-connect' ); ?></td></tr>
+                        <tr><td colspan="7"><?php esc_html_e( 'No import tasks found. Create one to get started.', 'apprenticeship-connect' ); ?></td></tr>
                     <?php else : ?>
                         <?php foreach ( $tasks as $task ) : ?>
-                            <tr data-task-id="<?php echo esc_attr( $task['id'] ); ?>">
+                            <?php
+                            $task_id = $task['id'];
+                            $is_scheduled = $task['schedule_enabled'] && $task['status'] === 'active';
+                            $next_run = $scheduled_map[ $task_id ] ?? null;
+                            ?>
+                            <tr data-task-id="<?php echo esc_attr( $task_id ); ?>">
                                 <td class="column-name">
                                     <strong>
-                                        <a href="<?php echo esc_url( admin_url( 'admin.php?page=apprco-import-tasks&action=edit&task_id=' . $task['id'] ) ); ?>">
+                                        <a href="<?php echo esc_url( admin_url( 'admin.php?page=apprco-import-tasks&action=edit&task_id=' . $task_id ) ); ?>">
                                             <?php echo esc_html( $task['name'] ); ?>
                                         </a>
                                     </strong>
@@ -619,13 +633,25 @@ class Apprco_Admin {
                                     <span class="apprco-badge apprco-badge-<?php echo esc_attr( $task['status'] ); ?>">
                                         <?php echo esc_html( ucfirst( $task['status'] ) ); ?>
                                     </span>
+                                </td>
+                                <td class="column-schedule">
                                     <?php if ( $task['schedule_enabled'] ) : ?>
-                                        <br><small><?php echo esc_html( ucfirst( $task['schedule_frequency'] ) ); ?></small>
+                                        <span class="dashicons dashicons-calendar-alt" style="font-size: 16px; width: 16px; height: 16px; margin-top: 2px;"></span>
+                                        <?php echo esc_html( ucfirst( $task['schedule_frequency'] ) ); ?>
+                                        <br><small><?php echo esc_html( $task['schedule_time'] ); ?></small>
+                                    <?php else : ?>
+                                        <span class="description"><?php esc_html_e( 'Manual Only', 'apprenticeship-connect' ); ?></span>
                                     <?php endif; ?>
                                 </td>
-                                <td class="column-provider">
-                                    <code><?php echo esc_html( $task['api_endpoint'] ); ?></code>
-                                    <br><small><?php echo esc_html( wp_parse_url( $task['api_base_url'], PHP_URL_HOST ) ); ?></small>
+                                <td class="column-next-run">
+                                    <?php if ( $next_run ) : ?>
+                                        <?php echo esc_html( $next_run['next_run_human'] ); ?>
+                                        <br><small><?php echo esc_html( $next_run['method'] ); ?></small>
+                                    <?php elseif ( $is_scheduled ) : ?>
+                                        <span style="color: #dba617;"><?php esc_html_e( 'Pending...', 'apprenticeship-connect' ); ?></span>
+                                    <?php else : ?>
+                                        —
+                                    <?php endif; ?>
                                 </td>
                                 <td class="column-last-run">
                                     <?php if ( $task['last_run_at'] ) : ?>
@@ -639,19 +665,20 @@ class Apprco_Admin {
                                 </td>
                                 <td class="column-stats">
                                     <?php if ( $task['last_run_at'] ) : ?>
-                                        <span title="<?php esc_attr_e( 'Fetched', 'apprenticeship-connect' ); ?>"><?php echo esc_html( $task['last_run_fetched'] ); ?> fetched</span>
+                                        <span title="<?php esc_attr_e( 'Fetched', 'apprenticeship-connect' ); ?>" style="color: #2271b1; font-weight: 600;"><?php echo esc_html( $task['last_run_fetched'] ); ?></span>
                                         <br>
-                                        <span title="<?php esc_attr_e( 'Created', 'apprenticeship-connect' ); ?>" style="color: green;"><?php echo esc_html( $task['last_run_created'] ); ?> new</span> /
-                                        <span title="<?php esc_attr_e( 'Updated', 'apprenticeship-connect' ); ?>"><?php echo esc_html( $task['last_run_updated'] ); ?> updated</span>
+                                        <span title="<?php esc_attr_e( 'Created', 'apprenticeship-connect' ); ?>" style="color: green;">+<?php echo esc_html( $task['last_run_created'] ); ?></span>
+                                        /
+                                        <span title="<?php esc_attr_e( 'Updated', 'apprenticeship-connect' ); ?>" style="color: #646970;">~<?php echo esc_html( $task['last_run_updated'] ); ?></span>
                                         <?php if ( $task['last_run_errors'] > 0 ) : ?>
-                                            <br><span style="color: red;"><?php echo esc_html( $task['last_run_errors'] ); ?> errors</span>
+                                            <br><span style="color: red;">! <?php echo esc_html( $task['last_run_errors'] ); ?></span>
                                         <?php endif; ?>
                                     <?php else : ?>
                                         —
                                     <?php endif; ?>
                                 </td>
                                 <td class="column-actions">
-                                    <button type="button" class="button button-small apprco-run-task" data-task-id="<?php echo esc_attr( $task['id'] ); ?>" <?php echo $task['status'] !== 'active' ? 'disabled' : ''; ?>>
+                                    <button type="button" class="button button-small apprco-run-task" data-task-id="<?php echo esc_attr( $task_id ); ?>" <?php echo $task['status'] !== 'active' ? 'disabled' : ''; ?>>
                                         <?php esc_html_e( 'Run Now', 'apprenticeship-connect' ); ?>
                                     </button>
                                     <a href="<?php echo esc_url( admin_url( 'admin.php?page=apprco-import-tasks&action=edit&task_id=' . $task['id'] ) ); ?>" class="button button-small">
@@ -798,8 +825,11 @@ class Apprco_Admin {
                     </div>
 
                     <!-- API Configuration -->
-                    <div class="apprco-section">
-                        <h2><?php esc_html_e( 'API Configuration', 'apprenticeship-connect' ); ?></h2>
+                    <div class="apprco-section apprco-section-api">
+                        <div class="apprco-section-header">
+                            <h2><?php esc_html_e( 'API Configuration', 'apprenticeship-connect' ); ?></h2>
+                            <span class="apprco-v2-badge">v2 API Ready</span>
+                        </div>
                         <table class="form-table">
                             <tr>
                                 <th scope="row"><label for="api_base_url"><?php esc_html_e( 'API Base URL', 'apprenticeship-connect' ); ?></label></th>
@@ -843,18 +873,21 @@ class Apprco_Admin {
                             </tr>
                         </table>
 
-                        <h3><?php esc_html_e( 'Test API Connection', 'apprenticeship-connect' ); ?></h3>
-                        <p>
-                            <button type="button" id="apprco-test-connection" class="button button-primary"><?php esc_html_e( 'Test Connection & Fetch Sample', 'apprenticeship-connect' ); ?></button>
-                            <span id="apprco-test-status"></span>
-                        </p>
-                        <div id="apprco-test-result" class="apprco-test-result" style="display:none;">
-                            <h4><?php esc_html_e( 'API Response', 'apprenticeship-connect' ); ?></h4>
-                            <div id="apprco-test-summary"></div>
-                            <h4><?php esc_html_e( 'Available Fields (click to copy path)', 'apprenticeship-connect' ); ?></h4>
-                            <div id="apprco-available-fields"></div>
-                            <h4><?php esc_html_e( 'Sample Data (First 10 Records)', 'apprenticeship-connect' ); ?></h4>
-                            <div id="apprco-sample-data" style="max-height: 400px; overflow: auto;"></div>
+                        <div class="apprco-test-drive">
+                            <h3><?php esc_html_e( 'Connection Test Drive', 'apprenticeship-connect' ); ?></h3>
+                            <p class="description"><?php esc_html_e( 'Verify your credentials and see live data before saving.', 'apprenticeship-connect' ); ?></p>
+                            <p>
+                                <button type="button" id="apprco-test-connection" class="button button-large"><?php esc_html_e( 'Test Connection & Fetch Sample', 'apprenticeship-connect' ); ?></button>
+                                <span id="apprco-test-status"></span>
+                            </p>
+                            <div id="apprco-test-result" class="apprco-test-result" style="display:none;">
+                                <h4><?php esc_html_e( 'API Response', 'apprenticeship-connect' ); ?></h4>
+                                <div id="apprco-test-summary"></div>
+                                <h4><?php esc_html_e( 'Available Fields (click to copy path)', 'apprenticeship-connect' ); ?></h4>
+                                <div id="apprco-available-fields"></div>
+                                <h4><?php esc_html_e( 'Sample Data (First 10 Records)', 'apprenticeship-connect' ); ?></h4>
+                                <div id="apprco-sample-data" style="max-height: 400px; overflow: auto;"></div>
+                            </div>
                         </div>
                     </div>
 
@@ -985,17 +1018,23 @@ class Apprco_Admin {
 
         <style>
             .apprco-task-sections { max-width: 1000px; }
-            .apprco-section { background: #fff; border: 1px solid #ccd0d4; padding: 20px; margin-bottom: 20px; }
-            .apprco-section h2 { margin-top: 0; padding-bottom: 10px; border-bottom: 1px solid #eee; }
-            .apprco-test-result { background: #f9f9f9; padding: 15px; margin-top: 15px; border: 1px solid #ddd; }
+            .apprco-section { background: #fff; border: 1px solid #ccd0d4; padding: 20px; margin-bottom: 20px; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+            .apprco-section-header { display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #eee; margin-bottom: 15px; padding-bottom: 10px; }
+            .apprco-section h2 { margin: 0; }
+            .apprco-v2-badge { background: #e7f5ec; color: #1e8a44; padding: 4px 8px; border-radius: 4px; font-weight: 600; font-size: 11px; text-transform: uppercase; border: 1px solid #1e8a44; }
+            .apprco-test-drive { background: #f0f6fb; border: 1px solid #c3d9ef; padding: 20px; margin-top: 20px; border-radius: 4px; }
+            .apprco-test-drive h3 { margin-top: 0; color: #2271b1; }
+            .apprco-test-result { background: #fff; padding: 15px; margin-top: 15px; border: 1px solid #ddd; border-radius: 4px; }
             #apprco-available-fields { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 15px; }
-            #apprco-available-fields .field-tag { background: #e1e1e1; padding: 3px 8px; border-radius: 3px; cursor: pointer; font-family: monospace; font-size: 12px; }
-            #apprco-available-fields .field-tag:hover { background: #0073aa; color: #fff; }
+            #apprco-available-fields .field-tag { background: #f0f0f1; padding: 4px 10px; border-radius: 4px; cursor: pointer; font-family: monospace; font-size: 12px; border: 1px solid #dcdcde; transition: all 0.2s; }
+            #apprco-available-fields .field-tag:hover { background: #2271b1; color: #fff; border-color: #2271b1; }
             #apprco-sample-data table { font-size: 12px; }
             #apprco-field-mappings input { font-family: monospace; }
             .apprco-badge-active { background: #00a32a; color: #fff; }
             .apprco-badge-inactive { background: #dba617; color: #fff; }
             .apprco-badge-draft { background: #72777c; color: #fff; }
+            .apprco-ref-badge { background: #f0f6fb; color: #2271b1; border: 1px solid #2271b1; padding: 2px 6px; border-radius: 3px; font-weight: 600; font-size: 11px; }
+            .apprco-level-badge { background: #3c434a; color: #fff; padding: 2px 6px; border-radius: 3px; font-size: 11px; }
         </style>
 
         <script>

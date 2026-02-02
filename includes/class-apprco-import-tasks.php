@@ -157,40 +157,49 @@ class Apprco_Import_Tasks {
         return array(
             // Post fields
             'post_title'       => 'title',
-            'post_content'     => 'description',
-            'post_excerpt'     => 'shortDescription',
+            'post_content'     => 'fullDescription',
+            'post_excerpt'     => 'description',
 
             // Meta fields
-            '_apprco_vacancy_reference'      => 'vacancyReference',
-            '_apprco_vacancy_url'            => 'vacancyUrl',
-            '_apprco_employer_name'          => 'employerName',
-            '_apprco_employer_website'       => 'employerWebsiteUrl',
-            '_apprco_employer_description'   => 'employerDescription',
-            '_apprco_provider_name'          => 'providerName',
-            '_apprco_provider_ukprn'         => 'ukprn',
-            '_apprco_course_title'           => 'courseTitle',
-            '_apprco_course_level'           => 'courseLevel',
-            '_apprco_apprenticeship_level'   => 'apprenticeshipLevel',
-            '_apprco_wage_type'              => 'wageType',
-            '_apprco_wage_amount'            => 'wageAmount',
-            '_apprco_wage_unit'              => 'wageUnit',
-            '_apprco_wage_text'              => 'wageText',
-            '_apprco_working_week'           => 'workingWeek',
-            '_apprco_hours_per_week'         => 'hoursPerWeek',
-            '_apprco_expected_duration'      => 'expectedDuration',
-            '_apprco_positions_available'    => 'numberOfPositions',
-            '_apprco_posted_date'            => 'postedDate',
-            '_apprco_closing_date'           => 'closingDate',
-            '_apprco_start_date'             => 'startDate',
-            '_apprco_address_line1'          => 'addresses[0].addressLine1',
-            '_apprco_address_line2'          => 'addresses[0].addressLine2',
-            '_apprco_address_line3'          => 'addresses[0].addressLine3',
-            '_apprco_postcode'               => 'addresses[0].postcode',
-            '_apprco_latitude'               => 'addresses[0].latitude',
-            '_apprco_longitude'              => 'addresses[0].longitude',
-            '_apprco_skills'                 => 'skills',
-            '_apprco_qualifications'         => 'qualifications',
-            '_apprco_is_disability_confident' => 'isDisabilityConfident',
+            '_apprco_vacancy_reference'           => 'vacancyReference',
+            '_apprco_vacancy_url'                 => 'vacancyUrl',
+            '_apprco_employer_name'               => 'employerName',
+            '_apprco_employer_website_url'        => 'employerWebsiteUrl',
+            '_apprco_employer_description'        => 'employerDescription',
+            '_apprco_employer_contact_name'       => 'employerContactName',
+            '_apprco_employer_contact_email'      => 'employerContactEmail',
+            '_apprco_employer_contact_phone'      => 'employerContactPhone',
+            '_apprco_provider_name'               => 'providerName',
+            '_apprco_ukprn'                       => 'ukprn',
+            '_apprco_course_title'                => 'course.title',
+            '_apprco_course_level'                => 'course.level',
+            '_apprco_course_route'                => 'course.route',
+            '_apprco_course_lars_code'            => 'course.larsCode',
+            '_apprco_apprenticeship_level'        => 'apprenticeshipLevel',
+            '_apprco_wage_type'                   => 'wage.wageType',
+            '_apprco_wage_amount'                 => 'wage.wageAmount',
+            '_apprco_wage_unit'                   => 'wage.wageUnit',
+            '_apprco_wage_additional_information' => 'wage.wageAdditionalInformation',
+            '_apprco_working_week_description'    => 'wage.workingWeekDescription',
+            '_apprco_hours_per_week'              => 'hoursPerWeek',
+            '_apprco_expected_duration'           => 'expectedDuration',
+            '_apprco_number_of_positions'         => 'numberOfPositions',
+            '_apprco_posted_date'                 => 'postedDate',
+            '_apprco_closing_date'                => 'closingDate',
+            '_apprco_start_date'                  => 'startDate',
+            '_apprco_address_line_1'              => 'addresses[0].addressLine1',
+            '_apprco_address_line_2'              => 'addresses[0].addressLine2',
+            '_apprco_address_line_3'              => 'addresses[0].addressLine3',
+            '_apprco_postcode'                    => 'addresses[0].postcode',
+            '_apprco_latitude'                    => 'addresses[0].latitude',
+            '_apprco_longitude'                   => 'addresses[0].longitude',
+            '_apprco_distance'                    => 'distance',
+            '_apprco_skills'                      => 'skills',
+            '_apprco_qualifications'              => 'qualifications',
+            '_apprco_outcome_description'         => 'outcomeDescription',
+            '_apprco_things_to_consider'          => 'thingsToConsider',
+            '_apprco_is_disability_confident'     => 'isDisabilityConfident',
+            '_apprco_is_national_vacancy'         => 'isNationalVacancy',
         );
     }
 
@@ -550,6 +559,7 @@ class Apprco_Import_Tasks {
         $created = 0;
         $updated = 0;
         $errors  = 0;
+        $api_references = array();
 
         foreach ( $all_items as $index => $item ) {
             $result = $this->process_item( $task, $item, $import_id );
@@ -559,6 +569,11 @@ class Apprco_Import_Tasks {
                     $created++;
                 } else {
                     $updated++;
+                }
+
+                $ref = $this->get_nested_value( $item, $task['unique_id_field'] );
+                if ( $ref ) {
+                    $api_references[] = $ref;
                 }
             } else {
                 $errors++;
@@ -574,6 +589,12 @@ class Apprco_Import_Tasks {
                     'errors'    => $errors,
                 ) );
             }
+        }
+
+        // Handle deletion of expired/missing vacancies if enabled in global settings
+        $settings_manager = Apprco_Settings_Manager::get_instance();
+        if ( $settings_manager->get( 'import', 'delete_expired' ) ) {
+            $this->cleanup_expired_vacancies( $api_references, $import_id );
         }
 
         // Update task stats
@@ -788,5 +809,63 @@ class Apprco_Import_Tasks {
         return $this->get_all( array(
             'status' => self::STATUS_ACTIVE,
         ) );
+    }
+
+    /**
+     * Cleanup expired or missing vacancies
+     *
+     * @param array  $api_references References found in current import.
+     * @param string $import_id      Current import session ID.
+     */
+    private function cleanup_expired_vacancies( array $api_references, string $import_id ): void {
+        $settings_manager = Apprco_Settings_Manager::get_instance();
+        $expire_after_days = (int) $settings_manager->get( 'import', 'expire_after_days', 30 );
+
+        $query = new WP_Query( array(
+            'post_type'      => 'apprco_vacancy',
+            'post_status'    => 'any',
+            'posts_per_page' => -1,
+            'fields'         => 'ids',
+        ) );
+
+        if ( ! $query->have_posts() ) {
+            return;
+        }
+
+        $api_ref_set = array_flip( $api_references );
+        $deleted_count = 0;
+
+        foreach ( $query->posts as $post_id ) {
+            $ref = get_post_meta( $post_id, '_apprco_vacancy_reference', true );
+
+            if ( ! $ref || isset( $api_ref_set[ $ref ] ) ) {
+                continue;
+            }
+
+            $closing_date = get_post_meta( $post_id, '_apprco_closing_date', true );
+            $should_delete = false;
+
+            if ( $closing_date ) {
+                $closing_timestamp = strtotime( $closing_date );
+                $expire_timestamp  = $closing_timestamp + ( $expire_after_days * DAY_IN_SECONDS );
+                if ( time() > $expire_timestamp ) {
+                    $should_delete = true;
+                }
+            } else {
+                $last_modified = get_post_modified_time( 'U', false, $post_id );
+                if ( time() > $last_modified + ( $expire_after_days * DAY_IN_SECONDS ) ) {
+                    $should_delete = true;
+                }
+            }
+
+            if ( $should_delete ) {
+                wp_delete_post( $post_id, true );
+                $deleted_count++;
+            }
+        }
+
+        if ( $deleted_count > 0 ) {
+            $this->logger->info( sprintf( 'Cleaned up %d expired or missing vacancies.', $deleted_count ), $import_id, 'core' );
+        }
     }
 }
