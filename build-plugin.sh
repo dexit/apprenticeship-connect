@@ -88,11 +88,23 @@ should_exclude() {
     return 1  # Should include
 }
 
-# Copy all files (exclude build/dist directories to avoid copying into itself)
-echo -e "  Copying files..."
-find . -mindepth 1 -maxdepth 1 ! -name "${BUILD_DIR}" ! -name "${DIST_DIR}" ! -name "*.zip" -exec cp -r {} "${BUILD_DIR}/${PLUGIN_SLUG}/" \;
+# Copy files efficiently (exclude heavy directories immediately)
+echo -e "  Copying plugin files (excluding node_modules, .git, src, tests)..."
 
-# Remove files matching .distignore patterns
+# Copy directories we WANT (fast - skip the bloat)
+for dir in includes assets languages vendor; do
+    if [ -d "$dir" ]; then
+        cp -r "$dir" "${BUILD_DIR}/${PLUGIN_SLUG}/"
+    fi
+done
+
+# Copy root PHP and text files
+cp *.php "${BUILD_DIR}/${PLUGIN_SLUG}/" 2>/dev/null || true
+cp *.txt "${BUILD_DIR}/${PLUGIN_SLUG}/" 2>/dev/null || true
+cp *.md "${BUILD_DIR}/${PLUGIN_SLUG}/" 2>/dev/null || true
+cp LICENSE "${BUILD_DIR}/${PLUGIN_SLUG}/" 2>/dev/null || true
+
+# Now remove unwanted files based on .distignore
 echo -e "  Removing excluded files..."
 while IFS= read -r pattern; do
     # Skip comments and empty lines
@@ -102,17 +114,17 @@ while IFS= read -r pattern; do
     # Remove leading/trailing whitespace and slashes
     pattern=$(echo "$pattern" | xargs | sed 's:^/::')
 
+    # Skip directories we never copied in the first place
+    [[ "$pattern" == "node_modules" ]] && continue
+    [[ "$pattern" == ".git" ]] && continue
+    [[ "$pattern" == "src" ]] && continue
+    [[ "$pattern" == "tests" ]] && continue
+
     # Remove matching files/directories
     if [ -e "${BUILD_DIR}/${PLUGIN_SLUG}/${pattern}" ]; then
         rm -rf "${BUILD_DIR}/${PLUGIN_SLUG}/${pattern}"
-        echo -e "    Removed: ${pattern}"
     fi
 done < .distignore
-
-# Also remove build directories
-rm -rf "${BUILD_DIR}/${PLUGIN_SLUG}/${BUILD_DIR}"
-rm -rf "${BUILD_DIR}/${PLUGIN_SLUG}/${DIST_DIR}"
-find "${BUILD_DIR}/${PLUGIN_SLUG}" -name "*.zip" -delete 2>/dev/null || true
 
 # Verify critical files are present
 echo -e "${BLUE}→ Verifying build...${NC}"
