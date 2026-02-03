@@ -43,6 +43,8 @@ yarn-error.log*
 *~
 
 # Package files
+/build/
+/dist/
 *.zip
 
 # Composer
