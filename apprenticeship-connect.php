@@ -3,7 +3,7 @@
  * Plugin Name: Apprenticeship Connect
  * Plugin URI: https://wordpress.org/plugins/apprenticeship-connect
  * Description: Apprenticeship Connect is a WordPress plugin that seamlessly integrates with the official UK Government's Find an Apprenticeship service. Features automated cron-based data syncing, Action Scheduler support, comprehensive logging, and full Elementor Loop Grid compatibility.
- * Version: 2.0.0
+ * Version: 3.0.0
  * Author: ePark Team
  * Author URI: https://e-park.uk
  * License: GPL v2 or later
@@ -27,7 +27,7 @@ if ( file_exists( __DIR__ . '/vendor/autoload.php' ) ) {
 }
 
 // Define plugin constants
-define( 'APPRCO_PLUGIN_VERSION', '2.1.0' );
+define( 'APPRCO_PLUGIN_VERSION', '3.0.0' );
 define( 'APPRCO_PLUGIN_FILE', __FILE__ );
 define( 'APPRCO_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'APPRCO_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
@@ -42,6 +42,7 @@ require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-api-client.php';
 require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-geocoder.php';
 require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-employer.php';
 require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-import-tasks.php';
+require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-task-views.php';
 require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-import-adapter.php';
 require_once APPRCO_PLUGIN_DIR . 'includes/class-apprco-task-scheduler.php';
 
