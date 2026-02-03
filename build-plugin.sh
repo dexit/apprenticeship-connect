@@ -2,7 +2,7 @@
 #
 # Build WordPress Plugin for Distribution
 #
-# This script creates a deployable zip file for WordPress plugin upload.
+# This script creates a deployable build directory and zip file for WordPress plugin upload.
 # It includes built assets and production dependencies only.
 #
 
@@ -24,7 +24,6 @@ echo ""
 PLUGIN_SLUG="apprenticeship-connect"
 PLUGIN_VERSION=$(grep "Version:" apprenticeship-connect.php | awk '{print $3}')
 BUILD_DIR="build"
-DIST_DIR="dist"
 ZIP_NAME="${PLUGIN_SLUG}.zip"
 
 echo -e "${YELLOW}Plugin:${NC} ${PLUGIN_SLUG}"
@@ -34,10 +33,8 @@ echo ""
 # Clean previous builds
 echo -e "${BLUE}→ Cleaning previous builds...${NC}"
 rm -rf "${BUILD_DIR}"
-rm -rf "${DIST_DIR}"
-rm -f "${ZIP_NAME}"
+rm -rf "dist"
 mkdir -p "${BUILD_DIR}/${PLUGIN_SLUG}"
-mkdir -p "${DIST_DIR}"
 
 # Install Node dependencies
 echo -e "${BLUE}→ Installing Node dependencies...${NC}"
@@ -45,7 +42,7 @@ if ! command -v npm &> /dev/null; then
     echo -e "${RED}✗ npm is not installed${NC}"
     exit 1
 fi
-npm ci --prefer-offline --no-audit
+npm install --prefer-offline --no-audit
 
 # Build JavaScript/CSS assets
 echo -e "${BLUE}→ Building JavaScript and CSS assets...${NC}"
@@ -68,31 +65,11 @@ fi
 # Copy plugin files to build directory
 echo -e "${BLUE}→ Copying plugin files...${NC}"
 
-# Function to check if file/dir should be excluded
-should_exclude() {
-    local path=$1
-    # Read .distignore and check if path matches
-    while IFS= read -r pattern; do
-        # Skip comments and empty lines
-        [[ "$pattern" =~ ^#.*$ ]] && continue
-        [[ -z "$pattern" ]] && continue
-
-        # Remove leading/trailing whitespace
-        pattern=$(echo "$pattern" | xargs)
-
-        # Check if path matches pattern
-        if [[ "$path" == $pattern* ]] || [[ "$path" == *"$pattern"* ]]; then
-            return 0  # Should exclude
-        fi
-    done < .distignore
-    return 1  # Should include
-}
-
-# Copy all files (exclude build/dist directories to avoid copying into itself)
+# Copy all files (exclude build directory to avoid copying into itself)
 echo -e "  Copying files..."
-find . -mindepth 1 -maxdepth 1 ! -name "${BUILD_DIR}" ! -name "${DIST_DIR}" ! -name "*.zip" -exec cp -r {} "${BUILD_DIR}/${PLUGIN_SLUG}/" \;
+find . -mindepth 1 -maxdepth 1 ! -name "${BUILD_DIR}" ! -name "dist" ! -name "*.zip" -exec cp -r {} "${BUILD_DIR}/${PLUGIN_SLUG}/" \;
 
-# Remove files matching .distignore patterns
+# Remove files matching .distignore patterns from the build directory
 echo -e "  Removing excluded files..."
 while IFS= read -r pattern; do
     # Skip comments and empty lines
@@ -109,10 +86,8 @@ while IFS= read -r pattern; do
     fi
 done < .distignore
 
-# Also remove build directories
+# Also remove any recursive build directory if it somehow got copied
 rm -rf "${BUILD_DIR}/${PLUGIN_SLUG}/${BUILD_DIR}"
-rm -rf "${BUILD_DIR}/${PLUGIN_SLUG}/${DIST_DIR}"
-find "${BUILD_DIR}/${PLUGIN_SLUG}" -name "*.zip" -delete 2>/dev/null || true
 
 # Verify critical files are present
 echo -e "${BLUE}→ Verifying build...${NC}"
@@ -152,32 +127,28 @@ echo ""
 du -sh "${BUILD_DIR}/${PLUGIN_SLUG}"/* | sort -h | sed 's/^/  /'
 echo ""
 
-# Create ZIP file
+# Create ZIP file inside the build directory
 echo -e "${BLUE}→ Creating ZIP file...${NC}"
 cd "${BUILD_DIR}"
-zip -r "../${DIST_DIR}/${ZIP_NAME}" "${PLUGIN_SLUG}" -q
+zip -r "${ZIP_NAME}" "${PLUGIN_SLUG}" -q
 cd ..
 
 # Verify ZIP
-if [ ! -f "${DIST_DIR}/${ZIP_NAME}" ]; then
+if [ ! -f "${BUILD_DIR}/${ZIP_NAME}" ]; then
     echo -e "${RED}✗ Failed to create ZIP file${NC}"
     exit 1
 fi
 
 # Show ZIP details
-ZIP_SIZE=$(du -h "${DIST_DIR}/${ZIP_NAME}" | cut -f1)
-echo -e "${GREEN}✓ ZIP created: ${DIST_DIR}/${ZIP_NAME} (${ZIP_SIZE})${NC}"
+ZIP_SIZE=$(du -h "${BUILD_DIR}/${ZIP_NAME}" | cut -f1)
+echo -e "${GREEN}✓ ZIP created: ${BUILD_DIR}/${ZIP_NAME} (${ZIP_SIZE})${NC}"
 
 # List what's in the ZIP
 echo ""
-echo -e "${BLUE}→ ZIP contents summary:${NC}"
-unzip -l "${DIST_DIR}/${ZIP_NAME}" | head -20
+echo -e "${BLUE}→ ZIP contents summary (verifying assets):${NC}"
+unzip -l "${BUILD_DIR}/${ZIP_NAME}" | grep -E "assets/build/|apprenticeship-connect.php" | head -n 20
 echo "..."
 echo ""
-
-# Cleanup build directory (keep dist)
-echo -e "${BLUE}→ Cleaning up...${NC}"
-rm -rf "${BUILD_DIR}"
 
 # Restore dev dependencies if composer was used
 if [ "$COMPOSER_INSTALLED" = true ]; then
@@ -191,13 +162,10 @@ echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━
 echo -e "${GREEN}  Build Complete! ✓${NC}"
 echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
-echo -e "${YELLOW}Plugin ZIP:${NC} ${DIST_DIR}/${ZIP_NAME}"
+echo -e "${YELLOW}Build Directory:${NC} ./${BUILD_DIR}/"
+echo -e "${YELLOW}Plugin ZIP:${NC} ./${BUILD_DIR}/${ZIP_NAME}"
 echo -e "${YELLOW}Size:${NC} ${ZIP_SIZE}"
 echo -e "${YELLOW}Version:${NC} ${PLUGIN_VERSION}"
 echo ""
-echo -e "${GREEN}→ Ready to upload to WordPress!${NC}"
-echo ""
-echo -e "${BLUE}Upload locations:${NC}"
-echo "  • WordPress Admin → Plugins → Add New → Upload Plugin"
-echo "  • /wp-content/plugins/ (extract zip manually)"
+echo -e "${GREEN}→ Ready for distribution!${NC}"
 echo ""
