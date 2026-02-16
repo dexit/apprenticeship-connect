@@ -1,0 +1,1 @@
+document.addEventListener("DOMContentLoaded",()=>{console.log("Apprenticeship Connect meta box initialized")});

@@ -1,0 +1,384 @@
+<?php
+/**
+ * API Importer class with paginated fetching, rate limiting, and transient caching
+ *
+ * @package ApprenticeshipConnect
+ * @version 2.0.0
+ */
+
+if ( ! defined( 'ABSPATH' ) ) exit;
+
+/**
+ * Handles API data fetching with pagination, rate limiting, and caching
+ */
+class Apprco_API_Importer {
+
+    /**
+     * Plugin options
+     *
+     * @var array
+     */
+    private $options;
+
+    /**
+     * Logger instance
+     *
+     * @var Apprco_Import_Logger
+     */
+    private $logger;
+
+    /**
+     * Rate limit delay in microseconds (200ms between requests)
+     *
+     * @var int
+     */
+    private const RATE_LIMIT_DELAY = 200000;
+
+    /**
+     * Max retries for failed requests
+     *
+     * @var int
+     */
+    private const MAX_RETRIES = 3;
+
+    /**
+     * Transient cache duration in seconds (5 minutes for API responses)
+     *
+     * @var int
+     */
+    private const CACHE_DURATION = 300;
+
+    /**
+     * Page size for API requests
+     *
+     * @var int
+     */
+    private const PAGE_SIZE = 100;
+
+    /**
+     * API version header
+     *
+     * @var string
+     */
+    private const API_VERSION = '2';
+
+    /**
+     * Constructor
+     *
+     * @param array                $options Optional. Plugin options override.
+     * @param Apprco_Import_Logger $logger  Optional. Logger instance.
+     */
+    public function __construct( array $options = array(), Apprco_Import_Logger $logger = null ) {
+        // If no options provided, load from Settings Manager (unified settings system)
+        if ( empty( $options ) ) {
+            $settings_manager = Apprco_Settings_Manager::get_instance();
+            $options          = $settings_manager->get_options_array();
+        }
+        $this->options = $options;
+        $this->logger  = $logger ?? new Apprco_Import_Logger();
+    }
+
+    /**
+     * Override options for sync
+     *
+     * @param array $overrides Options to override.
+     */
+    public function override_options( array $overrides ): void {
+        foreach ( $overrides as $key => $value ) {
+            if ( $value !== '' && $value !== null ) {
+                $this->options[ $key ] = $value;
+            }
+        }
+    }
+
+    /**
+     * Fetch all vacancies from API with pagination
+     *
+     * @param array $params Optional. Additional query parameters.
+     * @return array|false Array of vacancies or false on failure.
+     */
+    public function fetch_all_vacancies( array $params = array() ) {
+        if ( empty( $this->options['api_subscription_key'] ) || empty( $this->options['api_base_url'] ) ) {
+            $this->logger->log( 'error', 'API credentials not configured.' );
+            return false;
+        }
+
+        $import_id = $this->logger->start_import();
+        $this->logger->log( 'info', 'Starting paginated API fetch...', $import_id );
+
+        $all_vacancies    = array();
+        $page_number      = 1;
+        $total_pages      = 1;
+        $total_fetched    = 0;
+        $retry_count      = 0;
+        $consecutive_empty = 0;
+
+        // Build default params per Display Advert API v2 OpenAPI spec
+        $default_params = array(
+            'PageSize' => self::PAGE_SIZE,
+            'Sort'     => 'AgeDesc',
+        );
+
+        // Add UKPRN filter if configured (integer per spec)
+        if ( ! empty( $this->options['api_ukprn'] ) ) {
+            $default_params['Ukprn']               = (int) $this->options['api_ukprn'];
+            $default_params['FilterBySubscription'] = 'true';
+        }
+
+        $params = array_merge( $default_params, $params );
+
+        do {
+            $params['PageNumber'] = $page_number;
+
+            // Check transient cache first
+            $cache_key     = $this->get_cache_key( $params );
+            $cached_result = get_transient( $cache_key );
+
+            if ( false !== $cached_result ) {
+                $this->logger->log( 'info', sprintf( 'Cache hit for page %d', $page_number ), $import_id );
+                $page_data = $cached_result;
+            } else {
+                // Apply rate limiting
+                if ( $page_number > 1 ) {
+                    usleep( self::RATE_LIMIT_DELAY );
+                }
+
+                $page_data = $this->fetch_single_page( $params, $import_id );
+
+                if ( false === $page_data ) {
+                    $retry_count++;
+                    if ( $retry_count >= self::MAX_RETRIES ) {
+                        $this->logger->log( 'error', sprintf( 'Max retries (%d) reached on page %d. Stopping.', self::MAX_RETRIES, $page_number ), $import_id );
+                        break;
+                    }
+                    $this->logger->log( 'warning', sprintf( 'Retry %d/%d for page %d', $retry_count, self::MAX_RETRIES, $page_number ), $import_id );
+                    usleep( self::RATE_LIMIT_DELAY * ( $retry_count + 1 ) ); // Exponential backoff
+                    continue;
+                }
+
+                // Cache successful response
+                set_transient( $cache_key, $page_data, self::CACHE_DURATION );
+                $retry_count = 0;
+            }
+
+            // Extract vacancies - try multiple possible field names
+            $page_vacancies = null;
+            $vacancy_keys   = array( 'vacancies', 'results', 'data', 'items', 'apprenticeships' );
+
+            foreach ( $vacancy_keys as $key ) {
+                if ( isset( $page_data[ $key ] ) && is_array( $page_data[ $key ] ) ) {
+                    $page_vacancies = $page_data[ $key ];
+                    break;
+                }
+            }
+
+            // If response is directly an array of vacancies
+            if ( null === $page_vacancies && is_array( $page_data ) && isset( $page_data[0] ) ) {
+                $page_vacancies = $page_data;
+            }
+
+            if ( null !== $page_vacancies ) {
+                $count = count( $page_vacancies );
+
+                if ( $count === 0 ) {
+                    $consecutive_empty++;
+                    if ( $consecutive_empty >= 2 ) {
+                        $this->logger->log( 'info', 'Two consecutive empty pages. Stopping pagination.', $import_id );
+                        break;
+                    }
+                } else {
+                    $consecutive_empty = 0;
+                    $all_vacancies     = array_merge( $all_vacancies, $page_vacancies );
+                    $total_fetched    += $count;
+                }
+
+                $this->logger->log( 'info', sprintf( 'Page %d: fetched %d vacancies (total: %d)', $page_number, $count, $total_fetched ), $import_id );
+            } else {
+                $this->logger->log( 'warning', sprintf( 'Page %d: Could not find vacancies array in response', $page_number ), $import_id );
+                $consecutive_empty++;
+                if ( $consecutive_empty >= 2 ) {
+                    break;
+                }
+            }
+
+            // Update total pages from response - try multiple possible field names
+            $total_page_keys = array( 'totalPages', 'total_pages', 'pageCount', 'pages' );
+            foreach ( $total_page_keys as $key ) {
+                if ( isset( $page_data[ $key ] ) ) {
+                    $total_pages = (int) $page_data[ $key ];
+                    break;
+                }
+            }
+
+            // Also check for total count to calculate pages
+            if ( $total_pages === 1 && isset( $page_data['total'] ) ) {
+                $total_pages = (int) ceil( $page_data['total'] / self::PAGE_SIZE );
+            }
+
+            $page_number++;
+
+            // Safety limit to prevent infinite loops
+            if ( $page_number > 500 ) {
+                $this->logger->log( 'warning', 'Safety limit reached (500 pages). Stopping.', $import_id );
+                break;
+            }
+
+        } while ( $page_number <= $total_pages );
+
+        $this->logger->log( 'info', sprintf( 'Pagination complete. Total vacancies fetched: %d', $total_fetched ), $import_id );
+        $this->logger->end_import( $import_id, $total_fetched );
+
+        return $all_vacancies;
+    }
+
+    /**
+     * Fetch a single page from the API
+     *
+     * @param array  $params    Query parameters.
+     * @param string $import_id Import ID for logging.
+     * @return array|false Page data or false on failure.
+     */
+    private function fetch_single_page( array $params, string $import_id ) {
+        // Base URL: https://api.apprenticeships.education.gov.uk/vacancies
+        // Endpoint: /vacancy (for listing vacancies)
+        // Full URL: https://api.apprenticeships.education.gov.uk/vacancies/vacancy?params
+        $api_url = rtrim( $this->options['api_base_url'], '/' ) . '/vacancy?' . http_build_query( $params );
+
+        // Log URL for debugging (mask subscription key)
+        $this->logger->log( 'debug', sprintf( 'Fetching: %s', preg_replace( '/Ocp-Apim-Subscription-Key=[^&]+/', 'Ocp-Apim-Subscription-Key=***', $api_url ) ), $import_id );
+
+        $headers = array(
+            'X-Version'                 => self::API_VERSION,
+            'Ocp-Apim-Subscription-Key' => $this->options['api_subscription_key'],
+            'Accept'                    => 'application/json',
+        );
+
+        $args = array(
+            'headers' => $headers,
+            'timeout' => 60,
+        );
+
+        $response = wp_remote_get( $api_url, $args );
+
+        if ( is_wp_error( $response ) ) {
+            $this->logger->log( 'error', 'API request failed: ' . $response->get_error_message(), $import_id );
+            return false;
+        }
+
+        $status_code = wp_remote_retrieve_response_code( $response );
+        $body        = wp_remote_retrieve_body( $response );
+
+        if ( $status_code !== 200 ) {
+            // Log the error response body for debugging
+            $error_detail = '';
+            $error_data   = json_decode( $body, true );
+            if ( $error_data ) {
+                $error_detail = isset( $error_data['message'] ) ? $error_data['message'] : wp_json_encode( $error_data );
+            } else {
+                $error_detail = substr( $body, 0, 500 );
+            }
+            $this->logger->log( 'error', sprintf( 'API returned HTTP %d: %s', $status_code, $error_detail ), $import_id );
+            return false;
+        }
+
+        $data = json_decode( $body, true );
+
+        if ( json_last_error() !== JSON_ERROR_NONE ) {
+            $this->logger->log( 'error', 'JSON decode error: ' . json_last_error_msg(), $import_id );
+            return false;
+        }
+
+        // Log the response structure for debugging (first call only)
+        if ( isset( $params['PageNumber'] ) && $params['PageNumber'] === 1 ) {
+            $keys = is_array( $data ) ? array_keys( $data ) : array();
+            $this->logger->log( 'debug', sprintf( 'API response keys: %s', implode( ', ', $keys ) ), $import_id );
+        }
+
+        return $data;
+    }
+
+    /**
+     * Generate cache key for transients
+     *
+     * @param array $params Query parameters.
+     * @return string Cache key.
+     */
+    private function get_cache_key( array $params ): string {
+        ksort( $params );
+        return 'apprco_api_' . md5( http_build_query( $params ) );
+    }
+
+    /**
+     * Clear all API transient caches
+     */
+    public function clear_cache(): void {
+        global $wpdb;
+
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+        $wpdb->query(
+            $wpdb->prepare(
+                "DELETE FROM {$wpdb->options} WHERE option_name LIKE %s OR option_name LIKE %s",
+                '_transient_apprco_api_%',
+                '_transient_timeout_apprco_api_%'
+            )
+        );
+
+        $this->logger->log( 'info', 'API cache cleared.' );
+    }
+
+    /**
+     * Test API connection using Display Advert API v2
+     *
+     * @return array{success: bool, message: string, vacancy_count?: int, total_pages?: int}
+     */
+    public function test_connection(): array {
+        if ( empty( $this->options['api_subscription_key'] ) || empty( $this->options['api_base_url'] ) ) {
+            return array(
+                'success' => false,
+                'message' => 'API credentials not configured.',
+            );
+        }
+
+        // Build test request params per OpenAPI spec
+        $params = array(
+            'PageNumber' => 1,
+            'PageSize'   => 10,
+            'Sort'       => 'AgeDesc',
+        );
+
+        // Add UKPRN filter if configured
+        if ( ! empty( $this->options['api_ukprn'] ) ) {
+            $params['Ukprn']               = (int) $this->options['api_ukprn'];
+            $params['FilterBySubscription'] = 'true';
+        }
+
+        $result = $this->fetch_single_page( $params, 'test' );
+
+        if ( false === $result ) {
+            return array(
+                'success' => false,
+                'message' => 'API connection failed. Check credentials and try again.',
+            );
+        }
+
+        // Response structure per OpenAPI: { vacancies: [], total, totalFiltered, totalPages }
+        $total         = isset( $result['total'] ) ? (int) $result['total'] : 0;
+        $total_filtered = isset( $result['totalFiltered'] ) ? (int) $result['totalFiltered'] : $total;
+        $total_pages   = isset( $result['totalPages'] ) ? (int) $result['totalPages'] : 0;
+        $vacancies     = isset( $result['vacancies'] ) ? count( $result['vacancies'] ) : 0;
+
+        return array(
+            'success'        => true,
+            'message'        => sprintf(
+                'API connection successful! Found %d vacancies (%d filtered, %d pages). Sample returned: %d',
+                $total,
+                $total_filtered,
+                $total_pages,
+                $vacancies
+            ),
+            'vacancy_count'  => $total,
+            'total_filtered' => $total_filtered,
+            'total_pages'    => $total_pages,
+        );
+    }
+}

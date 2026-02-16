@@ -1,0 +1,429 @@
+/**
+ * Apprenticeship Connect Admin Styles
+ * @version 2.0.0
+ */
+
+/* Dashboard Grid */
+.apprco-dashboard-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 20px;
+    margin-top: 20px;
+}
+
+.apprco-card {
+    background: #fff;
+    border: 1px solid #c3c4c7;
+    border-radius: 4px;
+    padding: 20px;
+    box-shadow: 0 1px 1px rgba(0, 0, 0, 0.04);
+}
+
+.apprco-card h2 {
+    margin-top: 0;
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #f0f0f1;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+/* Statistics */
+.apprco-stat {
+    text-align: center;
+    padding: 20px 0;
+}
+
+.apprco-stat-value {
+    display: block;
+    font-size: 42px;
+    font-weight: 600;
+    color: #2271b1;
+    line-height: 1;
+}
+
+.apprco-stat-label {
+    display: block;
+    margin-top: 8px;
+    color: #646970;
+    font-size: 13px;
+}
+
+/* Badges */
+.apprco-badge {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+.apprco-badge-success,
+.apprco-badge-completed {
+    background: #d4edda;
+    color: #155724;
+}
+
+.apprco-badge-warning,
+.apprco-badge-running {
+    background: #fff3cd;
+    color: #856404;
+}
+
+.apprco-badge-info {
+    background: #d1ecf1;
+    color: #0c5460;
+}
+
+.apprco-badge-error,
+.apprco-badge-failed {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+/* Scheduler Status */
+.apprco-scheduler-status {
+    background: #f6f7f7;
+    padding: 12px 15px;
+    border-radius: 4px;
+    margin: 10px 0;
+}
+
+/* Settings Form */
+.wrap.apprco-settings .apprco-form {
+    max-width: 900px;
+    background: #fff;
+    padding: 20px 24px;
+    border: 1px solid #c3c4c7;
+    border-radius: 4px;
+    box-shadow: 0 1px 1px rgba(0, 0, 0, 0.04);
+}
+
+.wrap.apprco-settings h1 {
+    margin-bottom: 16px;
+}
+
+.wrap.apprco-settings .form-table th {
+    width: 260px;
+    padding-top: 16px;
+}
+
+.wrap.apprco-settings .form-table td {
+    padding-top: 12px;
+}
+
+.wrap.apprco-settings .form-table input[type="text"],
+.wrap.apprco-settings .form-table input[type="url"],
+.wrap.apprco-settings .form-table input[type="password"],
+.wrap.apprco-settings .form-table input[type="number"],
+.wrap.apprco-settings .form-table select {
+    width: 100%;
+    max-width: 480px;
+}
+
+/* Shortcode Info */
+.apprco-shortcode-inline code {
+    background: #f6f7f7;
+    padding: 6px 10px;
+    border-radius: 4px;
+    display: inline-block;
+    margin: 6px 0;
+    font-family: Consolas, Monaco, monospace;
+}
+
+/* Buttons */
+#apprco-test-and-sync.button.button-primary,
+#apprco-dashboard-sync.button.button-primary {
+    margin-right: 8px;
+}
+
+#apprco-test-sync-result,
+#apprco-dashboard-result {
+    margin-top: 10px;
+    padding: 10px;
+    border-radius: 4px;
+}
+
+#apprco-test-sync-result.success,
+#apprco-dashboard-result.success {
+    background: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+}
+
+#apprco-test-sync-result.error,
+#apprco-dashboard-result.error {
+    background: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+}
+
+/* Logs Page */
+.apprco-logs-actions {
+    margin: 20px 0;
+}
+
+.apprco-logs-actions .button {
+    margin-right: 8px;
+}
+
+.apprco-logs-stats {
+    background: #f6f7f7;
+    padding: 12px 15px;
+    border-radius: 4px;
+    margin-bottom: 20px;
+}
+
+.apprco-logs-stats span {
+    margin-right: 20px;
+}
+
+.apprco-log-level-error {
+    color: #dc3545;
+}
+
+.apprco-log-level-warning {
+    color: #ffc107;
+}
+
+.apprco-log-level-info {
+    color: #17a2b8;
+}
+
+.apprco-log-level-debug {
+    color: #6c757d;
+}
+
+/* Log Details Panel */
+.apprco-log-details {
+    background: #fff;
+    border: 1px solid #c3c4c7;
+    border-radius: 4px;
+    padding: 20px;
+    margin-top: 20px;
+    max-height: 500px;
+    overflow-y: auto;
+}
+
+.apprco-log-details h3 {
+    margin-top: 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+#apprco-log-entries {
+    margin-top: 15px;
+}
+
+.apprco-log-entry {
+    padding: 8px 12px;
+    margin-bottom: 4px;
+    border-radius: 3px;
+    font-family: Consolas, Monaco, monospace;
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+.apprco-log-entry.error {
+    background: #fef2f2;
+    border-left: 3px solid #dc3545;
+}
+
+.apprco-log-entry.warning {
+    background: #fffbeb;
+    border-left: 3px solid #ffc107;
+}
+
+.apprco-log-entry.info {
+    background: #eff6ff;
+    border-left: 3px solid #17a2b8;
+}
+
+.apprco-log-entry.debug {
+    background: #f9fafb;
+    border-left: 3px solid #6c757d;
+}
+
+.apprco-log-entry .log-time {
+    color: #6c757d;
+    margin-right: 10px;
+}
+
+.apprco-log-entry .log-level {
+    font-weight: 600;
+    text-transform: uppercase;
+    margin-right: 10px;
+}
+
+/* Setup Wizard Progress */
+.apprco-setup-progress {
+    display: flex;
+    gap: 12px;
+    margin: 12px 0 20px;
+    flex-wrap: wrap;
+}
+
+.apprco-setup-progress .apprco-step {
+    position: relative;
+    padding: 8px 12px;
+    background: #f6f7f7;
+    border: 1px solid #c3c4c7;
+    border-radius: 20px;
+    font-weight: 600;
+    color: #6c7781;
+    font-size: 13px;
+}
+
+.apprco-setup-progress .apprco-step.current {
+    background: #2271b1;
+    border-color: #2271b1;
+    color: #fff;
+}
+
+.apprco-setup-progress .apprco-step.completed {
+    background: #d4edda;
+    border-color: #c3e6cb;
+    color: #155724;
+}
+
+.apprco-setup-progress .apprco-step .apprco-step-index {
+    opacity: 0.8;
+    margin-right: 4px;
+}
+
+/* Setup Content */
+.apprco-setup-content {
+    background: #fff;
+    border: 1px solid #c3c4c7;
+    border-radius: 4px;
+    padding: 30px;
+    margin-top: 20px;
+}
+
+.apprco-setup-step h2 {
+    margin-top: 0;
+    color: #1d2327;
+}
+
+.apprco-setup-intro {
+    margin: 20px 0;
+}
+
+.apprco-setup-intro ul {
+    margin: 15px 0;
+    padding-left: 20px;
+}
+
+.apprco-setup-intro li {
+    margin-bottom: 8px;
+}
+
+.apprco-setup-actions {
+    margin-top: 30px;
+    text-align: right;
+}
+
+.apprco-setup-actions .button {
+    margin-left: 10px;
+}
+
+/* Loading States */
+.apprco-loading {
+    position: relative;
+    opacity: 0.7;
+    pointer-events: none;
+}
+
+.apprco-loading::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 20px;
+    height: 20px;
+    margin: -10px 0 0 -10px;
+    border: 2px solid #f3f3f3;
+    border-top: 2px solid #2271b1;
+    border-radius: 50%;
+    animation: apprco-spin 1s linear infinite;
+}
+
+@keyframes apprco-spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Responsive */
+@media (max-width: 782px) {
+    .apprco-dashboard-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .apprco-setup-progress {
+        flex-direction: column;
+    }
+
+    .wrap.apprco-settings .form-table th {
+        width: auto;
+        display: block;
+        padding-bottom: 0;
+    }
+
+    .wrap.apprco-settings .form-table td {
+        display: block;
+        padding-left: 0;
+    }
+}
+
+/* Table Styles */
+.apprco-logs table.wp-list-table {
+    margin-top: 15px;
+}
+
+.apprco-logs table.wp-list-table th,
+.apprco-logs table.wp-list-table td {
+    padding: 10px 8px;
+}
+
+.apprco-logs table.wp-list-table .apprco-view-logs {
+    text-decoration: none;
+}
+
+.apprco-logs table.wp-list-table .apprco-view-logs:hover {
+    text-decoration: underline;
+}
+
+/* Notices */
+.apprco-notice {
+    padding: 12px 15px;
+    margin: 15px 0;
+    border-radius: 4px;
+    border-left: 4px solid;
+}
+
+.apprco-notice-success {
+    background: #d4edda;
+    border-color: #28a745;
+    color: #155724;
+}
+
+.apprco-notice-error {
+    background: #f8d7da;
+    border-color: #dc3545;
+    color: #721c24;
+}
+
+.apprco-notice-warning {
+    background: #fff3cd;
+    border-color: #ffc107;
+    color: #856404;
+}
+
+.apprco-notice-info {
+    background: #d1ecf1;
+    border-color: #17a2b8;
+    color: #0c5460;
+}

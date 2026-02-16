@@ -1,0 +1,392 @@
+/**
+ * Apprenticeship Connect Styles
+ */
+
+/* Frontend Styles */
+.apprco-vacancies-list {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px 0;
+}
+
+.apprco-vacancy-item {
+    background: #fff;
+    border: 1px solid #e1e1e1;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    transition: box-shadow 0.3s ease;
+}
+
+.apprco-vacancy-item:hover {
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.apprco-vacancy-item h3 {
+    margin: 0 0 15px 0;
+    font-size: 1.4em;
+    color: #333;
+}
+
+.apprco-vacancy-item h3 a {
+    color: #0073aa;
+    text-decoration: none;
+    transition: color 0.3s ease;
+}
+
+.apprco-vacancy-item h3 a:hover {
+    color: #005a87;
+}
+
+.apprco-employer {
+    margin: 10px 0;
+    color: #666;
+    font-size: 0.95em;
+}
+
+.apprco-description {
+    margin: 15px 0;
+    line-height: 1.6;
+    color: #555;
+}
+
+.apprco-closing-date {
+    margin: 10px 0;
+    color: #d63638;
+    font-weight: 600;
+    font-size: 0.9em;
+}
+
+.apprco-apply-link {
+    margin: 15px 0 0 0;
+}
+
+.apprco-apply-button {
+    display: inline-block;
+    background: #0073aa;
+    color: #fff;
+    padding: 10px 20px;
+    text-decoration: none;
+    border-radius: 4px;
+    font-weight: 600;
+    transition: background-color 0.3s ease;
+}
+
+.apprco-apply-button:hover {
+    background: #005a87;
+    color: #fff;
+    text-decoration: none;
+}
+
+/* No Vacancies Styles */
+.apprco-no-vacancies {
+    text-align: center;
+    padding: 40px 20px;
+    background: #f9f9f9;
+    height: auto;
+    margin-bottom: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+
+}
+
+.apprco-no-vacancy-image {
+    max-width: 100%;
+    opacity: 0.5;
+}
+
+.apprco-no-vacancies p {
+    font-size: 1.1em;
+    color: #666;
+    margin: 0;
+    display: inline-block;
+    padding: 15px 25px;
+}
+
+/* Admin Styles */
+.apprco-admin-container {
+    display: flex;
+    gap: 30px;
+    margin-top: 20px;
+}
+
+.apprco-admin-main {
+    flex: 2;
+}
+
+.apprco-admin-sidebar {
+    flex: 1;
+    max-width: 400px;
+}
+
+.apprco-status-box,
+.apprco-shortcode-box {
+    background: #fff;
+    border: 1px solid #ccd0d4;
+    border-radius: 4px;
+    padding: 20px;
+    margin-bottom: 20px;
+}
+
+.apprco-status-box h3,
+.apprco-shortcode-box h3 {
+    margin-top: 0;
+    color: #23282d;
+}
+
+.apprco-status-ok {
+    color: #46b450;
+    font-weight: bold;
+}
+
+.apprco-status-error {
+    color: #dc3232;
+    font-weight: bold;
+}
+
+.apprco-actions {
+    margin-top: 15px;
+}
+
+.apprco-actions .button {
+    margin-right: 10px;
+}
+
+.apprco-shortcode-box code {
+    background: #f1f1f1;
+    padding: 5px 8px;
+    border-radius: 3px;
+    font-size: 0.9em;
+}
+
+.apprco-shortcode-box ul {
+    margin: 10px 0;
+    padding-left: 20px;
+}
+
+.apprco-shortcode-box li {
+    margin-bottom: 5px;
+}
+
+/* Setup Wizard Styles */
+.apprco-setup-progress {
+    display: flex;
+    justify-content: space-between;
+    margin: 30px 0;
+    background: #f1f1f1;
+    border-radius: 4px;
+    padding: 10px;
+}
+
+.apprco-step {
+    flex: 1;
+    text-align: center;
+    padding: 10px;
+    color: #666;
+    font-weight: 500;
+}
+
+.apprco-step.active {
+    background: #0073aa;
+    color: #fff;
+    border-radius: 4px;
+}
+
+.apprco-setup-content {
+    background: #fff;
+    border: 1px solid #ccd0d4;
+    border-radius: 4px;
+    padding: 30px;
+    margin-top: 20px;
+}
+
+.apprco-setup-step h2 {
+    margin-top: 0;
+    color: #23282d;
+}
+
+.apprco-setup-intro {
+    margin: 20px 0;
+}
+
+.apprco-setup-intro ul {
+    margin: 15px 0;
+    padding-left: 20px;
+}
+
+.apprco-setup-intro li {
+    margin-bottom: 8px;
+}
+
+.apprco-setup-actions {
+    margin-top: 30px;
+    text-align: right;
+}
+
+.apprco-setup-actions .button {
+    margin-left: 10px;
+}
+
+.apprco-setup-success {
+    background: #f0f8ff;
+    border: 1px solid #0073aa;
+    border-radius: 4px;
+    padding: 20px;
+    margin: 20px 0;
+}
+
+.apprco-setup-success h3 {
+    margin-top: 0;
+    color: #0073aa;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .apprco-admin-container {
+        flex-direction: column;
+    }
+
+    .apprco-admin-sidebar {
+        max-width: none;
+    }
+
+    .apprco-setup-progress {
+        flex-direction: column;
+        gap: 5px;
+    }
+
+    .apprco-step {
+        text-align: left;
+        padding: 8px 15px;
+    }
+}
+
+/* Loading States */
+.apprco-loading {
+    opacity: 0.6;
+    pointer-events: none;
+}
+
+.apprco-loading::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 20px;
+    height: 20px;
+    margin: -10px 0 0 -10px;
+    border: 2px solid #f3f3f3;
+    border-top: 2px solid #0073aa;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Notices */
+.apprco-notice {
+    padding: 12px;
+    margin: 15px 0;
+    border-radius: 4px;
+    border-left: 4px solid;
+}
+
+.apprco-notice-success {
+    background: #f0f8ff;
+    border-color: #46b450;
+    color: #155724;
+}
+
+.apprco-notice-error {
+    background: #fdf2f2;
+    border-color: #dc3232;
+    color: #721c24;
+}
+
+.apprco-notice-warning {
+    background: #fff3cd;
+    border-color: #ffc107;
+    color: #856404;
+}
+
+.apprco-notice-info {
+    background: #d1ecf1;
+    border-color: #17a2b8;
+    color: #0c5460;
+}
+
+/* Admin Settings UI */
+.wrap.apprco-settings .apprco-form {
+  max-width: 900px;
+  background: #fff;
+  padding: 20px 24px;
+  border: 1px solid #e2e4e7;
+  border-radius: 6px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+}
+
+.wrap.apprco-settings h1 {
+  margin-bottom: 16px;
+}
+
+.wrap.apprco-settings .form-table th {
+  width: 260px;
+  padding-top: 16px;
+}
+
+.wrap.apprco-settings .form-table td {
+  padding-top: 12px;
+}
+
+.wrap.apprco-settings .form-table input[type="text"],
+.wrap.apprco-settings .form-table input[type="url"],
+.wrap.apprco-settings .form-table input[type="number"] {
+  width: 100%;
+  max-width: 480px;
+}
+
+.apprco-shortcode-inline code {
+  background: #f6f7f7;
+  padding: 6px 10px;
+  border-radius: 4px;
+  display: inline-block;
+  margin: 6px 0;
+}
+
+#apprco-test-and-sync.button.button-primary {
+  margin-top: 6px;
+}
+
+/* Setup Wizard Progress */
+.apprco-setup-progress {
+  display: flex;
+  gap: 12px;
+  margin: 12px 0 20px;
+}
+.apprco-setup-progress .apprco-step {
+  position: relative;
+  padding: 8px 12px;
+  background: #f6f7f7;
+  border: 1px solid #e2e4e7;
+  border-radius: 20px;
+  font-weight: 600;
+  color: #6c7781;
+}
+.apprco-setup-progress .apprco-step.current {
+  background: #2271b1;
+  border-color: #2271b1;
+  color: #fff;
+}
+.apprco-setup-progress .apprco-step.completed {
+  background: #e7f5ee;
+  border-color: #c6e8d5;
+  color: #1e7f4f;
+}
+.apprco-setup-progress .apprco-step .apprco-step-index {
+  opacity: 0.8;
+  margin-right: 4px;
+}
