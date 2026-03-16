@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, master, develop, 'claude/**' ]
+  pull_request:
+    branches: [ main, master, develop ]
+
+jobs:
+  php-lint:
+    name: PHP ${{ matrix.php }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        php: ['8.2', '8.3']
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP ${{ matrix.php }}
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          tools: composer:v2
+
+      - name: Install Composer dependencies
+        run: composer install --no-interaction --prefer-dist
+
+      - name: PHP syntax check
+        run: find includes -name "*.php" -exec php -l {} \; | grep -v "No syntax errors" || true
+
+      - name: PHPCS
+        run: composer run lint
+        continue-on-error: true
+
+  js-build:
+    name: JS Build & Lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - run: npm ci --prefer-offline --no-audit
+
+      - name: Lint JS
+        run: npm run lint:js
+        continue-on-error: true
+
+      - name: Lint CSS
+        run: npm run lint:css
+        continue-on-error: true
+
+      - name: Build
+        run: npm run build

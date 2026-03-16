@@ -1,7 +1,7 @@
 {
-  "name": "apprenticeship-connect",
-  "version": "2.0.0",
-  "description": "WordPress plugin for importing and managing apprenticeship opportunities from various government APIs",
+  "name": "apprenticeship-connector",
+  "version": "1.0.0",
+  "description": "Apprenticeship Connector – two-stage import from UK Government Display Advert API v2 into WordPress",
   "author": "Your Name",
   "license": "GPL-2.0-or-later",
   "keywords": [
@@ -25,7 +25,7 @@
   "scripts": {
     "build": "wp-scripts build",
     "build:plugin": "bash build-plugin.sh",
-    "build:production": "npm run build && bash build-plugin.sh",
+    "build:production": "NODE_ENV=production npm run build && bash build-plugin.sh",
     "start": "wp-scripts start",
     "dev": "wp-scripts start",
     "check-engines": "wp-scripts check-engines",

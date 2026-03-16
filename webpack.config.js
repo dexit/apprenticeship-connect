@@ -1,34 +1,23 @@
 /**
- * WordPress Dependencies
- */
-const defaultConfig = require('@wordpress/scripts/config/webpack.config');
-const path = require('path');
-
-/**
- * Custom webpack configuration
+ * Apprenticeship Connector – Webpack config.
  *
- * This extends @wordpress/scripts default config to support multiple entry points
- * for different admin pages and frontend components.
+ * Extends @wordpress/scripts defaults with a single admin entry point
+ * that outputs to build/admin/ (consumed by AdminLoader.php).
  */
+const defaultConfig = require( '@wordpress/scripts/config/webpack.config' );
+const path          = require( 'path' );
+
 module.exports = {
 	...defaultConfig,
+
 	entry: {
-		// Admin scripts
-		'admin': path.resolve(process.cwd(), 'src/admin', 'index.js'),
-		'dashboard': path.resolve(process.cwd(), 'src/admin', 'dashboard.js'),
-		'settings': path.resolve(process.cwd(), 'src/admin', 'settings.js'),
-		'meta-box': path.resolve(process.cwd(), 'src/admin/meta-box', 'index.js'),
-
-		// Frontend scripts
-		'frontend': path.resolve(process.cwd(), 'src/frontend', 'index.js'),
-
-		// Styles
-		'admin-style': path.resolve(process.cwd(), 'src/admin', 'style.scss'),
-		'frontend-style': path.resolve(process.cwd(), 'src/frontend', 'style.scss'),
+		// Single admin bundle (App.jsx mounts the React tree)
+		'admin/index': path.resolve( process.cwd(), 'src/admin', 'App.jsx' ),
 	},
+
 	output: {
 		...defaultConfig.output,
-		path: path.resolve(process.cwd(), 'assets/build'),
+		path:     path.resolve( process.cwd(), 'build' ),
 		filename: '[name].js',
 	},
 };

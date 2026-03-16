@@ -1,105 +1,111 @@
-#!/bin/bash
+#!/usr/bin/env bash
+# =============================================================================
+# Apprenticeship Connector – Production Build Script
 #
-# Robust Build Script for Apprenticeship Connect
+# Usage:
+#   bash build-plugin.sh [--version 1.2.3]
 #
-# Creates a full production export in /build/ and a corresponding ZIP.
-#
+# Outputs:
+#   dist/apprenticeship-connector-v{VERSION}.zip   ← ready for WordPress upload
+#   dist/apprenticeship-connector-v{VERSION}/      ← extracted folder
+# =============================================================================
 
-set -e  # Exit on error
+set -euo pipefail
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m'
+RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BLUE='\033[0;34m'; NC='\033[0m'
 
-echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${BLUE}  Apprenticeship Connect Production Build${NC}"
-echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-
-PLUGIN_SLUG="apprenticeship-connect"
-BUILD_DIR="build"
+PLUGIN_SLUG="apprenticeship-connector"
+PLUGIN_FILE="apprenticeship-connector.php"
 DIST_DIR="dist"
-EXPORT_PATH="${BUILD_DIR}/${PLUGIN_SLUG}"
 
-# 1. Clean up
-echo -e "${BLUE}→ Cleaning previous builds...${NC}"
-rm -rf "${BUILD_DIR}"
-rm -rf "${DIST_DIR}"
-mkdir -p "${EXPORT_PATH}"
-mkdir -p "${DIST_DIR}"
+# ── Parse optional --version flag ────────────────────────────────────────────
+VERSION_OVERRIDE=""
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --version) VERSION_OVERRIDE="$2"; shift 2;;
+        *) shift;;
+    esac
+done
 
-# 2. Build Assets
-echo -e "${BLUE}→ Building JavaScript and CSS assets...${NC}"
-npm install
-npm run build
-
-if [ ! -d "assets/build" ]; then
-    echo -e "${RED}✗ Asset build failed - assets/build directory missing${NC}"
-    exit 1
+# ── Detect version from plugin header ────────────────────────────────────────
+if [[ -n "$VERSION_OVERRIDE" ]]; then
+    PLUGIN_VERSION="$VERSION_OVERRIDE"
+else
+    PLUGIN_VERSION=$(grep -m1 "^.*Version:" "$PLUGIN_FILE" | awk '{print $NF}' | tr -d '[:space:]')
 fi
-echo -e "${GREEN}✓ Assets built successfully${NC}"
 
-# 3. Production Dependencies
-echo -e "${BLUE}→ Installing production PHP dependencies...${NC}"
-composer install --no-dev --optimize-autoloader --no-interaction
+EXPORT_DIR="${DIST_DIR}/${PLUGIN_SLUG}"
+ZIP_FILE="${DIST_DIR}/${PLUGIN_SLUG}-v${PLUGIN_VERSION}.zip"
 
-# 4. Copy Files
-echo -e "${BLUE}→ Exporting files to ${EXPORT_PATH}...${NC}"
+echo -e "${BLUE}══════════════════════════════════════════════${NC}"
+echo -e "${BLUE}  Apprenticeship Connector  v${PLUGIN_VERSION}${NC}"
+echo -e "${BLUE}══════════════════════════════════════════════${NC}"
 
-# Files and directories to include
-INCLUDES=(
-    "apprenticeship-connect.php"
+# ── 1. Clean ─────────────────────────────────────────────────────────────────
+echo -e "${BLUE}→ Cleaning dist/...${NC}"
+rm -rf "$DIST_DIR"
+mkdir -p "$EXPORT_DIR"
+
+# ── 2. Node – build JS/CSS ────────────────────────────────────────────────────
+echo -e "${BLUE}→ Installing Node dependencies...${NC}"
+npm ci --prefer-offline --no-audit --loglevel error
+
+echo -e "${BLUE}→ Building JS/CSS assets (production)...${NC}"
+NODE_ENV=production npm run build
+
+if [[ ! -f "build/admin/index.js" ]]; then
+    echo -e "${RED}✗ Build failed – build/admin/index.js not found${NC}"; exit 1
+fi
+echo -e "${GREEN}✓ JS/CSS assets built${NC}"
+
+# ── 3. PHP – Composer production install ─────────────────────────────────────
+echo -e "${BLUE}→ Installing PHP production dependencies (Composer)...${NC}"
+composer install --no-dev --optimize-autoloader --no-interaction --quiet
+echo -e "${GREEN}✓ Composer dependencies installed${NC}"
+
+# ── 4. Copy plugin files ──────────────────────────────────────────────────────
+echo -e "${BLUE}→ Copying plugin files to ${EXPORT_DIR}/...${NC}"
+
+INCLUDE_FILES=(
+    "$PLUGIN_FILE"
+    "uninstall.php"
     "readme.txt"
     "README.md"
-    "uninstall.php"
     "LICENSE"
+    "LICENSE.txt"
+)
+
+INCLUDE_DIRS=(
     "includes"
     "languages"
-    "assets/build"
-    "assets/images"
-    "assets/css"
+    "build"
     "vendor"
 )
 
-for ITEM in "${INCLUDES[@]}"; do
-    if [ -e "$ITEM" ]; then
-        # Create parent directory if needed
-        PARENT=$(dirname "${EXPORT_PATH}/${ITEM}")
-        mkdir -p "${PARENT}"
+for FILE in "${INCLUDE_FILES[@]}"; do
+    [[ -f "$FILE" ]] && cp "$FILE" "$EXPORT_DIR/" && echo "  + $FILE"
+done
 
-        cp -R "$ITEM" "${EXPORT_PATH}/${ITEM}"
-        echo -e "  Copied: ${ITEM}"
-    else
-        echo -e "${YELLOW}  ⚠ Warning: ${ITEM} not found, skipping${NC}"
+for DIR in "${INCLUDE_DIRS[@]}"; do
+    if [[ -d "$DIR" ]]; then
+        cp -r "$DIR" "$EXPORT_DIR/$DIR"
+        echo "  + $DIR/"
     fi
 done
 
-# 5. Verify Build
-echo -e "${BLUE}→ Verifying export...${NC}"
-if [ -f "${EXPORT_PATH}/assets/build/admin.js" ]; then
-    echo -e "${GREEN}✓ Production assets verified in build folder${NC}"
-else
-    echo -e "${RED}✗ Production assets missing from build folder!${NC}"
-    exit 1
-fi
+# ── 5. Strip dev artefacts from vendor ────────────────────────────────────────
+echo -e "${BLUE}→ Removing dev-only vendor files...${NC}"
+find "$EXPORT_DIR/vendor" \( -name "*.md" -o -name "*.txt" -o -name "tests" -o -name "test" -o -name "*.test.php" \) -prune -exec rm -rf {} + 2>/dev/null || true
 
-# 6. Create ZIP
-echo -e "${BLUE}→ Creating ZIP archive...${NC}"
-ZIP_NAME="${PLUGIN_SLUG}-v$(grep "Version:" apprenticeship-connect.php | awk '{print $3}').zip"
-cd "${BUILD_DIR}"
-zip -r "../${DIST_DIR}/${ZIP_NAME}" "${PLUGIN_SLUG}" -q
+# ── 6. Create ZIP ────────────────────────────────────────────────────────────
+echo -e "${BLUE}→ Creating ZIP ${ZIP_FILE}...${NC}"
+cd "$DIST_DIR"
+zip -rq "../$ZIP_FILE" "$(basename "$EXPORT_DIR")"
 cd ..
 
-# Copy zip to build folder as well for convenience
-cp "${DIST_DIR}/${ZIP_NAME}" "${BUILD_DIR}/"
-
-echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${GREEN}══════════════════════════════════════════════${NC}"
 echo -e "${GREEN}  Build Complete!${NC}"
-echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${YELLOW}Full Export:${NC} ./${EXPORT_PATH}/"
-echo -e "${YELLOW}ZIP Archive:${NC} ./${DIST_DIR}/${ZIP_NAME}"
-echo -e "${YELLOW}ZIP Copy:   ${NC} ./${BUILD_DIR}/${ZIP_NAME}"
-echo ""
-echo -e "The ${BLUE}/build/${NC} directory has been kept for your inspection."
+echo -e "${GREEN}══════════════════════════════════════════════${NC}"
+echo -e "  Plugin folder : ${YELLOW}./${EXPORT_DIR}/${NC}"
+echo -e "  ZIP archive   : ${YELLOW}./${ZIP_FILE}${NC}"
+echo -e "  Version       : ${YELLOW}${PLUGIN_VERSION}${NC}"

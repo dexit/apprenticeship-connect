@@ -1,0 +1,224 @@
+name: Build & Release
+
+# Triggers:
+#  - Push a tag like v1.2.3  → full build + GitHub Release with ZIP asset
+#  - Manual dispatch          → build only (for testing)
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+*'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run (build but do not create GitHub Release)'
+        required: false
+        default: 'true'
+        type: boolean
+
+permissions:
+  contents: write   # Required to create GitHub Releases
+
+jobs:
+  # ── 1. Lint & static-analyse ──────────────────────────────────────────────
+  lint:
+    name: Lint (PHP + JS)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP 8.2
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: mbstring, json
+          tools: composer:v2, phpcs
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install Node dependencies
+        run: npm ci --prefer-offline --no-audit
+
+      - name: JS lint
+        run: npm run lint:js
+
+      - name: CSS lint
+        run: npm run lint:css
+
+      - name: Install Composer dependencies (dev)
+        run: composer install --no-interaction --prefer-dist
+
+      - name: PHP CodeSniffer
+        run: composer run lint
+        continue-on-error: true   # Non-blocking for now; harden in Week 4
+
+  # ── 2. Build ──────────────────────────────────────────────────────────────
+  build:
+    name: Build Plugin ZIP
+    runs-on: ubuntu-latest
+    needs: lint
+    outputs:
+      plugin_version: ${{ steps.get_version.outputs.version }}
+      zip_name:       ${{ steps.get_version.outputs.zip_name }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP 8.2
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: mbstring, json
+          tools: composer:v2
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      # ── Determine version ──────────────────────────────────────────────────
+      - name: Get plugin version
+        id: get_version
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+          else
+            VERSION=$(grep -m1 "Version:" apprenticeship-connector.php | awk '{print $NF}' | tr -d '[:space:]')
+          fi
+          echo "version=${VERSION}"             >> "$GITHUB_OUTPUT"
+          echo "zip_name=apprenticeship-connector-v${VERSION}.zip" >> "$GITHUB_OUTPUT"
+
+      # ── Node build ────────────────────────────────────────────────────────
+      - name: Install Node dependencies
+        run: npm ci --prefer-offline --no-audit
+
+      - name: Build JS/CSS (production)
+        run: NODE_ENV=production npm run build
+
+      # ── Composer (production only) ────────────────────────────────────────
+      - name: Install PHP production dependencies
+        run: composer install --no-dev --optimize-autoloader --no-interaction
+
+      # ── Assemble plugin folder ────────────────────────────────────────────
+      - name: Assemble plugin export
+        run: |
+          EXPORT="dist/apprenticeship-connector"
+          mkdir -p "$EXPORT"
+
+          # Main plugin files
+          cp apprenticeship-connector.php  "$EXPORT/"
+          cp uninstall.php                 "$EXPORT/"
+          [[ -f readme.txt   ]] && cp readme.txt    "$EXPORT/"
+          [[ -f README.md    ]] && cp README.md     "$EXPORT/"
+          [[ -f LICENSE      ]] && cp LICENSE       "$EXPORT/"
+          [[ -f LICENSE.txt  ]] && cp LICENSE.txt   "$EXPORT/"
+
+          # PHP classes, compiled assets, vendor, i18n
+          cp -r includes/  "$EXPORT/includes/"
+          cp -r build/     "$EXPORT/build/"
+          cp -r vendor/    "$EXPORT/vendor/"
+          [[ -d languages/ ]] && cp -r languages/ "$EXPORT/languages/"
+
+          # Strip unnecessary vendor files
+          find "$EXPORT/vendor" \( \
+            -name "*.md" -o -name "CHANGELOG" -o -name "LICENCE" \
+            -o -type d -name "tests" -o -type d -name "test" \
+          \) -prune -exec rm -rf {} + 2>/dev/null || true
+
+      # ── Create ZIP ────────────────────────────────────────────────────────
+      - name: Create ZIP archive
+        run: |
+          cd dist
+          zip -rq "${{ steps.get_version.outputs.zip_name }}" apprenticeship-connector/
+          echo "ZIP size: $(du -sh ${{ steps.get_version.outputs.zip_name }} | cut -f1)"
+
+      # ── Verify ZIP ────────────────────────────────────────────────────────
+      - name: Verify ZIP contains required files
+        run: |
+          REQUIRED=(
+            "apprenticeship-connector/apprenticeship-connector.php"
+            "apprenticeship-connector/includes/Core/Plugin.php"
+            "apprenticeship-connector/build/admin/index.js"
+          )
+          for F in "${REQUIRED[@]}"; do
+            if unzip -l "dist/${{ steps.get_version.outputs.zip_name }}" | grep -q "$F"; then
+              echo "✓ $F"
+            else
+              echo "✗ MISSING: $F"; exit 1
+            fi
+          done
+
+      # ── Upload artifact for next job ──────────────────────────────────────
+      - name: Upload ZIP artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: plugin-zip
+          path: dist/${{ steps.get_version.outputs.zip_name }}
+          retention-days: 7
+
+  # ── 3. Release ────────────────────────────────────────────────────────────
+  release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: build
+    # Only create a release on version tags (not on manual workflow_dispatch dry runs)
+    if: >
+      startsWith(github.ref, 'refs/tags/v') ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.dry_run == 'false')
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0    # Full history for changelog generation
+
+      - name: Download plugin ZIP
+        uses: actions/download-artifact@v4
+        with:
+          name: plugin-zip
+          path: dist/
+
+      # ── Auto-generate changelog from git log ──────────────────────────────
+      - name: Generate changelog
+        id: changelog
+        run: |
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          if [[ -n "$PREV_TAG" ]]; then
+            LOG=$(git log "${PREV_TAG}..HEAD" --pretty="- %s (%h)" --no-merges | head -40)
+          else
+            LOG=$(git log --pretty="- %s (%h)" --no-merges | head -40)
+          fi
+          echo "changelog<<EOF"     >> "$GITHUB_OUTPUT"
+          echo "$LOG"               >> "$GITHUB_OUTPUT"
+          echo "EOF"                >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name:   ${{ github.ref_name }}
+          name:       "Apprenticeship Connector v${{ needs.build.outputs.plugin_version }}"
+          draft:      false
+          prerelease: ${{ contains(github.ref_name, '-beta') || contains(github.ref_name, '-rc') }}
+          body: |
+            ## Apprenticeship Connector v${{ needs.build.outputs.plugin_version }}
+
+            ### Installation
+            1. Download `${{ needs.build.outputs.zip_name }}` below
+            2. In WordPress: **Plugins → Add New → Upload Plugin**
+            3. Upload the ZIP and activate
+            4. Navigate to **Apprenticeships → Settings** to enter your API key
+
+            ### Requirements
+            - WordPress 6.4+
+            - PHP 8.2+
+            - Secure Custom Fields (SCF) plugin active
+
+            ### Changes since last release
+            ${{ steps.changelog.outputs.changelog }}
+
+          files: |
+            dist/${{ needs.build.outputs.zip_name }}

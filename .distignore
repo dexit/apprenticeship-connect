@@ -82,7 +82,7 @@ yarn-error.log*
 .gitattributes
 .gitmodules
 
-# Build artifacts
-/build/
+# Build artifacts (note: /build/ is INCLUDED in release ZIP via release.yml)
+# Only dist/ and loose zips are excluded.
 /dist/
 *.zip
