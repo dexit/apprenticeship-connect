@@ -21,7 +21,7 @@ class DisplayAdvertAPI {
 	public function __construct(
 		string      $base_url       = 'https://api.apprenticeships.education.gov.uk/vacancies',
 		string      $subscription_key = '',
-		int         $rate_limit_ms  = 250
+		int         $rate_limit_ms  = 2000
 	) {
 		$this->client = new Client(
 			$base_url,
@@ -75,7 +75,7 @@ class DisplayAdvertAPI {
 		return new self(
 			$job->api_base_url       ?? 'https://api.apprenticeships.education.gov.uk/vacancies',
 			$job->api_subscription_key ?? '',
-			$job->stage2_delay_ms    ?? 250
+			$job->stage2_delay_ms    ?? 2000
 		);
 	}
 }

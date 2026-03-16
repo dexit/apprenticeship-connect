@@ -23,12 +23,11 @@
  *
  * Rate-limit handling
  * ───────────────────
- * The API allows 150 requests per 5 minutes (30 req/min).
- * Each AS action processes one Stage-1 page (1 request) or one Stage-2 batch
- * (STAGE2_BATCH_SIZE requests at 250 ms spacing).
- * Default STAGE2_BATCH_SIZE = 20  → 20 × 250 ms ≈ 5 s per batch.
- * AS runs actions as fast as it can, but because each action is a real HTTP
- * request the natural throughput stays well under the rate cap.
+ * The API allows 150 requests per 5 minutes (30 req/min = 1 req per 2 s).
+ * RateLimiter defaults to 2 000 ms between requests and enforces a sliding-
+ * window cap of 140/5 min, persisting state via WordPress transients so the
+ * limit is respected across separate AS action invocations (PHP processes).
+ * Each Stage-2 batch processes STAGE2_BATCH_SIZE references ≈ 20 s per batch.
  * A per-run mutex prevents concurrent batches for the same run_id.
  *
  * @package ApprenticeshipConnector\Import
@@ -48,8 +47,8 @@ class ActionSchedulerRunner {
 	public const HOOK_EXPIRE        = 'appcon_as_expire_vacancies';
 
 	// How many Stage-2 references to process per AS action.
-	// Keeps us safely under the 30 req/min cap even if AS fires quickly.
-	private const STAGE2_BATCH_SIZE = 20;
+	// 10 refs × 2 000 ms ≈ 20 s per batch – safe for PHP time limits.
+	private const STAGE2_BATCH_SIZE = 10;
 
 	// ── Public API ─────────────────────────────────────────────────────────
 
