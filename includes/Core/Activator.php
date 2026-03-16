@@ -38,6 +38,27 @@ class Activator {
 			] );
 		}
 
+		// Schedule daily expiry check via Action Scheduler.
+		// as_has_scheduled_action() returns false if Action Scheduler isn't
+		// loaded yet (e.g. during a fresh install before vendor autoload) –
+		// so we guard with function_exists.
+		if ( function_exists( 'as_has_scheduled_action' ) ) {
+			if ( ! as_has_scheduled_action( \ApprenticeshipConnector\Import\ActionSchedulerRunner::HOOK_EXPIRE, [], 'appcon' ) ) {
+				// Fire daily at 02:00 UTC.
+				$next_2am = strtotime( 'today 02:00:00 UTC' );
+				if ( $next_2am < time() ) {
+					$next_2am = strtotime( 'tomorrow 02:00:00 UTC' );
+				}
+				as_schedule_recurring_action(
+					$next_2am,
+					DAY_IN_SECONDS,
+					\ApprenticeshipConnector\Import\ActionSchedulerRunner::HOOK_EXPIRE,
+					[],
+					'appcon'
+				);
+			}
+		}
+
 		update_option( 'appcon_db_version', APPCON_DB_VERSION );
 	}
 }

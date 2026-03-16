@@ -124,10 +124,31 @@ class Database {
   KEY idx_term_id (term_id)
 ) ENGINE=InnoDB $charset;";
 
+		// ── Vacancy index (AS work queue) ─────────────────────────────────
+		// Each row = one vacancy reference collected in Stage 1.
+		// Stage 2 AS actions pull batches from here and mark them processed.
+		$sql_index = "CREATE TABLE {$wpdb->prefix}appcon_vacancy_index (
+  id                BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  run_id            VARCHAR(64)     NOT NULL,
+  job_id            BIGINT UNSIGNED NOT NULL,
+  vacancy_reference VARCHAR(100)    NOT NULL,
+  status            ENUM('pending','processing','completed','failed','skipped') NOT NULL DEFAULT 'pending',
+  post_id           BIGINT UNSIGNED,
+  error_message     TEXT,
+  fetched_at        DATETIME,
+  created_at        DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_run_id (run_id),
+  KEY idx_job_id (job_id),
+  KEY idx_status (status),
+  KEY idx_reference (vacancy_reference)
+) ENGINE=InnoDB $charset;";
+
 		dbDelta( $sql_jobs );
 		dbDelta( $sql_runs );
 		dbDelta( $sql_logs );
 		dbDelta( $sql_employers );
+		dbDelta( $sql_index );
 	}
 
 	// ── Helper methods ─────────────────────────────────────────────────────
@@ -150,5 +171,10 @@ class Database {
 	public static function get_employers_table(): string {
 		global $wpdb;
 		return $wpdb->prefix . 'appcon_employers';
+	}
+
+	public static function get_vacancy_index_table(): string {
+		global $wpdb;
+		return $wpdb->prefix . 'appcon_vacancy_index';
 	}
 }

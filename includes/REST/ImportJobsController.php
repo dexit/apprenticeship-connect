@@ -11,6 +11,8 @@ namespace ApprenticeshipConnector\REST;
 
 use ApprenticeshipConnector\Import\ImportJob;
 use ApprenticeshipConnector\Import\ImportRunner;
+use ApprenticeshipConnector\Import\ActionSchedulerRunner;
+use ApprenticeshipConnector\Import\ExpiryManager;
 use ApprenticeshipConnector\Core\Database;
 use WP_REST_Controller;
 use WP_REST_Request;
@@ -73,6 +75,50 @@ class ImportJobsController extends WP_REST_Controller {
 				'permission_callback' => [ $this, 'admin_permissions_check' ],
 			],
 		] );
+
+		// Single run status (used by ProgressMonitor polling).
+		register_rest_route( $this->namespace, '/' . $this->rest_base . '/runs/(?P<run_id>[0-9a-f\-]+)', [
+			[
+				'methods'             => \WP_REST_Server::READABLE,
+				'callback'            => [ $this, 'get_run' ],
+				'permission_callback' => [ $this, 'admin_permissions_check' ],
+			],
+		] );
+
+		// Logs for a run.
+		register_rest_route( $this->namespace, '/' . $this->rest_base . '/runs/(?P<run_id>[0-9a-f\-]+)/logs', [
+			[
+				'methods'             => \WP_REST_Server::READABLE,
+				'callback'            => [ $this, 'get_run_logs' ],
+				'permission_callback' => [ $this, 'admin_permissions_check' ],
+			],
+		] );
+
+		// Index progress for a run.
+		register_rest_route( $this->namespace, '/' . $this->rest_base . '/runs/(?P<run_id>[0-9a-f\-]+)/index', [
+			[
+				'methods'             => \WP_REST_Server::READABLE,
+				'callback'            => [ $this, 'get_run_index' ],
+				'permission_callback' => [ $this, 'admin_permissions_check' ],
+			],
+		] );
+
+		// Expiry management.
+		register_rest_route( $this->namespace, '/expiry/run', [
+			[
+				'methods'             => \WP_REST_Server::CREATABLE,
+				'callback'            => [ $this, 'run_expiry' ],
+				'permission_callback' => [ $this, 'admin_permissions_check' ],
+			],
+		] );
+
+		register_rest_route( $this->namespace, '/expiry/stats', [
+			[
+				'methods'             => \WP_REST_Server::READABLE,
+				'callback'            => [ $this, 'get_expiry_stats' ],
+				'permission_callback' => [ $this, 'admin_permissions_check' ],
+			],
+		] );
 	}
 
 	// ── Handlers ──────────────────────────────────────────────────────────
@@ -128,11 +174,37 @@ class ImportJobsController extends WP_REST_Controller {
 		return rest_ensure_response( [ 'deleted' => true ] );
 	}
 
+	/**
+	 * Trigger an import via Action Scheduler (async, recommended).
+	 * Falls back to synchronous ImportRunner if AS is unavailable.
+	 */
 	public function trigger_run( WP_REST_Request $request ): WP_REST_Response|WP_Error {
+		$job_id = (int) $request['id'];
+
+		$job = ImportJob::find( $job_id );
+		if ( ! $job ) {
+			return new WP_Error( 'not_found', __( 'Import job not found.', 'apprenticeship-connector' ), [ 'status' => 404 ] );
+		}
+
 		try {
+			if ( function_exists( 'as_enqueue_async_action' ) ) {
+				$as_runner = new ActionSchedulerRunner();
+				$run_id    = $as_runner->enqueue( $job_id );
+				return rest_ensure_response( [
+					'run_id'  => $run_id,
+					'mode'    => 'action_scheduler',
+					'message' => __( 'Import queued via Action Scheduler.', 'apprenticeship-connector' ),
+				] );
+			}
+
+			// Synchronous fallback.
 			$runner = new ImportRunner();
-			$run_id = $runner->trigger( (int) $request['id'] );
-			return rest_ensure_response( [ 'run_id' => $run_id ] );
+			$run_id = $runner->trigger( $job_id );
+			return rest_ensure_response( [
+				'run_id'  => $run_id,
+				'mode'    => 'synchronous',
+				'message' => __( 'Import executed synchronously.', 'apprenticeship-connector' ),
+			] );
 		} catch ( \Throwable $e ) {
 			return new WP_Error( 'run_failed', $e->getMessage(), [ 'status' => 500 ] );
 		}
@@ -147,6 +219,78 @@ class ImportJobsController extends WP_REST_Controller {
 		), ARRAY_A );
 
 		return rest_ensure_response( $rows );
+	}
+
+	/** Single run status – polled by ProgressMonitor every 3 s. */
+	public function get_run( WP_REST_Request $request ): WP_REST_Response|WP_Error {
+		global $wpdb;
+
+		$row = $wpdb->get_row( $wpdb->prepare(
+			'SELECT * FROM ' . Database::get_runs_table() . ' WHERE run_id = %s',
+			$request['run_id']
+		), ARRAY_A );
+
+		if ( ! $row ) {
+			return new WP_Error( 'not_found', __( 'Run not found.', 'apprenticeship-connector' ), [ 'status' => 404 ] );
+		}
+
+		return rest_ensure_response( $row );
+	}
+
+	/** Paginated log lines for a run. */
+	public function get_run_logs( WP_REST_Request $request ): WP_REST_Response|WP_Error {
+		global $wpdb;
+
+		$limit  = min( (int) ( $request->get_param( 'limit' )  ?? 100 ), 500 );
+		$offset = (int) ( $request->get_param( 'offset' ) ?? 0 );
+
+		$rows = $wpdb->get_results( $wpdb->prepare(
+			'SELECT * FROM ' . Database::get_logs_table() . '
+			 WHERE run_id = %s
+			 ORDER BY id ASC
+			 LIMIT %d OFFSET %d',
+			$request['run_id'], $limit, $offset
+		), ARRAY_A );
+
+		return rest_ensure_response( $rows );
+	}
+
+	/** Summary of index rows for a run (pending/completed/failed counts). */
+	public function get_run_index( WP_REST_Request $request ): WP_REST_Response|WP_Error {
+		global $wpdb;
+
+		$table = Database::get_vacancy_index_table();
+		$run_id = $request['run_id'];
+
+		$counts = $wpdb->get_results( $wpdb->prepare(
+			"SELECT status, COUNT(*) AS cnt FROM {$table} WHERE run_id = %s GROUP BY status",
+			$run_id
+		), ARRAY_A );
+
+		$summary = [ 'pending' => 0, 'processing' => 0, 'completed' => 0, 'failed' => 0, 'skipped' => 0, 'total' => 0 ];
+		foreach ( $counts as $row ) {
+			$summary[ $row['status'] ] = (int) $row['cnt'];
+			$summary['total'] += (int) $row['cnt'];
+		}
+
+		return rest_ensure_response( $summary );
+	}
+
+	/** Manually trigger the expiry check. */
+	public function run_expiry( WP_REST_Request $request ): WP_REST_Response|WP_Error {
+		try {
+			$expiry  = new ExpiryManager();
+			$results = $expiry->run();
+			return rest_ensure_response( array_merge( $results, [ 'success' => true ] ) );
+		} catch ( \Throwable $e ) {
+			return new WP_Error( 'expiry_failed', $e->getMessage(), [ 'status' => 500 ] );
+		}
+	}
+
+	/** Expiry statistics for the dashboard. */
+	public function get_expiry_stats( WP_REST_Request $request ): WP_REST_Response|WP_Error {
+		$expiry = new ExpiryManager();
+		return rest_ensure_response( $expiry->get_stats() );
 	}
 
 	// ── Permissions ────────────────────────────────────────────────────────

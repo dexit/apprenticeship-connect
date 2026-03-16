@@ -18,6 +18,8 @@ use ApprenticeshipConnector\Taxonomies\EmployerTaxonomy;
 use ApprenticeshipConnector\REST\ImportJobsController;
 use ApprenticeshipConnector\REST\TestController;
 use ApprenticeshipConnector\Import\ImportRunner;
+use ApprenticeshipConnector\Import\ActionSchedulerRunner;
+use ApprenticeshipConnector\Import\ExpiryManager;
 use ApprenticeshipConnector\Admin\SCFFields;
 
 /**
@@ -67,6 +69,8 @@ class Plugin {
 		require_once $dir . 'Import/ImportJob.php';
 		require_once $dir . 'Import/TwoStageImporter.php';
 		require_once $dir . 'Import/ImportRunner.php';
+		require_once $dir . 'Import/ActionSchedulerRunner.php';
+		require_once $dir . 'Import/ExpiryManager.php';
 
 		// Post types & taxonomies
 		require_once $dir . 'PostTypes/VacancyPostType.php';
@@ -136,11 +140,45 @@ class Plugin {
 		$this->loader->add_action( 'rest_api_init', $test_ctrl,   'register_routes' );
 	}
 
-	// ── WP-Cron hooks ─────────────────────────────────────────────────────
+	// ── Action Scheduler hooks ────────────────────────────────────────────
+	//
+	// Each AS action hook receives named parameters from as_enqueue_async_action().
+	// We define thin wrappers that unpack the array and delegate to the runner.
 
 	private function define_cron_hooks(): void {
-		$runner = new ImportRunner();
-		$this->loader->add_action( 'appcon_run_scheduled_import', $runner, 'run_scheduled' );
+		// Legacy WP-Cron fallback (kept for backward compat).
+		$legacy_runner = new ImportRunner();
+		$this->loader->add_action( 'appcon_run_scheduled_import', $legacy_runner, 'run_scheduled' );
+
+		// Action Scheduler – import flow.
+		$as_runner = new ActionSchedulerRunner();
+
+		$this->loader->add_action(
+			ActionSchedulerRunner::HOOK_START,
+			$as_runner,
+			'handle_start_action',
+			10, 1
+		);
+		$this->loader->add_action(
+			ActionSchedulerRunner::HOOK_STAGE1_PAGE,
+			$as_runner,
+			'handle_stage1_page_action',
+			10, 1
+		);
+		$this->loader->add_action(
+			ActionSchedulerRunner::HOOK_STAGE2_BATCH,
+			$as_runner,
+			'handle_stage2_batch_action',
+			10, 1
+		);
+
+		// Action Scheduler – daily expiry.
+		$expiry = new ExpiryManager();
+		$this->loader->add_action(
+			ActionSchedulerRunner::HOOK_EXPIRE,
+			$expiry,
+			'run'
+		);
 	}
 
 	// ── Run ───────────────────────────────────────────────────────────────
