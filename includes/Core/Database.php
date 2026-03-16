@@ -32,7 +32,7 @@ class Database {
   stage1_sort            VARCHAR(50)     NOT NULL DEFAULT 'AgeDesc',
   stage1_filters         JSON,
   stage2_enabled         TINYINT(1)      NOT NULL DEFAULT 1,
-  stage2_delay_ms        INT             NOT NULL DEFAULT 250,
+  stage2_delay_ms        INT             NOT NULL DEFAULT 2000,
   stage2_batch_size      INT             NOT NULL DEFAULT 10,
   field_mappings         JSON            NOT NULL,
   schedule_enabled       TINYINT(1)      NOT NULL DEFAULT 0,

@@ -30,11 +30,24 @@ class Activator {
 		// Set default options.
 		if ( ! get_option( 'appcon_settings' ) ) {
 			update_option( 'appcon_settings', [
-				'api_base_url'      => 'https://api.apprenticeships.education.gov.uk/vacancies',
-				'api_key'           => '',
-				'rate_limit_ms'     => 250,
-				'stage1_page_size'  => 100,
-				'stage1_max_pages'  => 100,
+				// API
+				'api_base_url'        => 'https://api.apprenticeships.education.gov.uk/vacancies',
+				'api_key'             => '',
+				'rate_limit_ms'       => 2000,
+				// Import defaults
+				'stage1_page_size'    => 100,
+				'stage1_max_pages'    => 100,
+				'stage2_delay_ms'     => 2000,
+				'stage2_batch_size'   => 10,
+				// Expiry
+				'auto_expiry_enabled' => true,
+				'expiry_notice_days'  => 7,
+				// Cache / performance
+				'cache_api_responses' => false,
+				'cache_ttl_minutes'   => 60,
+				// Display
+				'vacancies_per_page'  => 10,
+				'vacancy_slug'        => 'vacancies',
 			] );
 		}
 
