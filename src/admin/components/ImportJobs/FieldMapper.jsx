@@ -4,7 +4,7 @@
  * Uses Stage 2 sample to show the real API structure then lets the user
  * drag/type field paths into the mapping inputs.
  */
-import { useState } from '@wordpress/element';
+import { useState, useRef, useEffect } from '@wordpress/element';
 import { Button, Spinner, Notice } from '@wordpress/components';
 import apiFetch from '@wordpress/api-fetch';
 
@@ -162,8 +162,18 @@ export default function FieldMapper( { job, onChange } ) {
 			: getDefaultMappings()
 	);
 
+	const abortRef = useRef( null );
+
+	// Cancel in-flight request on unmount.
+	useEffect( () => () => abortRef.current?.abort(), [] );
+
 	const fetchSample = async () => {
 		if ( ! job.id ) return;
+
+		abortRef.current?.abort();
+		const ctrl    = new AbortController();
+		abortRef.current = ctrl;
+
 		setLoading( true );
 		setError( null );
 		try {
@@ -171,6 +181,7 @@ export default function FieldMapper( { job, onChange } ) {
 				path:   '/appcon/v1/test/api',
 				method: 'POST',
 				data:   { job_id: job.id, test_type: 'stage2_sample' },
+				signal: ctrl.signal,
 			} );
 			if ( res.success && res.sample ) {
 				setApiSample( res.sample );
@@ -178,7 +189,7 @@ export default function FieldMapper( { job, onChange } ) {
 				setError( res.stage2_error ?? res.error ?? 'Failed to fetch sample' );
 			}
 		} catch ( err ) {
-			setError( err.message );
+			if ( err.name !== 'AbortError' ) setError( err.message );
 		} finally {
 			setLoading( false );
 		}

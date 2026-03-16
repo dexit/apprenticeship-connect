@@ -40,6 +40,9 @@
     "plugin-zip": "wp-scripts plugin-zip",
     "test:e2e": "wp-scripts test-e2e",
     "test:unit": "wp-scripts test-unit-js",
+    "i18n:pot": "wp i18n make-pot . languages/apprenticeship-connector.pot --domain=apprenticeship-connector --exclude=includes/archive,vendor,node_modules,build",
+    "i18n:json": "wp i18n make-json languages/ --no-purge",
+    "i18n:build": "npm run i18n:pot && npm run i18n:json",
     "clean": "rm -rf assets/build && rm -rf node_modules && rm -rf build && rm -rf dist"
   },
   "dependencies": {

@@ -25,6 +25,8 @@ use ApprenticeshipConnector\REST\TestController;
 use ApprenticeshipConnector\Import\ImportRunner;
 use ApprenticeshipConnector\Import\ActionSchedulerRunner;
 use ApprenticeshipConnector\Import\ExpiryManager;
+use ApprenticeshipConnector\Import\MediaImporter;
+use ApprenticeshipConnector\Frontend\VacancySearch;
 
 /**
  * Main plugin class – singleton.
@@ -153,6 +155,13 @@ class Plugin {
 	private function define_public_hooks(): void {
 		// Elementor integration (hooks registered only when Elementor is active).
 		ElementorLoader::init();
+
+		// Frontend search, archive status, and admin expiry filter.
+		require_once APPCON_DIR . 'includes/Frontend/VacancySearch.php';
+		VacancySearch::register();
+
+		// Media importer is used inside TwoStageImporter; no hooks needed here.
+		require_once APPCON_DIR . 'includes/Import/MediaImporter.php';
 	}
 
 	// ── REST hooks ────────────────────────────────────────────────────────

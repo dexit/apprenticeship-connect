@@ -20,7 +20,7 @@ const DEFAULT_JOB = {
 	stage1_sort:          'AgeDesc',
 	stage1_filters:       {},
 	stage2_enabled:       true,
-	stage2_delay_ms:      250,
+	stage2_delay_ms:      2000,
 	stage2_batch_size:    10,
 	field_mappings:       {},
 	schedule_enabled:     false,
