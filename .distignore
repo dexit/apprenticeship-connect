@@ -1,38 +1,46 @@
-# Deployment .distignore
-# Files/folders to EXCLUDE from WordPress plugin zip
+# .distignore – files/directories excluded from WordPress.org SVN deployment
+# Used by the 10up/action-wordpress-plugin-deploy GitHub Action.
+#
+# The React build output (build/) and vendor/ ARE included (compiled artefacts).
 
-# Development dependencies
-/node_modules/
-/.git/
-/.github/
-
-# Development config
+# VCS
+.git
 .gitignore
-.distignore
-.editorconfig
-.eslintrc.js
-.eslintignore
-.prettierrc
-.prettierignore
-phpcs.xml
-phpcs.xml.dist
-phpunit.xml
-phpunit.xml.dist
-.phpunit.result.cache
+.gitattributes
 
-# Build tools and scripts
-webpack.config.js
+# CI / GitHub
+.github
+
+# Node
+node_modules
 package.json
 package-lock.json
-composer.json
-composer.lock
+webpack.config.js
+.eslintrc.js
+.eslintignore
+
+# PHP dev tooling
+phpcs.xml
+phpunit.xml
+phpunit.xml.dist
+
+# Source (compiled to build/)
+src
+
+# Tests
+tests
+coverage
+
+# Build tooling
 build-plugin.sh
 verify.php
+Makefile
 
-# Source files (we include the built assets, not source)
-/src/
+# Distribution artefacts (not needed in SVN)
+dist
 
-# Development documentation (keep only README.md)
+# Dev docs
+docs
 ARCHITECTURE-ANALYSIS.md
 BUILD-SETUP.md
 CODEBASE-ANALYSIS-AND-CRITICAL-BUGS.md
@@ -46,43 +54,6 @@ SESSION-PROGRESS.md
 SETTINGS-FIX-SUMMARY.md
 UPGRADE-PLAN.md
 UPGRADE-STATUS.md
-/docs/
 
-# Testing
-/tests/
-/coverage/
-/.wp-env.json
-
-# IDE
-/.idea/
-/.vscode/
-*.sublime-project
-*.sublime-workspace
-.DS_Store
-Thumbs.db
-
-# Logs
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# Environment
-.env
-.env.*
-
-# Temporary
-*.tmp
-*.temp
-*.swp
-*.swo
-*~
-
-# Git
-.gitattributes
-.gitmodules
-
-# Build artifacts (note: /build/ is INCLUDED in release ZIP via release.yml)
-# Only dist/ and loose zips are excluded.
-/dist/
-*.zip
+# Legacy / archived code
+includes/archive

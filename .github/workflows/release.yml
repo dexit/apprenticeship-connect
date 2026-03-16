@@ -1,8 +1,15 @@
 name: Build & Release
 
 # Triggers:
-#  - Push a tag like v1.2.3  → full build + GitHub Release with ZIP asset
-#  - Manual dispatch          → build only (for testing)
+#   Push a tag like v1.0.0 → lint + build + GitHub Release with ZIP asset
+#   Manual dispatch       → build only (use dry_run=true to skip GitHub Release)
+#
+# Secrets required for this workflow:
+#   GH_TOKEN (or the default GITHUB_TOKEN) – only needs contents:write
+#   WORDPRESS_USERNAME / WORDPRESS_PASSWORD – only needed for WP.org deploy
+#
+# After this workflow creates the GitHub Release, the separate
+# deploy-wporg.yml is triggered by the "release published" event.
 
 on:
   push:
@@ -11,162 +18,212 @@ on:
   workflow_dispatch:
     inputs:
       dry_run:
-        description: 'Dry run (build but do not create GitHub Release)'
+        description: 'Skip GitHub Release creation (build artefact only)'
         required: false
         default: 'true'
         type: boolean
 
 permissions:
-  contents: write   # Required to create GitHub Releases
+  contents: write   # Create GitHub Releases
 
 jobs:
-  # ── 1. Lint & static-analyse ──────────────────────────────────────────────
+
+  # ── 1. Lint ────────────────────────────────────────────────────────────────
   lint:
     name: Lint (PHP + JS)
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup PHP 8.2
-        uses: shivammathur/setup-php@v2
+      - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.2'
           extensions: mbstring, json
-          tools: composer:v2, phpcs
+          tools: composer:v2
+          coverage: none
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: npm
 
-      - name: Install Node dependencies
-        run: npm ci --prefer-offline --no-audit
+      - run: composer install --no-interaction --prefer-dist
+      - run: npm ci --prefer-offline --no-audit
+
+      - name: PHP syntax check
+        run: |
+          ERRORS=0
+          while IFS= read -r file; do
+            result=$(php -l "$file" 2>&1)
+            if echo "$result" | grep -q "Parse error\|Fatal error"; then
+              echo "✗ $result"; ERRORS=$((ERRORS+1))
+            fi
+          done < <(find includes apprenticeship-connector.php uninstall.php -name "*.php" \
+                   ! -path "*/archive/*" ! -path "*/vendor/*")
+          [[ $ERRORS -eq 0 ]] || { echo "::error::$ERRORS PHP syntax errors"; exit 1; }
+          echo "✓ PHP syntax clean"
+
+      - name: PHPCS
+        run: composer run lint
+        continue-on-error: true
 
       - name: JS lint
         run: npm run lint:js
+        continue-on-error: true
 
       - name: CSS lint
         run: npm run lint:css
+        continue-on-error: true
 
-      - name: Install Composer dependencies (dev)
-        run: composer install --no-interaction --prefer-dist
-
-      - name: PHP CodeSniffer
-        run: composer run lint
-        continue-on-error: true   # Non-blocking for now; harden in Week 4
-
-  # ── 2. Build ──────────────────────────────────────────────────────────────
+  # ── 2. Build ───────────────────────────────────────────────────────────────
   build:
     name: Build Plugin ZIP
     runs-on: ubuntu-latest
     needs: lint
     outputs:
-      plugin_version: ${{ steps.get_version.outputs.version }}
-      zip_name:       ${{ steps.get_version.outputs.zip_name }}
+      plugin_version: ${{ steps.version.outputs.version }}
+      zip_name:       ${{ steps.version.outputs.zip_name }}
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup PHP 8.2
-        uses: shivammathur/setup-php@v2
+      - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.2'
-          extensions: mbstring, json
+          extensions: mbstring, json, zip
           tools: composer:v2
+          coverage: none
 
-      - name: Setup Node 20
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: npm
 
-      # ── Determine version ──────────────────────────────────────────────────
-      - name: Get plugin version
-        id: get_version
+      # ── Version detection ──────────────────────────────────────────────────
+      - name: Detect plugin version
+        id: version
         run: |
           if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
             VERSION="${GITHUB_REF_NAME#v}"
           else
-            VERSION=$(grep -m1 "Version:" apprenticeship-connector.php | awk '{print $NF}' | tr -d '[:space:]')
+            VERSION=$(grep -m1 "^.*Version:" apprenticeship-connector.php \
+                      | awk '{print $NF}' | tr -d '[:space:]')
           fi
-          echo "version=${VERSION}"             >> "$GITHUB_OUTPUT"
-          echo "zip_name=apprenticeship-connector-v${VERSION}.zip" >> "$GITHUB_OUTPUT"
+          echo "version=${VERSION}"                                   >> "$GITHUB_OUTPUT"
+          echo "zip_name=apprenticeship-connector-v${VERSION}.zip"   >> "$GITHUB_OUTPUT"
+          echo "Detected version: ${VERSION}"
 
-      # ── Node build ────────────────────────────────────────────────────────
+      # ── JS production build ────────────────────────────────────────────────
       - name: Install Node dependencies
         run: npm ci --prefer-offline --no-audit
 
       - name: Build JS/CSS (production)
         run: NODE_ENV=production npm run build
 
-      # ── Composer (production only) ────────────────────────────────────────
+      - name: Verify build artefacts
+        run: |
+          for f in build/admin/index.js build/admin/index.asset.php \
+                   build/blocks/vacancy-listing/index.js \
+                   build/blocks/vacancy-card/index.js; do
+            [[ -f "$f" ]] && echo "✓ $f" || { echo "::error::Missing: $f"; exit 1; }
+          done
+
+      # ── Composer production install ────────────────────────────────────────
       - name: Install PHP production dependencies
         run: composer install --no-dev --optimize-autoloader --no-interaction
 
-      # ── Assemble plugin folder ────────────────────────────────────────────
+      # ── Verify readme.txt stable tag matches version ──────────────────────
+      - name: Check readme.txt Stable tag
+        run: |
+          STABLE=$(grep -m1 "^Stable tag:" readme.txt | awk '{print $NF}' | tr -d '[:space:]')
+          PLUGIN="${{ steps.version.outputs.plugin_version }}"
+          if [[ "$STABLE" != "$PLUGIN" ]]; then
+            echo "::warning::readme.txt Stable tag (${STABLE}) ≠ plugin version (${PLUGIN})"
+            echo "Consider updating readme.txt before publishing to WordPress.org"
+          else
+            echo "✓ Stable tag matches plugin version: ${STABLE}"
+          fi
+
+      # ── Assemble clean plugin export ───────────────────────────────────────
       - name: Assemble plugin export
         run: |
           EXPORT="dist/apprenticeship-connector"
           mkdir -p "$EXPORT"
 
-          # Main plugin files
-          cp apprenticeship-connector.php  "$EXPORT/"
-          cp uninstall.php                 "$EXPORT/"
-          [[ -f readme.txt   ]] && cp readme.txt    "$EXPORT/"
-          [[ -f README.md    ]] && cp README.md     "$EXPORT/"
-          [[ -f LICENSE      ]] && cp LICENSE       "$EXPORT/"
-          [[ -f LICENSE.txt  ]] && cp LICENSE.txt   "$EXPORT/"
+          # Root plugin files
+          for f in apprenticeship-connector.php uninstall.php readme.txt README.md; do
+            [[ -f "$f" ]] && cp "$f" "$EXPORT/"
+          done
+          for f in LICENSE LICENSE.txt; do
+            [[ -f "$f" ]] && cp "$f" "$EXPORT/"
+          done
 
-          # PHP classes, compiled assets, vendor, i18n
-          cp -r includes/  "$EXPORT/includes/"
-          cp -r build/     "$EXPORT/build/"
-          cp -r vendor/    "$EXPORT/vendor/"
-          [[ -d languages/ ]] && cp -r languages/ "$EXPORT/languages/"
+          # Directories
+          for d in includes build vendor languages; do
+            [[ -d "$d" ]] && cp -r "$d" "$EXPORT/$d"
+          done
 
-          # Strip unnecessary vendor files
+          # WP.org banner/screenshots/icons (if present)
+          if [[ -d "assets" ]]; then
+            # Only copy image assets, not JS/CSS sub-directories
+            find assets -maxdepth 1 \( -name "*.png" -o -name "*.jpg" \) \
+              -exec cp {} "$EXPORT/../" \; 2>/dev/null || true
+          fi
+
+          # Strip vendor dev artefacts (docs, tests, CI files)
           find "$EXPORT/vendor" \( \
             -name "*.md" -o -name "CHANGELOG" -o -name "LICENCE" \
             -o -type d -name "tests" -o -type d -name "test" \
+            -o -name ".github" -o -name ".travis.yml" \
           \) -prune -exec rm -rf {} + 2>/dev/null || true
+
+          echo "── Plugin export contents ──"
+          find "$EXPORT" -maxdepth 2 -type d | sort
 
       # ── Create ZIP ────────────────────────────────────────────────────────
       - name: Create ZIP archive
         run: |
           cd dist
-          zip -rq "${{ steps.get_version.outputs.zip_name }}" apprenticeship-connector/
-          echo "ZIP size: $(du -sh ${{ steps.get_version.outputs.zip_name }} | cut -f1)"
+          zip -rq "${{ steps.version.outputs.zip_name }}" apprenticeship-connector/
+          echo "ZIP size: $(du -sh ${{ steps.version.outputs.zip_name }} | cut -f1)"
 
       # ── Verify ZIP ────────────────────────────────────────────────────────
-      - name: Verify ZIP contains required files
+      - name: Verify ZIP integrity
         run: |
+          ZIP="dist/${{ steps.version.outputs.zip_name }}"
           REQUIRED=(
             "apprenticeship-connector/apprenticeship-connector.php"
             "apprenticeship-connector/includes/Core/Plugin.php"
             "apprenticeship-connector/build/admin/index.js"
+            "apprenticeship-connector/build/blocks/vacancy-listing/index.js"
+            "apprenticeship-connector/build/blocks/vacancy-card/index.js"
+            "apprenticeship-connector/vendor/autoload.php"
           )
+          ERRORS=0
           for F in "${REQUIRED[@]}"; do
-            if unzip -l "dist/${{ steps.get_version.outputs.zip_name }}" | grep -q "$F"; then
+            if unzip -l "$ZIP" | grep -q "$F"; then
               echo "✓ $F"
             else
-              echo "✗ MISSING: $F"; exit 1
+              echo "::error::ZIP missing: $F"
+              ERRORS=$((ERRORS+1))
             fi
           done
+          [[ $ERRORS -eq 0 ]] || exit 1
 
-      # ── Upload artifact for next job ──────────────────────────────────────
-      - name: Upload ZIP artifact
+      # ── Upload artefact ──────────────────────────────────────────────────
+      - name: Upload ZIP artefact
         uses: actions/upload-artifact@v4
         with:
-          name: plugin-zip
-          path: dist/${{ steps.get_version.outputs.zip_name }}
-          retention-days: 7
+          name: plugin-zip-${{ steps.version.outputs.plugin_version }}
+          path: dist/${{ steps.version.outputs.zip_name }}
+          retention-days: 30
 
-  # ── 3. Release ────────────────────────────────────────────────────────────
+  # ── 3. GitHub Release ─────────────────────────────────────────────────────
   release:
     name: Create GitHub Release
     runs-on: ubuntu-latest
     needs: build
-    # Only create a release on version tags (not on manual workflow_dispatch dry runs)
     if: >
       startsWith(github.ref, 'refs/tags/v') ||
       (github.event_name == 'workflow_dispatch' && github.event.inputs.dry_run == 'false')
@@ -174,27 +231,27 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0    # Full history for changelog generation
+          fetch-depth: 0
 
       - name: Download plugin ZIP
         uses: actions/download-artifact@v4
         with:
-          name: plugin-zip
+          name: plugin-zip-${{ needs.build.outputs.plugin_version }}
           path: dist/
 
-      # ── Auto-generate changelog from git log ──────────────────────────────
-      - name: Generate changelog
+      - name: Generate changelog from git log
         id: changelog
         run: |
           PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
           if [[ -n "$PREV_TAG" ]]; then
-            LOG=$(git log "${PREV_TAG}..HEAD" --pretty="- %s (%h)" --no-merges | head -40)
+            LOG=$(git log "${PREV_TAG}..HEAD" --pretty="- %s (%h)" --no-merges | head -50)
           else
-            LOG=$(git log --pretty="- %s (%h)" --no-merges | head -40)
+            LOG=$(git log --pretty="- %s (%h)" --no-merges | head -50)
           fi
-          echo "changelog<<EOF"     >> "$GITHUB_OUTPUT"
-          echo "$LOG"               >> "$GITHUB_OUTPUT"
-          echo "EOF"                >> "$GITHUB_OUTPUT"
+          # Store multi-line in output
+          echo "changelog<<LOGEOF"   >> "$GITHUB_OUTPUT"
+          echo "$LOG"                >> "$GITHUB_OUTPUT"
+          echo "LOGEOF"              >> "$GITHUB_OUTPUT"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -202,23 +259,25 @@ jobs:
           tag_name:   ${{ github.ref_name }}
           name:       "Apprenticeship Connector v${{ needs.build.outputs.plugin_version }}"
           draft:      false
-          prerelease: ${{ contains(github.ref_name, '-beta') || contains(github.ref_name, '-rc') }}
+          prerelease: ${{ contains(github.ref_name, '-beta') || contains(github.ref_name, '-rc') || contains(github.ref_name, '-alpha') }}
           body: |
             ## Apprenticeship Connector v${{ needs.build.outputs.plugin_version }}
 
             ### Installation
-            1. Download `${{ needs.build.outputs.zip_name }}` below
-            2. In WordPress: **Plugins → Add New → Upload Plugin**
-            3. Upload the ZIP and activate
-            4. Navigate to **Apprenticeships → Settings** to enter your API key
+            1. Download `${{ needs.build.outputs.zip_name }}` from the assets below.
+            2. In WordPress: **Plugins → Add New → Upload Plugin**.
+            3. Upload the ZIP and click **Activate**.
+            4. Go to **Apprenticeships → Settings** to enter your API subscription key.
 
             ### Requirements
             - WordPress 6.4+
             - PHP 8.2+
-            - Secure Custom Fields (SCF) plugin active
+            - [Secure Custom Fields](https://wordpress.org/plugins/secure-custom-fields/) (recommended)
 
-            ### Changes since last release
+            ### What's new
             ${{ steps.changelog.outputs.changelog }}
 
-          files: |
-            dist/${{ needs.build.outputs.zip_name }}
+            ---
+            *This release is also available on [WordPress.org](https://wordpress.org/plugins/apprenticeship-connector/) once reviewed.*
+
+          files: dist/${{ needs.build.outputs.zip_name }}

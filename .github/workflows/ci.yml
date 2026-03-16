@@ -1,18 +1,28 @@
 name: CI
 
+# Runs on every push/PR to development branches.
+# Checks PHP syntax, PHPCS, JS/CSS lint, and that the plugin builds cleanly.
+
 on:
   push:
-    branches: [ main, master, develop, 'claude/**' ]
+    branches: [ main, master, develop, 'claude/**', 'feature/**', 'fix/**' ]
   pull_request:
     branches: [ main, master, develop ]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  php-lint:
+
+  # ── PHP: syntax + PHPCS ─────────────────────────────────────────────────────
+  php:
     name: PHP ${{ matrix.php }}
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
-        php: ['8.2', '8.3']
+        php: [ '8.2', '8.3' ]
 
     steps:
       - uses: actions/checkout@v4
@@ -21,19 +31,71 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: ${{ matrix.php }}
+          extensions: mbstring, json, zip
           tools: composer:v2
+          coverage: none
+
+      - name: Cache Composer packages
+        uses: actions/cache@v4
+        with:
+          path: vendor
+          key: composer-${{ matrix.php }}-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-${{ matrix.php }}-
 
       - name: Install Composer dependencies
         run: composer install --no-interaction --prefer-dist
 
-      - name: PHP syntax check
-        run: find includes -name "*.php" -exec php -l {} \; | grep -v "No syntax errors" || true
+      # Strict syntax check – exits non-zero on any parse error
+      - name: PHP syntax check (strict)
+        run: |
+          ERRORS=0
+          while IFS= read -r file; do
+            result=$(php -l "$file" 2>&1)
+            if echo "$result" | grep -q "Parse error\|Fatal error"; then
+              echo "✗  $result"
+              ERRORS=$((ERRORS+1))
+            fi
+          done < <(find includes apprenticeship-connector.php uninstall.php -name "*.php" \
+                   ! -path "*/archive/*" ! -path "*/vendor/*")
+          if [[ $ERRORS -gt 0 ]]; then
+            echo "::error::$ERRORS PHP syntax error(s) found"
+            exit 1
+          fi
+          echo "✓ All PHP files pass syntax check"
 
-      - name: PHPCS
-        run: composer run lint
-        continue-on-error: true
+      - name: PHP CodeSniffer
+        run: composer run lint -- --report=checkstyle | cs2pr || true
+        # cs2pr annotates the PR; failure is non-blocking until Week 4 hardening
 
-  js-build:
+      # Verify .distignore exists (required for WP.org deploy)
+      - name: Check .distignore exists
+        run: |
+          if [[ ! -f ".distignore" ]]; then
+            echo "::error::.distignore is missing – required for WordPress.org deployment"
+            exit 1
+          fi
+          echo "✓ .distignore present"
+
+      # Verify readme.txt has correct metadata for WP.org
+      - name: Validate readme.txt metadata
+        run: |
+          ERRORS=0
+          check() {
+            if ! grep -q "$1" readme.txt; then
+              echo "::error::readme.txt missing: $1"
+              ERRORS=$((ERRORS+1))
+            fi
+          }
+          check "Requires at least:"
+          check "Requires PHP:"
+          check "Stable tag:"
+          check "License:"
+          check "== Changelog =="
+          if [[ $ERRORS -gt 0 ]]; then exit 1; fi
+          echo "✓ readme.txt metadata present"
+
+  # ── JS / CSS: lint + build ──────────────────────────────────────────────────
+  js:
     name: JS Build & Lint
     runs-on: ubuntu-latest
 
@@ -45,15 +107,41 @@ jobs:
           node-version: '20'
           cache: npm
 
-      - run: npm ci --prefer-offline --no-audit
+      - name: Install Node dependencies
+        run: npm ci --prefer-offline --no-audit
 
       - name: Lint JS
         run: npm run lint:js
-        continue-on-error: true
+        continue-on-error: true   # Annotates PRs; non-blocking until linting hardened
 
       - name: Lint CSS
         run: npm run lint:css
         continue-on-error: true
 
-      - name: Build
-        run: npm run build
+      - name: Production build
+        run: NODE_ENV=production npm run build
+
+      - name: Verify build artefacts
+        run: |
+          ERRORS=0
+          for f in \
+            "build/admin/index.js" \
+            "build/admin/index.asset.php" \
+            "build/blocks/vacancy-listing/index.js" \
+            "build/blocks/vacancy-card/index.js"; do
+            if [[ -f "$f" ]]; then
+              echo "✓ $f"
+            else
+              echo "::error::Expected build artefact missing: $f"
+              ERRORS=$((ERRORS+1))
+            fi
+          done
+          [[ $ERRORS -eq 0 ]] || exit 1
+
+      # Upload build artefacts so release job can re-use them
+      - name: Upload build artefacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-${{ github.sha }}
+          path: build/
+          retention-days: 3
