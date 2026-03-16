@@ -27,6 +27,7 @@ use ApprenticeshipConnector\Import\ActionSchedulerRunner;
 use ApprenticeshipConnector\Import\ExpiryManager;
 use ApprenticeshipConnector\Import\MediaImporter;
 use ApprenticeshipConnector\Frontend\VacancySearch;
+use ApprenticeshipConnector\Frontend\FrontendLoader;
 
 /**
  * Main plugin class – singleton.
@@ -102,6 +103,9 @@ class Plugin {
 		// Gutenberg blocks
 		require_once $dir . 'Blocks/BlocksLoader.php';
 
+		// Frontend (assets + shortcodes)
+		require_once $dir . 'Frontend/FrontendLoader.php';
+
 		// Elementor (loaded here so the classes are available for the hooks below;
 		// actual widget registration is guarded by function_exists checks)
 		require_once $dir . 'Elementor/ElementorLoader.php';
@@ -159,6 +163,9 @@ class Plugin {
 		// Frontend search, archive status, and admin expiry filter.
 		require_once APPCON_DIR . 'includes/Frontend/VacancySearch.php';
 		VacancySearch::register();
+
+		// Frontend asset enqueueing + shortcodes ([appcon_search], [appcon_vacancies]).
+		FrontendLoader::register();
 
 		// Media importer is used inside TwoStageImporter; no hooks needed here.
 		require_once APPCON_DIR . 'includes/Import/MediaImporter.php';
