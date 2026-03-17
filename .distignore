@@ -33,7 +33,6 @@ coverage
 
 # Build tooling
 build-plugin.sh
-verify.php
 Makefile
 
 # Distribution artefacts (not needed in SVN)

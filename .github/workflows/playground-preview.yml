@@ -1,0 +1,49 @@
+name: Playground Preview
+
+# Posts a PR comment with a one-click link to test the pull request on
+# WordPress Playground – no local setup required.
+#
+# Based on: https://gist.github.com/jdevalk/62d523be19743fd495144ade4c65e54c
+#
+# How it works:
+#   1. GitHub automatically provides a ZIP archive of every commit at
+#      https://github.com/<org>/<repo>/archive/<sha>.zip
+#   2. WordPress Playground fetches the ZIP via a CORS-bypass proxy and
+#      installs the plugin directly in a live WP environment in the browser.
+#
+# No secrets, no build step required – works on any public repository.
+
+on:
+  pull_request:
+    types: [ opened, synchronize, reopened ]
+
+jobs:
+  playground-comment:
+    name: Post Playground Preview Link
+    runs-on: ubuntu-latest
+
+    permissions:
+      pull-requests: write   # needed to post the comment
+
+    steps:
+      - name: Post Playground preview comment
+        uses: mshick/add-pr-comment@v2
+        with:
+          # Update the same comment on each new push (avoid comment spam)
+          update-only: false
+          message: |
+            ## 🛝 WordPress Playground Preview
+
+            Test this pull request directly in your browser — no local install needed.
+
+            | | |
+            |---|---|
+            | **Live preview** | [Open in WordPress Playground →](https://playground.wordpress.net/#{"landingPage":"/wp-admin/admin.php?page=apprenticeship-connector","features":{"networking":true},"steps":[{"step":"defineWpConfigConsts","consts":{"IS_PLAYGROUND_PREVIEW":true}},{"step":"login","username":"admin","password":"password"},{"step":"installPlugin","pluginZipFile":{"resource":"url","url":"https://bypass-cors.altha.workers.dev/${{ github.server_url }}/${{ github.repository }}/archive/${{ github.sha }}.zip"},"options":{"activate":true}}]}) |
+            | **Download ZIP** | [${{ github.sha }}.zip](${{ github.server_url }}/${{ github.repository }}/archive/${{ github.sha }}.zip) |
+
+            > **Note:** The preview uses the raw source ZIP (without compiled JS/CSS build artefacts).
+            > Gutenberg blocks and the React admin app require a production build.
+            > The PHP-rendered fallback pages will work fully in the preview.
+
+            ---
+            _Commit: `${{ github.sha }}`  ·  Branch: `${{ github.head_ref }}`_

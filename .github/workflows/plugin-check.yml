@@ -1,0 +1,83 @@
+name: Plugin Check
+
+# Runs the official WordPress Plugin Check tool against every push/PR.
+# https://github.com/WordPress/plugin-check-action
+#
+# The plugin must be built (composer install + npm run build) before the
+# check runs so that the compiled assets and vendor autoloader are present.
+
+on:
+  push:
+    branches: [ main, master, develop, 'claude/**', 'feature/**', 'fix/**' ]
+  pull_request:
+    branches: [ main, master, develop ]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  plugin-check:
+    name: WordPress Plugin Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ── Build: PHP dependencies ──────────────────────────────────────────
+      - name: Setup PHP 8.2
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: mbstring, json, zip
+          tools: composer:v2
+          coverage: none
+
+      - name: Cache Composer packages
+        uses: actions/cache@v4
+        with:
+          path: vendor
+          key: composer-8.2-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-8.2-
+
+      - name: Install Composer dependencies (no-dev)
+        run: composer install --no-interaction --prefer-dist --no-dev --optimize-autoloader
+
+      # ── Build: JS/CSS assets ─────────────────────────────────────────────
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install Node dependencies
+        run: npm ci --prefer-offline --no-audit
+
+      - name: Build production assets
+        run: NODE_ENV=production npm run build
+
+      # ── Plugin Check ─────────────────────────────────────────────────────
+      # The action expects the plugin to be in a subdirectory named after
+      # the plugin slug when build-dir is set, or in the repo root otherwise.
+      # We set exclude-directories to skip vendor dev files and legacy archive.
+      - name: Run WordPress Plugin Check
+        uses: wordpress/plugin-check-action@v1
+        with:
+          # Use WordPress "latest" stable release for the check
+          wp-version: 'latest'
+
+          # Exclude checks that don't apply (i18n checks need a live site)
+          exclude-checks: |
+            i18n_usage
+
+          # Skip directories that contain third-party or archived code
+          exclude-directories: |
+            vendor
+            node_modules
+            includes/archive
+
+          # Treat plugin check warnings as warnings (not errors) to avoid
+          # blocking on stylistic suggestions – tighten later.
+          ignore-warnings: false
+          ignore-errors: false
