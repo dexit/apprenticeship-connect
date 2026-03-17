@@ -123,14 +123,14 @@ class ImportJobsController extends WP_REST_Controller {
 
 	// ── Handlers ──────────────────────────────────────────────────────────
 
-	public function get_items( WP_REST_Request $request ): WP_REST_Response|WP_Error {
+	public function get_items( $request ): WP_REST_Response|WP_Error {
 		global $wpdb;
 
 		$rows = $wpdb->get_results( 'SELECT * FROM ' . Database::get_jobs_table() . ' ORDER BY created_at DESC', ARRAY_A );
 		return rest_ensure_response( array_map( [ $this, 'prepare_item' ], $rows ) );
 	}
 
-	public function get_item( WP_REST_Request $request ): WP_REST_Response|WP_Error {
+	public function get_item( $request ): WP_REST_Response|WP_Error {
 		global $wpdb;
 
 		$row = $wpdb->get_row(
@@ -145,7 +145,7 @@ class ImportJobsController extends WP_REST_Controller {
 		return rest_ensure_response( $this->prepare_item( $row ) );
 	}
 
-	public function create_item( WP_REST_Request $request ): WP_REST_Response|WP_Error {
+	public function create_item( $request ): WP_REST_Response|WP_Error {
 		$data = $request->get_json_params();
 
 		if ( empty( $data['name'] ) ) {
@@ -156,7 +156,7 @@ class ImportJobsController extends WP_REST_Controller {
 		return rest_ensure_response( [ 'id' => $id ] );
 	}
 
-	public function update_item( WP_REST_Request $request ): WP_REST_Response|WP_Error {
+	public function update_item( $request ): WP_REST_Response|WP_Error {
 		$data       = $request->get_json_params();
 		$data['id'] = (int) $request['id'];
 
@@ -164,7 +164,7 @@ class ImportJobsController extends WP_REST_Controller {
 		return rest_ensure_response( [ 'updated' => true ] );
 	}
 
-	public function delete_item( WP_REST_Request $request ): WP_REST_Response|WP_Error {
+	public function delete_item( $request ): WP_REST_Response|WP_Error {
 		$deleted = ImportJob::delete( (int) $request['id'] );
 
 		if ( ! $deleted ) {

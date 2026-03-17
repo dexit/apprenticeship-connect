@@ -10,7 +10,7 @@
  */
 import { useEffect, useRef, useState, useCallback } from '@wordpress/element';
 import { Button, Notice, Spinner, DropdownMenu, MenuGroup, MenuItem } from '@wordpress/components';
-import { moreVertical, trash, play, edit } from '@wordpress/icons';
+import { moreVertical, trash, update, edit } from '@wordpress/icons';
 import apiFetch from '@wordpress/api-fetch';
 import JobForm         from './JobForm';
 import ProgressMonitor from './ProgressMonitor';
@@ -251,7 +251,7 @@ export default function ImportJobsPage() {
 											Edit
 										</Button>
 										<Button
-											icon={ play }
+											icon={ update }
 											label="Run Now"
 											isSmall
 											variant="secondary"

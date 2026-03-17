@@ -26,14 +26,14 @@ module.exports = {
 		'import/no-extraneous-dependencies': 'off',
 
 		// Enforce consistency
-		'arrow-parens': ['error', 'always'],
-		'comma-dangle': ['error', 'always-multiline'],
-		'object-curly-spacing': ['error', 'always'],
+		'arrow-parens': [ 'error', 'always' ],
+		'comma-dangle': [ 'error', 'always-multiline' ],
+		'object-curly-spacing': [ 'error', 'always' ],
 	},
 	settings: {
 		'import/resolver': {
 			node: {
-				extensions: ['.js', '.jsx', '.json'],
+				extensions: [ '.js', '.jsx', '.json' ],
 			},
 		},
 	},
@@ -41,5 +41,7 @@ module.exports = {
 		wp: 'readonly',
 		apprcoAjax: 'readonly',
 		apprcoData: 'readonly',
+		appconData: 'readonly',
+		appconFrontend: 'readonly',
 	},
 };
