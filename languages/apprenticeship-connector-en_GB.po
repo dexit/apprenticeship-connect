@@ -1,0 +1,228 @@
+# British English translation for Apprenticeship Connector.
+# Copyright (C) 2024 ePark Team
+# This file is distributed under the same license as the Apprenticeship Connector plugin.
+# Translators: ePark Team <dev@e-park.uk>, 2024
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: Apprenticeship Connector 1.0.0\n"
+"Report-Msgid-Bugs-To: https://github.com/dexit/apprenticeship-connect/issues\n"
+"POT-Creation-Date: 2024-01-01 00:00+0000\n"
+"PO-Revision-Date: 2024-01-01 00:00+0000\n"
+"Last-Translator: ePark Team <dev@e-park.uk>\n"
+"Language-Team: British English <en@li.org>\n"
+"Language: en_GB\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"X-Generator: Poedit 3.0\n"
+"X-Textdomain-Support: yes\n"
+
+# British English uses "licence" (noun) vs "license" (verb). The strings below
+# correct US spellings throughout the plugin.
+
+msgid "Apprenticeship Connector"
+msgstr "Apprenticeship Connector"
+
+msgid "Apprenticeship Connector – Settings"
+msgstr "Apprenticeship Connector – Settings"
+
+msgid "Subscription Key"
+msgstr "Subscription Key"
+
+msgid "Ocp-Apim-Subscription-Key obtained from the UK Government API portal."
+msgstr "Ocp-Apim-Subscription-Key obtained from the UK Government API Portal."
+
+msgid "API Base URL"
+msgstr "API Base URL"
+
+msgid "Leave at the default unless you are using a proxy or sandbox."
+msgstr "Leave at the default unless you are using a proxy or sandbox."
+
+msgid "Rate Limit (ms)"
+msgstr "Rate Limit (ms)"
+
+msgid "Minimum delay between consecutive API requests. The API allows 150 requests per 5 minutes – 2 000 ms (2 s) keeps you well within that limit."
+msgstr "Minimum delay between consecutive API requests. The API allows 150 requests per 5 minutes – 2&#8201;000&#160;ms (2&#160;s) keeps you well within that limit."
+
+msgid "Import Defaults"
+msgstr "Import Defaults"
+
+msgid "Default values applied to new Import Jobs. Individual jobs may override these."
+msgstr "Default values applied to new Import Jobs. Individual jobs may override these."
+
+msgid "Stage 1 – Page Size"
+msgstr "Stage 1 – Page Size"
+
+msgid "Stage 1 – Max Pages"
+msgstr "Stage 1 – Max Pages"
+
+msgid "Stage 2 – Request Delay (ms)"
+msgstr "Stage 2 – Request Delay (ms)"
+
+msgid "Stage 2 – Batch Size"
+msgstr "Stage 2 – Batch Size"
+
+msgid "Vacancy Expiry"
+msgstr "Vacancy Expiry"
+
+msgid "Control how the plugin handles vacancies whose closing date has passed."
+msgstr "Control how the plugin handles vacancies whose closing date has passed."
+
+msgid "Auto-Expire Vacancies"
+msgstr "Auto-Expire Vacancies"
+
+msgid "Automatically set vacancies to Draft when their closing date passes (runs daily via Action Scheduler)."
+msgstr "Automatically set vacancies to Draft when their closing date passes (runs daily via Action Scheduler)."
+
+msgid "Expiry Notice (days)"
+msgstr "Expiry Notice (days)"
+
+msgid "Vacancies expiring within this many days are highlighted on the Dashboard."
+msgstr "Vacancies expiring within this many days are highlighted on the Dashboard."
+
+msgid "Cache & Performance"
+msgstr "Cache & Performance"
+
+msgid "Cache API Responses"
+msgstr "Cache API Responses"
+
+msgid "Cache API sample responses (used by the FieldMapper UI) in WordPress transients."
+msgstr "Cache API sample responses (used by the FieldMapper UI) in WordPress transients."
+
+msgid "Cache TTL (minutes)"
+msgstr "Cache TTL (minutes)"
+
+msgid "Display Settings"
+msgstr "Display Settings"
+
+msgid "Vacancies Per Page"
+msgstr "Vacancies Per Page"
+
+msgid "Default number of vacancies shown per page in the block and Elementor widget."
+msgstr "Default number of vacancies shown per page in the block and Elementor widget."
+
+msgid "Vacancy URL Slug"
+msgstr "Vacancy URL Slug"
+
+msgid "URL slug for the vacancy archive. Changing this requires saving Permalinks settings afterwards."
+msgstr "URL slug for the vacancy archive. Changing this requires saving Permalink settings afterwards."
+
+msgid "Save Settings"
+msgstr "Save Settings"
+
+msgid "Published Vacancies"
+msgstr "Published Vacancies"
+
+msgid "Expired (Drafts)"
+msgstr "Expired (Drafts)"
+
+msgid "Expiring in 7 Days"
+msgstr "Expiring in 7 Days"
+
+msgid "Import Jobs"
+msgstr "Import Jobs"
+
+msgid "Dashboard"
+msgstr "Dashboard"
+
+msgid "Settings"
+msgstr "Settings"
+
+msgid "No vacancies found matching your criteria."
+msgstr "No vacancies found matching your criteria."
+
+msgid "View vacancy"
+msgstr "View vacancy"
+
+msgid "Vacancy Listing"
+msgstr "Vacancy Listing"
+
+msgid "Vacancy Card"
+msgstr "Vacancy Card"
+
+msgid "Display a filterable, paginated list of apprenticeship vacancies."
+msgstr "Display a filterable, paginated list of apprenticeship vacancies."
+
+msgid "Display a single apprenticeship vacancy card. Works standalone and inside the Query Loop block."
+msgstr "Display a single apprenticeship vacancy card. Works standalone and inside the Query Loop block."
+
+msgid "— All Levels —"
+msgstr "— All Levels —"
+
+msgid "— All Routes —"
+msgstr "— All Routes —"
+
+msgid "Search vacancies"
+msgstr "Search vacancies"
+
+msgid "Search vacancies\u2026"
+msgstr "Search vacancies\u2026"
+
+msgid "Search"
+msgstr "Search"
+
+msgid "Previous"
+msgstr "Previous"
+
+msgid "Next"
+msgstr "Next"
+
+msgid "Expired"
+msgstr "Expired"
+
+msgid "Employer"
+msgstr "Employer"
+
+msgid "Location"
+msgstr "Location"
+
+msgid "Level"
+msgstr "Level"
+
+msgid "Wage"
+msgstr "Wage"
+
+msgid "Closing Date"
+msgstr "Closing Date"
+
+msgid "%d day left"
+msgid_plural "%d days left"
+msgstr[0] "%d day left"
+msgstr[1] "%d days left"
+
+msgid "Apprenticeship Connector requires WordPress %s or higher. Please update WordPress."
+msgstr "Apprenticeship Connector requires WordPress %s or higher. Please update WordPress."
+
+msgid "Apprenticeship Connector: Composer dependencies are missing. Run <code>composer install --no-dev</code> inside the plugin directory, or install from a pre-built release ZIP."
+msgstr "Apprenticeship Connector: Composer dependencies are missing. Run <code>composer install --no-dev</code> inside the plugin directory, or install from a pre-built release ZIP."
+
+msgid "Apprenticeship Connector: Action Scheduler is not available – imports will run synchronously and may time out for large datasets. Install via <code>composer install</code> or ensure the WooCommerce plugin is active."
+msgstr "Apprenticeship Connector: Action Scheduler is not available – imports will run synchronously and may time out for large datasets. Install via <code>composer install</code> or ensure the WooCommerce plugin is active."
+
+msgid "Import job not found."
+msgstr "Import job not found."
+
+msgid "Run not found."
+msgstr "Run not found."
+
+msgid "Import queued via Action Scheduler."
+msgstr "Import queued via Action Scheduler."
+
+msgid "Import executed synchronously."
+msgstr "Import executed synchronously."
+
+#: includes/Frontend/VacancySearch.php
+msgctxt "post status"
+msgid "Archived"
+msgstr "Archived"
+
+msgid "— Expiry Status —"
+msgstr "— Expiry Status —"
+
+msgid "Active (not expired)"
+msgstr "Active (not expired)"
+
+msgid "Expiring in 7 days"
+msgstr "Expiring in 7 days"

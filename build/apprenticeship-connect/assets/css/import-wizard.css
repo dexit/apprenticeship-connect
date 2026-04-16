@@ -1,0 +1,321 @@
+/**
+ * Import Wizard Styles
+ *
+ * @package ApprenticeshipConnect
+ * @since   2.1.0
+ */
+
+/* Wizard container */
+#apprco-import-wizard {
+    max-width: 900px;
+    margin: 20px 0;
+    background: #fff;
+    border: 1px solid #ccd0d4;
+    box-shadow: 0 1px 1px rgba(0,0,0,.04);
+}
+
+/* Step indicators */
+.wizard-steps {
+    display: flex;
+    border-bottom: 1px solid #ccd0d4;
+    background: #f7f7f7;
+    padding: 0;
+    margin: 0;
+    list-style: none;
+}
+
+.wizard-steps .step {
+    flex: 1;
+    padding: 15px 20px;
+    text-align: center;
+    position: relative;
+    color: #72777c;
+    font-weight: 500;
+}
+
+.wizard-steps .step::after {
+    content: '';
+    position: absolute;
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    border-left: 1px solid #ccd0d4;
+    height: 30px;
+}
+
+.wizard-steps .step:last-child::after {
+    display: none;
+}
+
+.wizard-steps .step.active {
+    background: #fff;
+    color: #0073aa;
+    border-bottom: 2px solid #0073aa;
+}
+
+.wizard-steps .step.completed {
+    color: #46b450;
+}
+
+.wizard-steps .step.completed::before {
+    content: '\2713';
+    margin-right: 5px;
+}
+
+.wizard-steps .step-number {
+    display: inline-block;
+    width: 24px;
+    height: 24px;
+    line-height: 24px;
+    border-radius: 50%;
+    background: #ccd0d4;
+    color: #fff;
+    font-size: 12px;
+    margin-right: 8px;
+}
+
+.wizard-steps .step.active .step-number {
+    background: #0073aa;
+}
+
+.wizard-steps .step.completed .step-number {
+    background: #46b450;
+}
+
+/* Content area */
+.wizard-content {
+    padding: 30px;
+    min-height: 400px;
+}
+
+.wizard-step-content h3 {
+    margin: 0 0 10px;
+    font-size: 1.4em;
+    color: #23282d;
+}
+
+.wizard-step-content > p {
+    color: #666;
+    margin-bottom: 25px;
+}
+
+/* Form groups */
+.wizard-step-content .form-group {
+    margin-bottom: 20px;
+}
+
+.wizard-step-content .form-group label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 5px;
+}
+
+.wizard-step-content .form-group .description {
+    color: #666;
+    font-size: 13px;
+    margin-top: 5px;
+}
+
+.wizard-step-content .form-group input[type="text"],
+.wizard-step-content .form-group input[type="url"],
+.wizard-step-content .form-group input[type="number"],
+.wizard-step-content .form-group select {
+    width: 100%;
+    max-width: 400px;
+}
+
+/* Form actions */
+.form-actions {
+    margin-top: 25px;
+    padding-top: 20px;
+    border-top: 1px solid #eee;
+}
+
+.form-actions .button {
+    margin-right: 10px;
+}
+
+/* Connection status */
+#connection-status {
+    display: inline-block;
+    margin-left: 15px;
+    padding: 5px 10px;
+    border-radius: 3px;
+}
+
+#connection-status.success {
+    background: #edfaef;
+    color: #46b450;
+}
+
+#connection-status.error {
+    background: #fef7f1;
+    color: #dc3232;
+}
+
+#connection-status .dashicons {
+    vertical-align: middle;
+    margin-right: 3px;
+}
+
+/* Loading state */
+.loading {
+    text-align: center;
+    padding: 40px;
+    color: #666;
+}
+
+.loading .spinner {
+    float: none;
+    margin: 0 10px 0 0;
+}
+
+/* Preview summary */
+.preview-summary {
+    background: #f7f7f7;
+    padding: 15px;
+    margin-bottom: 20px;
+    border-radius: 3px;
+}
+
+/* Preview table */
+#preview-results .wp-list-table {
+    margin-top: 15px;
+}
+
+#preview-results .dashicons-location {
+    color: #46b450;
+    font-size: 14px;
+    vertical-align: middle;
+}
+
+/* Import summary */
+.import-summary {
+    background: #f7f7f7;
+    padding: 20px;
+    margin-bottom: 25px;
+    border-radius: 3px;
+}
+
+.import-summary p {
+    margin: 5px 0;
+}
+
+/* Progress bar */
+#import-progress {
+    margin-top: 25px;
+}
+
+.progress-bar {
+    height: 24px;
+    background: #e0e0e0;
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #0073aa, #00a0d2);
+    transition: width 0.3s ease;
+}
+
+.progress-text {
+    text-align: center;
+    margin-top: 10px;
+    color: #666;
+}
+
+/* Import result */
+#import-result {
+    margin-top: 25px;
+}
+
+#import-result .notice {
+    margin: 0;
+}
+
+#import-result ul {
+    margin: 10px 0;
+}
+
+#import-result li {
+    margin: 5px 0;
+}
+
+/* Navigation footer */
+.wizard-navigation {
+    display: flex;
+    justify-content: space-between;
+    padding: 15px 30px;
+    background: #f7f7f7;
+    border-top: 1px solid #ccd0d4;
+}
+
+.wizard-navigation .button {
+    min-width: 100px;
+}
+
+/* Status bar */
+.wizard-status {
+    padding: 10px 30px;
+    background: #f1f1f1;
+    border-top: 1px solid #ccd0d4;
+    font-size: 12px;
+    color: #666;
+}
+
+/* Provider config fields */
+.provider-config-fields {
+    background: #f9f9f9;
+    padding: 20px;
+    margin-top: 15px;
+    border-radius: 3px;
+    border: 1px solid #e5e5e5;
+}
+
+/* Button hero style */
+.button.button-hero {
+    padding: 10px 25px;
+    height: auto;
+    font-size: 15px;
+}
+
+.button.button-hero .dashicons {
+    font-size: 20px;
+    line-height: 1;
+    vertical-align: middle;
+    margin-right: 5px;
+}
+
+.button.button-hero .spinner {
+    float: none;
+    margin: 0 10px 0 0;
+}
+
+/* Responsive */
+@media screen and (max-width: 782px) {
+    .wizard-steps {
+        flex-direction: column;
+    }
+
+    .wizard-steps .step {
+        border-bottom: 1px solid #ccd0d4;
+    }
+
+    .wizard-steps .step::after {
+        display: none;
+    }
+
+    .wizard-content {
+        padding: 20px;
+    }
+
+    .wizard-navigation {
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .wizard-navigation .button {
+        width: 100%;
+    }
+}

@@ -12,7 +12,7 @@ if ( ! defined( 'ABSPATH' ) ) exit; // Exit if accessed directly
  * Setup wizard class
  */
 class Apprco_Setup_Wizard {
-    
+
     /**
      * Constructor
      */
@@ -27,7 +27,7 @@ class Apprco_Setup_Wizard {
         add_action('admin_menu', [$this, 'add_setup_page']);
         add_action('admin_init', [$this, 'handle_setup_form'], 5);
     }
-    
+
     /**
      * Add setup page
      */
@@ -80,16 +80,16 @@ class Apprco_Setup_Wizard {
      */
     public function setup_page() {
         $step = isset( $_GET['step'] ) ? absint( wp_unslash( $_GET['step'] ) ) : 1;
-        
+
         // Validate step range
         if ( $step < 1 || $step > 5 ) {
             $step = 1;
         }
-        
+
         // For steps 2-5, check if this is a legitimate access
         // Allow access if nonce is valid OR if setup has been started (options exist)
         $has_started_setup = ! empty( get_option( 'apprco_plugin_options', array() ) );
-        
+
         if ( $step > 1 && ! $has_started_setup && ( ! isset( $_GET['_wpnonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_GET['_wpnonce'] ) ), 'apprco_setup_wizard' ) ) ) {
             $step = 1; // Redirect to step 1 if nonce is invalid and setup hasn't started
         }
@@ -135,7 +135,7 @@ class Apprco_Setup_Wizard {
         </div>
         <?php
     }
-    
+
     /**
      * Welcome step
      */
@@ -153,7 +153,7 @@ class Apprco_Setup_Wizard {
                     <li><?php esc_html_e( 'Your UKPRN (if you want to filter by provider)', 'apprenticeship-connect' ); ?></li>
                     <li><?php esc_html_e( 'A page where you want to display the vacancies', 'apprenticeship-connect' ); ?></li>
                 </ul>
-                
+
                 <h3><?php esc_html_e( 'What this plugin does:', 'apprenticeship-connect' ); ?></h3>
                 <ul>
                     <li><?php esc_html_e( 'Connects to the official UK Government apprenticeship API', 'apprenticeship-connect' ); ?></li>
@@ -162,7 +162,7 @@ class Apprco_Setup_Wizard {
                     <li><?php esc_html_e( 'Keeps your site updated with the latest opportunities', 'apprenticeship-connect' ); ?></li>
                 </ul>
             </div>
-            
+
             <div class="apprco-setup-actions">
                 <a href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin.php?page=apprco-setup&step=2' ), 'apprco_setup_wizard' ) ); ?>" class="button button-primary">
                     <?php esc_html_e( 'Get Started', 'apprenticeship-connect' ); ?>
@@ -171,18 +171,18 @@ class Apprco_Setup_Wizard {
         </div>
         <?php
     }
-    
+
     /**
      * API configuration step
      */
     private function api_config_step() {
         $options = get_option( 'apprco_plugin_options', array() );
-        
+
         // Check for error parameter
         if ( isset( $_GET['error'] ) && 'missing_key' === $_GET['error'] && isset( $_GET['_wpnonce'] ) && wp_verify_nonce( sanitize_text_field( wp_unslash( $_GET['_wpnonce'] ) ), 'apprco_setup_wizard' ) ) {
             echo '<div class="notice notice-error"><p>' . esc_html__( 'API Subscription Key is required.', 'apprenticeship-connect' ) . '</p></div>';
         }
-        
+
         ?>
         <div class="apprco-setup-step">
             <h2><?php esc_html_e( 'API Configuration', 'apprenticeship-connect' ); ?></h2>
@@ -190,7 +190,7 @@ class Apprco_Setup_Wizard {
             <form method="post" action="">
                 <?php wp_nonce_field( 'apprco_setup_wizard', 'apprco_setup_nonce' ); ?>
                 <input type="hidden" name="step" value="2" />
-                
+
                 <table class="form-table">
                     <tr>
                         <th scope="row">
@@ -201,7 +201,7 @@ class Apprco_Setup_Wizard {
                             <p class="description"><?php esc_html_e( 'The base URL for the API endpoint.', 'apprenticeship-connect' ); ?></p>
                         </td>
                     </tr>
-                    
+
                     <tr>
                         <th scope="row">
                             <label for="api_subscription_key"><?php esc_html_e( 'API Subscription Key', 'apprenticeship-connect' ); ?> *</label>
@@ -211,7 +211,7 @@ class Apprco_Setup_Wizard {
                             <p class="description"><?php esc_html_e( 'Your API subscription key from the UK Government Apprenticeship service. This is required.', 'apprenticeship-connect' ); ?></p>
                         </td>
                     </tr>
-                    
+
                     <tr>
                         <th scope="row">
                             <label for="api_ukprn"><?php esc_html_e( 'UKPRN (Optional)', 'apprenticeship-connect' ); ?></label>
@@ -222,12 +222,12 @@ class Apprco_Setup_Wizard {
                         </td>
                     </tr>
                 </table>
-                
+
                 <div class="apprco-test-sync-inline" style="margin-top:8px;">
                     <button type="button" id="apprco-test-and-sync" class="button button-primary"><?php esc_html_e( 'Test & Sync Vacancies', 'apprenticeship-connect' ); ?></button>
                     <div id="apprco-test-sync-result" style="margin-top:10px;"></div>
                 </div>
-                
+
                 <div class="apprco-setup-actions">
                     <a href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin.php?page=apprco-setup&step=1' ), 'apprco_setup_wizard' ) ); ?>" class="button">
                         <?php esc_html_e( 'Previous', 'apprenticeship-connect' ); ?>
@@ -238,7 +238,7 @@ class Apprco_Setup_Wizard {
         </div>
         <?php
     }
-    
+
     /**
      * Display settings step
      */
@@ -251,7 +251,7 @@ class Apprco_Setup_Wizard {
             <form method="post" action="">
                 <?php wp_nonce_field( 'apprco_setup_wizard', 'apprco_setup_nonce' ); ?>
                 <input type="hidden" name="step" value="3" />
-                
+
                 <table class="form-table">
                     <tr>
                         <th scope="row">
@@ -262,7 +262,7 @@ class Apprco_Setup_Wizard {
                             <p class="description"><?php esc_html_e( 'Default number of vacancies to display.', 'apprenticeship-connect' ); ?></p>
                         </td>
                     </tr>
-                    
+
                     <tr>
                         <th scope="row"><?php esc_html_e( 'Display Options', 'apprenticeship-connect' ); ?></th>
                         <td>
@@ -271,17 +271,17 @@ class Apprco_Setup_Wizard {
                                     <input type="checkbox" name="show_employer" value="1" <?php checked( isset( $options['show_employer'] ) ? $options['show_employer'] : true ); ?> />
                                     <?php esc_html_e( 'Show employer name', 'apprenticeship-connect' ); ?>
                                 </label><br />
-                                
+
                                 <label>
                                     <input type="checkbox" name="show_location" value="1" <?php checked( isset( $options['show_location'] ) ? $options['show_location'] : true ); ?> />
                                     <?php esc_html_e( 'Show location', 'apprenticeship-connect' ); ?>
                                 </label><br />
-                                
+
                                 <label>
                                     <input type="checkbox" name="show_closing_date" value="1" <?php checked( isset( $options['show_closing_date'] ) ? $options['show_closing_date'] : true ); ?> />
                                     <?php esc_html_e( 'Show closing date', 'apprenticeship-connect' ); ?>
                                 </label><br />
-                                
+
                                 <label>
                                     <input type="checkbox" name="show_apply_button" value="1" <?php checked( isset( $options['show_apply_button'] ) ? $options['show_apply_button'] : true ); ?> />
                                     <?php esc_html_e( 'Show apply button', 'apprenticeship-connect' ); ?>
@@ -290,7 +290,7 @@ class Apprco_Setup_Wizard {
                         </td>
                     </tr>
                 </table>
-                
+
                 <div class="apprco-setup-actions">
                     <a href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin.php?page=apprco-setup&step=2' ), 'apprco_setup_wizard' ) ); ?>" class="button">
                         <?php esc_html_e( 'Previous', 'apprenticeship-connect' ); ?>
@@ -301,7 +301,7 @@ class Apprco_Setup_Wizard {
         </div>
         <?php
     }
-    
+
     /**
      * Create page step
      */
@@ -315,7 +315,7 @@ class Apprco_Setup_Wizard {
             <form method="post" action="">
                 <?php wp_nonce_field( 'apprco_setup_wizard', 'apprco_setup_nonce' ); ?>
                 <input type="hidden" name="step" value="4" />
-                
+
                 <table class="form-table">
                     <tr>
                         <th scope="row">
@@ -328,7 +328,7 @@ class Apprco_Setup_Wizard {
                             </label>
                         </td>
                     </tr>
-                    
+
                     <tr>
                         <th scope="row">
                             <label for="page_title"><?php esc_html_e( 'Page Title', 'apprenticeship-connect' ); ?></label>
@@ -337,7 +337,7 @@ class Apprco_Setup_Wizard {
                             <input type="text" id="page_title" name="page_title" value="<?php esc_html_e( 'Apprenticeship Vacancies', 'apprenticeship-connect' ); ?>" class="regular-text" />
                         </td>
                     </tr>
-                    
+
                     <tr>
                         <th scope="row">
                             <label for="page_slug"><?php esc_html_e( 'Page Slug', 'apprenticeship-connect' ); ?></label>
@@ -348,7 +348,7 @@ class Apprco_Setup_Wizard {
                         </td>
                     </tr>
                 </table>
-                
+
                 <div class="apprco-setup-actions">
                     <a href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin.php?page=apprco-setup&step=3' ), 'apprco_setup_wizard' ) ); ?>" class="button">
                         <?php esc_html_e( 'Previous', 'apprenticeship-connect' ); ?>
@@ -359,7 +359,7 @@ class Apprco_Setup_Wizard {
         </div>
         <?php
     }
-    
+
     /**
      * Complete step
      */
@@ -374,24 +374,24 @@ class Apprco_Setup_Wizard {
                 <p style="font-size:14px;line-height:1.6;">
                     <?php esc_html_e( 'Congratulations! Apprenticeship Connect has been successfully configured.', 'apprenticeship-connect' ); ?>
                 </p>
-                
+
                 <h3><?php esc_html_e( 'What happens next:', 'apprenticeship-connect' ); ?></h3>
                 <ul>
                     <li><?php esc_html_e( 'The plugin will automatically sync vacancies daily', 'apprenticeship-connect' ); ?></li>
                     <li><?php esc_html_e( 'You can Test & Sync from the settings page at any time', 'apprenticeship-connect' ); ?></li>
                     <li><?php esc_html_e( 'Use the shortcode [apprco_vacancies] to display vacancies anywhere', 'apprenticeship-connect' ); ?></li>
                 </ul>
-                
+
                 <?php if ( $page_link ) : ?>
                     <p><a href="<?php echo esc_url( $page_link ); ?>" class="button button-primary" target="_blank"><?php esc_html_e( 'View Vacancies Page', 'apprenticeship-connect' ); ?></a></p>
                 <?php endif; ?>
-                
+
                 <p class="description" style="margin-top:10px;">
                     <a href="<?php echo esc_url( admin_url( 'admin.php?page=apprco-settings' ) ); ?>"><?php esc_html_e( 'Go to Settings', 'apprenticeship-connect' ); ?></a>
                     <?php esc_html_e( ' to edit API and display options later.', 'apprenticeship-connect' ); ?>
                 </p>
             </div>
-            
+
             <div class="apprco-setup-actions" style="margin-top:14px;">
                 <a href="<?php echo esc_url( admin_url( 'admin.php?page=apprco-settings' ) ); ?>" class="button button-primary">
                     <?php esc_html_e( 'Go to Plugin Settings', 'apprenticeship-connect' ); ?>
@@ -403,19 +403,19 @@ class Apprco_Setup_Wizard {
         </div>
         <?php
     }
-    
+
     /**
      * Handle setup form
      */
     public function handle_setup_form() {
         // Start output buffering to prevent any output before redirect
         ob_start();
-        
+
         if ( ! isset( $_POST['apprco_setup_submit'] ) ) {
             ob_end_clean();
             return;
         }
-        
+
         if ( ! isset( $_POST['apprco_setup_nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['apprco_setup_nonce'] ) ), 'apprco_setup_wizard' ) ) {
             ob_end_clean();
             wp_die( esc_html__( 'Security check failed.', 'apprenticeship-connect' ) );
@@ -431,7 +431,7 @@ class Apprco_Setup_Wizard {
             case 2:
                 // Save API configuration
                 $options = get_option( 'apprco_plugin_options', array() );
-                
+
                 $api_key = isset( $_POST['api_subscription_key'] ) ? sanitize_text_field( wp_unslash( $_POST['api_subscription_key'] ) ) : '';
                 if ( empty( $api_key ) ) {
                     // Redirect back to step 2 with error
@@ -439,7 +439,7 @@ class Apprco_Setup_Wizard {
                     wp_safe_redirect( html_entity_decode( wp_nonce_url( admin_url( 'admin.php?page=apprco-setup&step=2&error=missing_key' ), 'apprco_setup_wizard' ) ) );
                     exit;
                 }
-                
+
                 if ( isset( $_POST['api_base_url'] ) ) {
                     $options['api_base_url'] = esc_url_raw( wp_unslash( $_POST['api_base_url'] ) );
                 }
@@ -522,7 +522,7 @@ class Apprco_Setup_Wizard {
                 wp_safe_redirect( html_entity_decode( wp_nonce_url( admin_url( 'admin.php?page=apprco-setup&step=5' ), 'apprco_setup_wizard' ) ) );
                 exit;
         }
-        
+
         // Clean output buffer if no redirect occurred
         ob_end_clean();
     }

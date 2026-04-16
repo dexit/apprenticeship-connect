@@ -1,6 +1,6 @@
 {
-  "name": "dexit/apprenticeship-connect",
-  "description": "WordPress plugin for importing and managing apprenticeship opportunities from various government APIs",
+  "name": "dexit/apprenticeship-connector",
+  "description": "Apprenticeship Connector – two-stage import from UK Government Display Advert API v2 into WordPress. Built on WP Plugin Boilerplate with Secure Custom Fields.",
   "type": "wordpress-plugin",
   "license": "GPL-2.0-or-later",
   "keywords": [
@@ -22,8 +22,9 @@
     "source": "https://github.com/dexit/apprenticeship-connect"
   },
   "require": {
-    "php": ">=7.4",
-    "composer/installers": "^2.0"
+    "php": ">=8.2",
+    "composer/installers": "^2.0",
+    "woocommerce/action-scheduler": "^3.9"
   },
   "require-dev": {
     "dealerdirect/phpcodesniffer-composer-installer": "^1.0",
@@ -36,15 +37,12 @@
   },
   "autoload": {
     "psr-4": {
-      "ApprCo\\": "includes/"
-    },
-    "files": [
-      "apprenticeship-connect.php"
-    ]
+      "ApprenticeshipConnector\\": "includes/"
+    }
   },
   "autoload-dev": {
     "psr-4": {
-      "ApprCo\\Tests\\": "tests/"
+      "ApprenticeshipConnector\\Tests\\": "tests/"
     }
   },
   "scripts": {
@@ -69,7 +67,7 @@
     "optimize-autoloader": true,
     "sort-packages": true,
     "platform": {
-      "php": "7.4"
+      "php": "8.2"
     }
   }
 }

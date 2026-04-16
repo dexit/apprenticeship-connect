@@ -1,68 +1,37 @@
-#!/bin/bash
+#!/usr/bin/env bash
+# =============================================================================
+# Apprenticeship Connector – Production Build Script
 #
-# Build WordPress Plugin for Distribution
+# Usage:
+#   bash build-plugin.sh [--version 1.2.3]
 #
-# This script creates a deployable zip file for WordPress plugin upload.
-# It includes built assets and production dependencies only.
-#
+# Outputs:
+#   dist/apprenticeship-connector-v{VERSION}.zip   ← ready for WordPress upload
+#   dist/apprenticeship-connector-v{VERSION}/      ← extracted folder
+# =============================================================================
 
-set -e  # Exit on error
+set -euo pipefail
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BLUE='\033[0;34m'; NC='\033[0m'
 
-echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${BLUE}  WordPress Plugin Build Script${NC}"
-echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo ""
-
-# Get plugin details
-PLUGIN_SLUG="apprenticeship-connect"
-PLUGIN_VERSION=$(grep "Version:" apprenticeship-connect.php | awk '{print $3}')
-BUILD_DIR="build"
+PLUGIN_SLUG="apprenticeship-connector"
+PLUGIN_FILE="apprenticeship-connector.php"
 DIST_DIR="dist"
-ZIP_NAME="${PLUGIN_SLUG}.zip"
 
-echo -e "${YELLOW}Plugin:${NC} ${PLUGIN_SLUG}"
-echo -e "${YELLOW}Version:${NC} ${PLUGIN_VERSION}"
-echo ""
+# ── Parse optional --version flag ────────────────────────────────────────────
+VERSION_OVERRIDE=""
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --version) VERSION_OVERRIDE="$2"; shift 2;;
+        *) shift;;
+    esac
+done
 
-# Clean previous builds
-echo -e "${BLUE}→ Cleaning previous builds...${NC}"
-rm -rf "${BUILD_DIR}"
-rm -rf "${DIST_DIR}"
-rm -f "${ZIP_NAME}"
-mkdir -p "${BUILD_DIR}/${PLUGIN_SLUG}"
-mkdir -p "${DIST_DIR}"
-
-# Install Node dependencies
-echo -e "${BLUE}→ Installing Node dependencies...${NC}"
-if ! command -v npm &> /dev/null; then
-    echo -e "${RED}✗ npm is not installed${NC}"
-    exit 1
-fi
-npm ci --prefer-offline --no-audit
-
-# Build JavaScript/CSS assets
-echo -e "${BLUE}→ Building JavaScript and CSS assets...${NC}"
-npm run build
-if [ ! -d "assets/build" ]; then
-    echo -e "${RED}✗ Build failed - assets/build directory not found${NC}"
-    exit 1
-fi
-
-# Install Composer dependencies (production only)
-echo -e "${BLUE}→ Installing Composer dependencies (production only)...${NC}"
-if command -v composer &> /dev/null; then
-    composer install --no-dev --optimize-autoloader --no-interaction
-    COMPOSER_INSTALLED=true
+# ── Detect version from plugin header ────────────────────────────────────────
+if [[ -n "$VERSION_OVERRIDE" ]]; then
+    PLUGIN_VERSION="$VERSION_OVERRIDE"
 else
-    echo -e "${YELLOW}⚠ Composer not found - skipping PHP dependencies${NC}"
-    COMPOSER_INSTALLED=false
+    PLUGIN_VERSION=$(grep -m1 "^.*Version:" "$PLUGIN_FILE" | awk '{print $NF}' | tr -d '[:space:]')
 fi
 
 # Copy plugin files to build directory
@@ -128,88 +97,78 @@ done < .distignore
 
 # Verify critical files are present
 echo -e "${BLUE}→ Verifying build...${NC}"
+EXPORT_DIR="${DIST_DIR}/${PLUGIN_SLUG}"
+ZIP_FILE="${DIST_DIR}/${PLUGIN_SLUG}-v${PLUGIN_VERSION}.zip"
 
-REQUIRED_FILES=(
-    "${BUILD_DIR}/${PLUGIN_SLUG}/apprenticeship-connect.php"
-    "${BUILD_DIR}/${PLUGIN_SLUG}/includes"
-    "${BUILD_DIR}/${PLUGIN_SLUG}/assets/build"
+echo -e "${BLUE}══════════════════════════════════════════════${NC}"
+echo -e "${BLUE}  Apprenticeship Connector  v${PLUGIN_VERSION}${NC}"
+echo -e "${BLUE}══════════════════════════════════════════════${NC}"
+
+# ── 1. Clean ─────────────────────────────────────────────────────────────────
+echo -e "${BLUE}→ Cleaning dist/...${NC}"
+rm -rf "$DIST_DIR"
+mkdir -p "$EXPORT_DIR"
+
+# ── 2. Node – build JS/CSS ────────────────────────────────────────────────────
+echo -e "${BLUE}→ Installing Node dependencies...${NC}"
+npm ci --prefer-offline --no-audit --loglevel error
+
+echo -e "${BLUE}→ Building JS/CSS assets (production)...${NC}"
+NODE_ENV=production npm run build
+
+if [[ ! -f "build/admin/index.js" ]]; then
+    echo -e "${RED}✗ Build failed – build/admin/index.js not found${NC}"; exit 1
+fi
+echo -e "${GREEN}✓ JS/CSS assets built${NC}"
+
+# ── 3. PHP – Composer production install ─────────────────────────────────────
+echo -e "${BLUE}→ Installing PHP production dependencies (Composer)...${NC}"
+composer install --no-dev --optimize-autoloader --no-interaction --quiet
+echo -e "${GREEN}✓ Composer dependencies installed${NC}"
+
+# ── 4. Copy plugin files ──────────────────────────────────────────────────────
+echo -e "${BLUE}→ Copying plugin files to ${EXPORT_DIR}/...${NC}"
+
+INCLUDE_FILES=(
+    "$PLUGIN_FILE"
+    "uninstall.php"
+    "readme.txt"
+    "README.md"
+    "LICENSE"
+    "LICENSE.txt"
 )
 
-for file in "${REQUIRED_FILES[@]}"; do
-    if [ ! -e "$file" ]; then
-        echo -e "${RED}✗ Required file/directory missing: ${file}${NC}"
-        exit 1
+INCLUDE_DIRS=(
+    "includes"
+    "languages"
+    "build"
+    "vendor"
+)
+
+for FILE in "${INCLUDE_FILES[@]}"; do
+    [[ -f "$FILE" ]] && cp "$FILE" "$EXPORT_DIR/" && echo "  + $FILE"
+done
+
+for DIR in "${INCLUDE_DIRS[@]}"; do
+    if [[ -d "$DIR" ]]; then
+        cp -r "$DIR" "$EXPORT_DIR/$DIR"
+        echo "  + $DIR/"
     fi
 done
 
-# Verify built assets exist
-BUILT_ASSETS=(
-    "${BUILD_DIR}/${PLUGIN_SLUG}/assets/build/admin.js"
-    "${BUILD_DIR}/${PLUGIN_SLUG}/assets/build/dashboard.js"
-    "${BUILD_DIR}/${PLUGIN_SLUG}/assets/build/settings.js"
-)
+# ── 5. Strip dev artefacts from vendor ────────────────────────────────────────
+echo -e "${BLUE}→ Removing dev-only vendor files...${NC}"
+find "$EXPORT_DIR/vendor" \( -name "*.md" -o -name "*.txt" -o -name "tests" -o -name "test" -o -name "*.test.php" \) -prune -exec rm -rf {} + 2>/dev/null || true
 
-for asset in "${BUILT_ASSETS[@]}"; do
-    if [ ! -f "$asset" ]; then
-        echo -e "${RED}✗ Built asset missing: ${asset}${NC}"
-        exit 1
-    fi
-done
-
-echo -e "${GREEN}✓ All required files present${NC}"
-
-# Show what's included
-echo -e "${BLUE}→ Build contents:${NC}"
-echo ""
-du -sh "${BUILD_DIR}/${PLUGIN_SLUG}"/* | sort -h | sed 's/^/  /'
-echo ""
-
-# Create ZIP file
-echo -e "${BLUE}→ Creating ZIP file...${NC}"
-cd "${BUILD_DIR}"
-zip -r "../${DIST_DIR}/${ZIP_NAME}" "${PLUGIN_SLUG}" -q
+# ── 6. Create ZIP ────────────────────────────────────────────────────────────
+echo -e "${BLUE}→ Creating ZIP ${ZIP_FILE}...${NC}"
+cd "$DIST_DIR"
+zip -rq "../$ZIP_FILE" "$(basename "$EXPORT_DIR")"
 cd ..
 
-# Verify ZIP
-if [ ! -f "${DIST_DIR}/${ZIP_NAME}" ]; then
-    echo -e "${RED}✗ Failed to create ZIP file${NC}"
-    exit 1
-fi
-
-# Show ZIP details
-ZIP_SIZE=$(du -h "${DIST_DIR}/${ZIP_NAME}" | cut -f1)
-echo -e "${GREEN}✓ ZIP created: ${DIST_DIR}/${ZIP_NAME} (${ZIP_SIZE})${NC}"
-
-# List what's in the ZIP
-echo ""
-echo -e "${BLUE}→ ZIP contents summary:${NC}"
-unzip -l "${DIST_DIR}/${ZIP_NAME}" | head -20
-echo "..."
-echo ""
-
-# Cleanup build directory (keep dist)
-echo -e "${BLUE}→ Cleaning up...${NC}"
-rm -rf "${BUILD_DIR}"
-
-# Restore dev dependencies if composer was used
-if [ "$COMPOSER_INSTALLED" = true ]; then
-    echo -e "${BLUE}→ Restoring dev dependencies...${NC}"
-    composer install --no-interaction
-fi
-
-# Final summary
-echo ""
-echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${GREEN}  Build Complete! ✓${NC}"
-echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo ""
-echo -e "${YELLOW}Plugin ZIP:${NC} ${DIST_DIR}/${ZIP_NAME}"
-echo -e "${YELLOW}Size:${NC} ${ZIP_SIZE}"
-echo -e "${YELLOW}Version:${NC} ${PLUGIN_VERSION}"
-echo ""
-echo -e "${GREEN}→ Ready to upload to WordPress!${NC}"
-echo ""
-echo -e "${BLUE}Upload locations:${NC}"
-echo "  • WordPress Admin → Plugins → Add New → Upload Plugin"
-echo "  • /wp-content/plugins/ (extract zip manually)"
-echo ""
+echo -e "${GREEN}══════════════════════════════════════════════${NC}"
+echo -e "${GREEN}  Build Complete!${NC}"
+echo -e "${GREEN}══════════════════════════════════════════════${NC}"
+echo -e "  Plugin folder : ${YELLOW}./${EXPORT_DIR}/${NC}"
+echo -e "  ZIP archive   : ${YELLOW}./${ZIP_FILE}${NC}"
+echo -e "  Version       : ${YELLOW}${PLUGIN_VERSION}${NC}"

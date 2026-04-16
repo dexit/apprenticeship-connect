@@ -4,6 +4,8 @@
 
 # Build output
 /assets/build/
+/build/
+/dist/
 *.asset.php
 
 # WordPress

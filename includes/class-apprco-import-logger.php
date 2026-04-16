@@ -145,7 +145,7 @@ class Apprco_Import_Logger {
             message text NOT NULL,
             context longtext DEFAULT NULL,
             created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            PRIMARY KEY (id),
+            PRIMARY KEY  (id),
             KEY import_id (import_id),
             KEY log_level (log_level),
             KEY component (component),
@@ -172,7 +172,7 @@ class Apprco_Import_Logger {
             error_count int(11) DEFAULT 0,
             trigger_type varchar(50) DEFAULT 'manual',
             provider varchar(100) DEFAULT NULL,
-            PRIMARY KEY (id),
+            PRIMARY KEY  (id),
             UNIQUE KEY import_id (import_id),
             KEY status (status),
             KEY started_at (started_at)
