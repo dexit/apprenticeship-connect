@@ -5,6 +5,11 @@
 # Usage:
 #   bash build-plugin.sh [--version 1.2.3]
 #
+# This script creates a deployable build directory and zip file for WordPress plugin upload.
+# It includes built assets and production dependencies only.
+#
+
+set -e  # Exit on error
 # Outputs:
 #   dist/apprenticeship-connector-v{VERSION}.zip   ← ready for WordPress upload
 #   dist/apprenticeship-connector-v{VERSION}/      ← extracted folder
@@ -14,18 +19,37 @@ set -euo pipefail
 
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BLUE='\033[0;34m'; NC='\033[0m'
 
-PLUGIN_SLUG="apprenticeship-connector"
-PLUGIN_FILE="apprenticeship-connector.php"
-DIST_DIR="dist"
+# Get plugin details
+PLUGIN_SLUG="apprenticeship-connect"
+PLUGIN_VERSION=$(grep "Version:" apprenticeship-connect.php | awk '{print $3}')
+BUILD_DIR="build"
+ZIP_NAME="${PLUGIN_SLUG}.zip"
 
-# ── Parse optional --version flag ────────────────────────────────────────────
-VERSION_OVERRIDE=""
-while [[ $# -gt 0 ]]; do
-    case "$1" in
-        --version) VERSION_OVERRIDE="$2"; shift 2;;
-        *) shift;;
-    esac
-done
+echo -e "${YELLOW}Plugin:${NC} ${PLUGIN_SLUG}"
+echo -e "${YELLOW}Version:${NC} ${PLUGIN_VERSION}"
+echo ""
+
+# Clean previous builds
+echo -e "${BLUE}→ Cleaning previous builds...${NC}"
+rm -rf "${BUILD_DIR}"
+rm -rf "dist"
+mkdir -p "${BUILD_DIR}/${PLUGIN_SLUG}"
+
+# Install Node dependencies
+echo -e "${BLUE}→ Installing Node dependencies...${NC}"
+if ! command -v npm &> /dev/null; then
+    echo -e "${RED}✗ npm is not installed${NC}"
+    exit 1
+fi
+npm install --prefer-offline --no-audit
+
+# Build JavaScript/CSS assets
+echo -e "${BLUE}→ Building JavaScript and CSS assets...${NC}"
+npm run build
+if [ ! -d "assets/build" ]; then
+    echo -e "${RED}✗ Build failed - assets/build directory not found${NC}"
+    exit 1
+fi
 
 # ── Detect version from plugin header ────────────────────────────────────────
 if [[ -n "$VERSION_OVERRIDE" ]]; then
@@ -37,6 +61,11 @@ fi
 # Copy plugin files to build directory
 echo -e "${BLUE}→ Copying plugin files...${NC}"
 
+# Copy all files (exclude build directory to avoid copying into itself)
+echo -e "  Copying files..."
+find . -mindepth 1 -maxdepth 1 ! -name "${BUILD_DIR}" ! -name "dist" ! -name "*.zip" -exec cp -r {} "${BUILD_DIR}/${PLUGIN_SLUG}/" \;
+
+# Remove files matching .distignore patterns from the build directory
 # Function to check if file/dir should be excluded
 should_exclude() {
     local path=$1
@@ -94,6 +123,9 @@ while IFS= read -r pattern; do
         rm -rf "${BUILD_DIR}/${PLUGIN_SLUG}/${pattern}"
     fi
 done < .distignore
+
+# Also remove any recursive build directory if it somehow got copied
+rm -rf "${BUILD_DIR}/${PLUGIN_SLUG}/${BUILD_DIR}"
 
 # Verify critical files are present
 echo -e "${BLUE}→ Verifying build...${NC}"
@@ -160,6 +192,48 @@ done
 echo -e "${BLUE}→ Removing dev-only vendor files...${NC}"
 find "$EXPORT_DIR/vendor" \( -name "*.md" -o -name "*.txt" -o -name "tests" -o -name "test" -o -name "*.test.php" \) -prune -exec rm -rf {} + 2>/dev/null || true
 
+# Create ZIP file inside the build directory
+echo -e "${BLUE}→ Creating ZIP file...${NC}"
+cd "${BUILD_DIR}"
+zip -r "${ZIP_NAME}" "${PLUGIN_SLUG}" -q
+cd ..
+
+# Verify ZIP
+if [ ! -f "${BUILD_DIR}/${ZIP_NAME}" ]; then
+    echo -e "${RED}✗ Failed to create ZIP file${NC}"
+    exit 1
+fi
+
+# Show ZIP details
+ZIP_SIZE=$(du -h "${BUILD_DIR}/${ZIP_NAME}" | cut -f1)
+echo -e "${GREEN}✓ ZIP created: ${BUILD_DIR}/${ZIP_NAME} (${ZIP_SIZE})${NC}"
+
+# List what's in the ZIP
+echo ""
+echo -e "${BLUE}→ ZIP contents summary (verifying assets):${NC}"
+unzip -l "${BUILD_DIR}/${ZIP_NAME}" | grep -E "assets/build/|apprenticeship-connect.php" | head -n 20
+echo "..."
+echo ""
+
+# Restore dev dependencies if composer was used
+if [ "$COMPOSER_INSTALLED" = true ]; then
+    echo -e "${BLUE}→ Restoring dev dependencies...${NC}"
+    composer install --no-interaction
+fi
+
+# Final summary
+echo ""
+echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${GREEN}  Build Complete! ✓${NC}"
+echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo ""
+echo -e "${YELLOW}Build Directory:${NC} ./${BUILD_DIR}/"
+echo -e "${YELLOW}Plugin ZIP:${NC} ./${BUILD_DIR}/${ZIP_NAME}"
+echo -e "${YELLOW}Size:${NC} ${ZIP_SIZE}"
+echo -e "${YELLOW}Version:${NC} ${PLUGIN_VERSION}"
+echo ""
+echo -e "${GREEN}→ Ready for distribution!${NC}"
+echo ""
 # ── 6. Create ZIP ────────────────────────────────────────────────────────────
 echo -e "${BLUE}→ Creating ZIP ${ZIP_FILE}...${NC}"
 cd "$DIST_DIR"
