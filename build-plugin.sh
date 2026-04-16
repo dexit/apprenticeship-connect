@@ -34,6 +34,69 @@ else
     PLUGIN_VERSION=$(grep -m1 "^.*Version:" "$PLUGIN_FILE" | awk '{print $NF}' | tr -d '[:space:]')
 fi
 
+# Copy plugin files to build directory
+echo -e "${BLUE}→ Copying plugin files...${NC}"
+
+# Function to check if file/dir should be excluded
+should_exclude() {
+    local path=$1
+    # Read .distignore and check if path matches
+    while IFS= read -r pattern; do
+        # Skip comments and empty lines
+        [[ "$pattern" =~ ^#.*$ ]] && continue
+        [[ -z "$pattern" ]] && continue
+
+        # Remove leading/trailing whitespace
+        pattern=$(echo "$pattern" | xargs)
+
+        # Check if path matches pattern
+        if [[ "$path" == $pattern* ]] || [[ "$path" == *"$pattern"* ]]; then
+            return 0  # Should exclude
+        fi
+    done < .distignore
+    return 1  # Should include
+}
+
+# Copy files efficiently (exclude heavy directories immediately)
+echo -e "  Copying plugin files (excluding node_modules, .git, src, tests)..."
+
+# Copy directories we WANT (fast - skip the bloat)
+for dir in includes assets languages vendor; do
+    if [ -d "$dir" ]; then
+        cp -r "$dir" "${BUILD_DIR}/${PLUGIN_SLUG}/"
+    fi
+done
+
+# Copy root PHP and text files
+cp *.php "${BUILD_DIR}/${PLUGIN_SLUG}/" 2>/dev/null || true
+cp *.txt "${BUILD_DIR}/${PLUGIN_SLUG}/" 2>/dev/null || true
+cp *.md "${BUILD_DIR}/${PLUGIN_SLUG}/" 2>/dev/null || true
+cp LICENSE "${BUILD_DIR}/${PLUGIN_SLUG}/" 2>/dev/null || true
+
+# Now remove unwanted files based on .distignore
+echo -e "  Removing excluded files..."
+while IFS= read -r pattern; do
+    # Skip comments and empty lines
+    [[ "$pattern" =~ ^#.*$ ]] && continue
+    [[ -z "$pattern" ]] && continue
+
+    # Remove leading/trailing whitespace and slashes
+    pattern=$(echo "$pattern" | xargs | sed 's:^/::')
+
+    # Skip directories we never copied in the first place
+    [[ "$pattern" == "node_modules" ]] && continue
+    [[ "$pattern" == ".git" ]] && continue
+    [[ "$pattern" == "src" ]] && continue
+    [[ "$pattern" == "tests" ]] && continue
+
+    # Remove matching files/directories
+    if [ -e "${BUILD_DIR}/${PLUGIN_SLUG}/${pattern}" ]; then
+        rm -rf "${BUILD_DIR}/${PLUGIN_SLUG}/${pattern}"
+    fi
+done < .distignore
+
+# Verify critical files are present
+echo -e "${BLUE}→ Verifying build...${NC}"
 EXPORT_DIR="${DIST_DIR}/${PLUGIN_SLUG}"
 ZIP_FILE="${DIST_DIR}/${PLUGIN_SLUG}-v${PLUGIN_VERSION}.zip"
 
