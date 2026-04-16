@@ -1,0 +1,158 @@
+/**
+ * Vacancy Listing block – frontend styles.
+ *
+ * Compiled to build/blocks/vacancy-listing/style-index.css by wp-scripts.
+ * Loaded on both the frontend and in the editor.
+ */
+
+// ── Container ──────────────────────────────────────────────────────────────
+
+.appcon-vacancy-listing {
+	width: 100%;
+}
+
+// ── Search bar ─────────────────────────────────────────────────────────────
+
+.appcon-vacancy-search {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+	margin-block-end: 1.5rem;
+
+	.appcon-search-input {
+		flex: 1 1 200px;
+		padding: 0.5rem 0.75rem;
+		border: 1px solid #c3c4c7;
+		border-radius: 4px;
+		font-size: 1rem;
+		line-height: 1.5;
+
+		&:focus {
+			border-color: #2271b1;
+			box-shadow: 0 0 0 1px #2271b1;
+			outline: 2px solid transparent;
+		}
+	}
+
+	.appcon-search-btn {
+		padding: 0.5rem 1rem;
+		background: #2271b1;
+		color: #fff;
+		border: none;
+		border-radius: 4px;
+		cursor: pointer;
+		font-size: 1rem;
+		transition: background 0.15s ease;
+
+		&:hover,
+		&:focus {
+			background: #135e96;
+		}
+	}
+}
+
+// ── Layout: list ───────────────────────────────────────────────────────────
+
+.appcon-layout-list .appcon-vacancies-list {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+
+	.appcon-vacancy-item {
+		margin-block-end: 1rem;
+	}
+}
+
+// ── Layout: grid ───────────────────────────────────────────────────────────
+
+.appcon-layout-grid .appcon-vacancies-grid {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: grid;
+	grid-template-columns: repeat( auto-fill, minmax( 280px, 1fr ) );
+	gap: 1rem;
+}
+
+// ── Layout: table ──────────────────────────────────────────────────────────
+
+.appcon-vacancies-table {
+	width: 100%;
+	border-collapse: collapse;
+
+	th,
+	td {
+		padding: 0.6rem 0.8rem;
+		text-align: left;
+		border-bottom: 1px solid #dcdcde;
+	}
+
+	thead th {
+		background: #f6f7f7;
+		font-weight: 600;
+	}
+
+	tbody tr:hover {
+		background: #f6f7f7;
+	}
+
+	a {
+		color: #2271b1;
+		text-decoration: none;
+
+		&:hover {
+			text-decoration: underline;
+		}
+	}
+}
+
+// ── No results ─────────────────────────────────────────────────────────────
+
+.appcon-no-vacancies {
+	padding: 1.5rem;
+	text-align: center;
+	color: #646970;
+	border: 1px dashed #c3c4c7;
+	border-radius: 4px;
+}
+
+// ── Pagination ─────────────────────────────────────────────────────────────
+
+.appcon-pagination {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: center;
+	gap: 0.25rem;
+	margin-block-start: 1.5rem;
+
+	.page-numbers {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		min-width: 2rem;
+		height: 2rem;
+		padding: 0 0.4rem;
+		border: 1px solid #c3c4c7;
+		border-radius: 4px;
+		text-decoration: none;
+		color: #2271b1;
+		font-size: 0.9rem;
+		transition: background 0.15s ease, border-color 0.15s ease;
+
+		&.current {
+			background: #2271b1;
+			border-color: #2271b1;
+			color: #fff;
+		}
+
+		&:hover:not(.current) {
+			background: #f6f7f7;
+			border-color: #8c8f94;
+		}
+
+		&.dots {
+			border-color: transparent;
+			cursor: default;
+		}
+	}
+}

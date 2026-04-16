@@ -82,63 +82,46 @@ class Apprco_Import_Tasks {
         $charset_collate = $wpdb->get_charset_collate();
 
         $sql = "CREATE TABLE {$table_name} (
-            id BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
-            name VARCHAR(255) NOT NULL,
-            description TEXT DEFAULT NULL,
-            status VARCHAR(20) NOT NULL DEFAULT 'draft',
-            provider_id VARCHAR(100) NOT NULL DEFAULT 'uk-gov-apprenticeships',
-
-            -- API Configuration
-            api_base_url VARCHAR(500) NOT NULL,
-            api_endpoint VARCHAR(255) NOT NULL DEFAULT '/vacancy',
-            api_method VARCHAR(10) NOT NULL DEFAULT 'GET',
-            api_headers LONGTEXT DEFAULT NULL,
-            api_params LONGTEXT DEFAULT NULL,
-            api_auth_type VARCHAR(50) DEFAULT 'header_key',
-            api_auth_key VARCHAR(255) DEFAULT NULL,
-            api_auth_value TEXT DEFAULT NULL,
-
-            -- Response Parsing
-            response_format VARCHAR(20) NOT NULL DEFAULT 'json',
-            data_path VARCHAR(255) NOT NULL DEFAULT 'vacancies',
-            total_path VARCHAR(255) DEFAULT 'total',
-            pagination_type VARCHAR(50) DEFAULT 'page_number',
-            page_param VARCHAR(50) DEFAULT 'PageNumber',
-            page_size_param VARCHAR(50) DEFAULT 'PageSize',
-            page_size INT DEFAULT 100,
-
-            -- Field Mappings (JSON: {cpt_field: api_field})
-            field_mappings LONGTEXT NOT NULL,
-            unique_id_field VARCHAR(100) NOT NULL DEFAULT 'vacancyReference',
-
-            -- ETL Transforms (PHP code)
-            transforms_enabled TINYINT(1) DEFAULT 0,
-            transforms_code LONGTEXT DEFAULT NULL,
-
-            -- Target CPT
-            target_post_type VARCHAR(50) NOT NULL DEFAULT 'apprco_vacancy',
-            post_status VARCHAR(20) NOT NULL DEFAULT 'publish',
-
-            -- Schedule
-            schedule_enabled TINYINT(1) DEFAULT 0,
-            schedule_frequency VARCHAR(50) DEFAULT 'daily',
-            schedule_time TIME DEFAULT '03:00:00',
-
-            -- Run Statistics
-            last_run_at DATETIME DEFAULT NULL,
-            last_run_status VARCHAR(50) DEFAULT NULL,
-            last_run_fetched INT DEFAULT 0,
-            last_run_created INT DEFAULT 0,
-            last_run_updated INT DEFAULT 0,
-            last_run_errors INT DEFAULT 0,
-            total_runs INT DEFAULT 0,
-
-            -- Timestamps
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            created_by BIGINT(20) UNSIGNED DEFAULT NULL,
-
-            PRIMARY KEY (id),
+            id bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+            name varchar(255) NOT NULL,
+            description text DEFAULT NULL,
+            status varchar(20) NOT NULL DEFAULT 'draft',
+            provider_id varchar(100) NOT NULL DEFAULT 'uk-gov-apprenticeships',
+            api_base_url varchar(500) NOT NULL,
+            api_endpoint varchar(255) NOT NULL DEFAULT '/vacancy',
+            api_method varchar(10) NOT NULL DEFAULT 'GET',
+            api_headers longtext DEFAULT NULL,
+            api_params longtext DEFAULT NULL,
+            api_auth_type varchar(50) DEFAULT 'header_key',
+            api_auth_key varchar(255) DEFAULT NULL,
+            api_auth_value text DEFAULT NULL,
+            response_format varchar(20) NOT NULL DEFAULT 'json',
+            data_path varchar(255) NOT NULL DEFAULT 'vacancies',
+            total_path varchar(255) DEFAULT 'total',
+            pagination_type varchar(50) DEFAULT 'page_number',
+            page_param varchar(50) DEFAULT 'PageNumber',
+            page_size_param varchar(50) DEFAULT 'PageSize',
+            page_size int DEFAULT 100,
+            field_mappings longtext NOT NULL,
+            unique_id_field varchar(100) NOT NULL DEFAULT 'vacancyReference',
+            transforms_enabled tinyint(1) DEFAULT 0,
+            transforms_code longtext DEFAULT NULL,
+            target_post_type varchar(50) NOT NULL DEFAULT 'apprco_vacancy',
+            post_status varchar(20) NOT NULL DEFAULT 'publish',
+            schedule_enabled tinyint(1) DEFAULT 0,
+            schedule_frequency varchar(50) DEFAULT 'daily',
+            schedule_time time DEFAULT '03:00:00',
+            last_run_at datetime DEFAULT NULL,
+            last_run_status varchar(50) DEFAULT NULL,
+            last_run_fetched int DEFAULT 0,
+            last_run_created int DEFAULT 0,
+            last_run_updated int DEFAULT 0,
+            last_run_errors int DEFAULT 0,
+            total_runs int DEFAULT 0,
+            created_at datetime DEFAULT CURRENT_TIMESTAMP,
+            updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            created_by bigint(20) UNSIGNED DEFAULT NULL,
+            PRIMARY KEY  (id),
             KEY status_idx (status),
             KEY provider_idx (provider_id),
             KEY schedule_idx (schedule_enabled, schedule_frequency)
