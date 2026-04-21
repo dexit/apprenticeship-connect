@@ -1,871 +1,362 @@
 <?php
 /**
- * Import Tasks Manager - CRUD for import job configurations
+ * Import Tasks Manager
  *
  * @package ApprenticeshipConnect
- * @since   2.1.0
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
-    exit;
+	die;
 }
 
-/**
- * Class Apprco_Import_Tasks
- *
- * Manages import task configurations stored in a custom database table.
- * Each task defines: API endpoint, field mappings, transforms, schedule.
- */
 class Apprco_Import_Tasks {
 
-    /**
-     * Database table name (without prefix)
-     */
-    public const TABLE_NAME = 'apprco_import_tasks';
-
-    /**
-     * Task statuses
-     */
-    public const STATUS_ACTIVE   = 'active';
-    public const STATUS_INACTIVE = 'inactive';
-    public const STATUS_DRAFT    = 'draft';
-
-    /**
-     * Singleton instance
-     *
-     * @var Apprco_Import_Tasks|null
-     */
-    private static $instance = null;
-
-    /**
-     * Database table name with prefix
-     *
-     * @var string
-     */
-    private $table_name;
-
-    /**
-     * Logger instance
-     *
-     * @var Apprco_Import_Logger
-     */
-    private $logger;
-
-    /**
-     * Private constructor for singleton
-     */
-    private function __construct() {
-        global $wpdb;
-        $this->table_name = $wpdb->prefix . self::TABLE_NAME;
-        $this->logger     = Apprco_Import_Logger::get_instance();
-    }
-
-    /**
-     * Get singleton instance
-     *
-     * @return Apprco_Import_Tasks
-     */
-    public static function get_instance(): Apprco_Import_Tasks {
-        if ( null === self::$instance ) {
-            self::$instance = new self();
-        }
-        return self::$instance;
-    }
-
-    /**
-     * Create database table
-     */
-    public static function create_table(): void {
-        global $wpdb;
-
-        $table_name      = $wpdb->prefix . self::TABLE_NAME;
-        $charset_collate = $wpdb->get_charset_collate();
-
-        $sql = "CREATE TABLE {$table_name} (
-            id BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
-            name VARCHAR(255) NOT NULL,
-            description TEXT DEFAULT NULL,
-            status VARCHAR(20) NOT NULL DEFAULT 'draft',
-            provider_id VARCHAR(100) NOT NULL DEFAULT 'uk-gov-apprenticeships',
-
-            -- API Configuration
-            api_base_url VARCHAR(500) NOT NULL,
-            api_endpoint VARCHAR(255) NOT NULL DEFAULT '/vacancy',
-            api_method VARCHAR(10) NOT NULL DEFAULT 'GET',
-            api_headers LONGTEXT DEFAULT NULL,
-            api_params LONGTEXT DEFAULT NULL,
-            api_auth_type VARCHAR(50) DEFAULT 'header_key',
-            api_auth_key VARCHAR(255) DEFAULT NULL,
-            api_auth_value TEXT DEFAULT NULL,
-
-            -- Response Parsing
-            response_format VARCHAR(20) NOT NULL DEFAULT 'json',
-            data_path VARCHAR(255) NOT NULL DEFAULT 'vacancies',
-            total_path VARCHAR(255) DEFAULT 'total',
-            pagination_type VARCHAR(50) DEFAULT 'page_number',
-            page_param VARCHAR(50) DEFAULT 'PageNumber',
-            page_size_param VARCHAR(50) DEFAULT 'PageSize',
-            page_size INT DEFAULT 100,
-
-            -- Field Mappings (JSON: {cpt_field: api_field})
-            field_mappings LONGTEXT NOT NULL,
-            unique_id_field VARCHAR(100) NOT NULL DEFAULT 'vacancyReference',
-
-            -- ETL Transforms (PHP code)
-            transforms_enabled TINYINT(1) DEFAULT 0,
-            transforms_code LONGTEXT DEFAULT NULL,
-
-            -- Target CPT
-            target_post_type VARCHAR(50) NOT NULL DEFAULT 'apprco_vacancy',
-            post_status VARCHAR(20) NOT NULL DEFAULT 'publish',
-
-            -- Schedule
-            schedule_enabled TINYINT(1) DEFAULT 0,
-            schedule_frequency VARCHAR(50) DEFAULT 'daily',
-            schedule_time TIME DEFAULT '03:00:00',
-
-            -- Run Statistics
-            last_run_at DATETIME DEFAULT NULL,
-            last_run_status VARCHAR(50) DEFAULT NULL,
-            last_run_fetched INT DEFAULT 0,
-            last_run_created INT DEFAULT 0,
-            last_run_updated INT DEFAULT 0,
-            last_run_errors INT DEFAULT 0,
-            total_runs INT DEFAULT 0,
-
-            -- Timestamps
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            created_by BIGINT(20) UNSIGNED DEFAULT NULL,
-
-            PRIMARY KEY (id),
-            KEY status_idx (status),
-            KEY provider_idx (provider_id),
-            KEY schedule_idx (schedule_enabled, schedule_frequency)
-        ) {$charset_collate};";
-
-        require_once ABSPATH . 'wp-admin/includes/upgrade.php';
-        dbDelta( $sql );
-    }
-
-    /**
-     * Get default field mappings for UK Gov API
-     *
-     * @return array
-     */
-    public static function get_default_field_mappings(): array {
-        return array(
-            // Post fields
-            'post_title'       => 'title',
-            'post_content'     => 'fullDescription',
-            'post_excerpt'     => 'description',
-
-            // Meta fields
-            '_apprco_vacancy_reference'           => 'vacancyReference',
-            '_apprco_vacancy_url'                 => 'vacancyUrl',
-            '_apprco_employer_name'               => 'employerName',
-            '_apprco_employer_website_url'        => 'employerWebsiteUrl',
-            '_apprco_employer_description'        => 'employerDescription',
-            '_apprco_employer_contact_name'       => 'employerContactName',
-            '_apprco_employer_contact_email'      => 'employerContactEmail',
-            '_apprco_employer_contact_phone'      => 'employerContactPhone',
-            '_apprco_provider_name'               => 'providerName',
-            '_apprco_ukprn'                       => 'ukprn',
-            '_apprco_course_title'                => 'course.title',
-            '_apprco_course_level'                => 'course.level',
-            '_apprco_course_route'                => 'course.route',
-            '_apprco_course_lars_code'            => 'course.larsCode',
-            '_apprco_apprenticeship_level'        => 'apprenticeshipLevel',
-            '_apprco_wage_type'                   => 'wage.wageType',
-            '_apprco_wage_amount'                 => 'wage.wageAmount',
-            '_apprco_wage_unit'                   => 'wage.wageUnit',
-            '_apprco_wage_additional_information' => 'wage.wageAdditionalInformation',
-            '_apprco_working_week_description'    => 'wage.workingWeekDescription',
-            '_apprco_hours_per_week'              => 'hoursPerWeek',
-            '_apprco_expected_duration'           => 'expectedDuration',
-            '_apprco_number_of_positions'         => 'numberOfPositions',
-            '_apprco_posted_date'                 => 'postedDate',
-            '_apprco_closing_date'                => 'closingDate',
-            '_apprco_start_date'                  => 'startDate',
-            '_apprco_address_line_1'              => 'addresses[0].addressLine1',
-            '_apprco_address_line_2'              => 'addresses[0].addressLine2',
-            '_apprco_address_line_3'              => 'addresses[0].addressLine3',
-            '_apprco_postcode'                    => 'addresses[0].postcode',
-            '_apprco_latitude'                    => 'addresses[0].latitude',
-            '_apprco_longitude'                   => 'addresses[0].longitude',
-            '_apprco_distance'                    => 'distance',
-            '_apprco_skills'                      => 'skills',
-            '_apprco_qualifications'              => 'qualifications',
-            '_apprco_outcome_description'         => 'outcomeDescription',
-            '_apprco_things_to_consider'          => 'thingsToConsider',
-            '_apprco_is_disability_confident'     => 'isDisabilityConfident',
-            '_apprco_is_national_vacancy'         => 'isNationalVacancy',
-        );
-    }
-
-    /**
-     * Create a new import task
-     *
-     * @param array $data Task data.
-     * @return int|false Task ID or false on failure.
-     */
-    public function create( array $data ) {
-        global $wpdb;
-
-        $defaults = array(
-            'name'             => '',
-            'description'      => '',
-            'status'           => self::STATUS_DRAFT,
-            'provider_id'      => 'uk-gov-apprenticeships',
-            'api_base_url'     => 'https://api.apprenticeships.education.gov.uk/vacancies',
-            'api_endpoint'     => '/vacancy',
-            'api_method'       => 'GET',
-            'api_headers'      => wp_json_encode( array( 'X-Version' => '2' ) ),
-            'api_params'       => wp_json_encode( array( 'Sort' => 'AgeDesc' ) ),
-            'api_auth_type'    => 'header_key',
-            'api_auth_key'     => 'Ocp-Apim-Subscription-Key',
-            'api_auth_value'   => '',
-            'response_format'  => 'json',
-            'data_path'        => 'vacancies',
-            'total_path'       => 'total',
-            'pagination_type'  => 'page_number',
-            'page_param'       => 'PageNumber',
-            'page_size_param'  => 'PageSize',
-            'page_size'        => 100,
-            'field_mappings'   => wp_json_encode( self::get_default_field_mappings() ),
-            'unique_id_field'  => 'vacancyReference',
-            'transforms_enabled' => 0,
-            'transforms_code'  => '',
-            'target_post_type' => 'apprco_vacancy',
-            'post_status'      => 'publish',
-            'schedule_enabled' => 0,
-            'schedule_frequency' => 'daily',
-            'created_by'       => get_current_user_id(),
-        );
-
-        $data = wp_parse_args( $data, $defaults );
-
-        // Encode arrays to JSON
-        if ( is_array( $data['api_headers'] ) ) {
-            $data['api_headers'] = wp_json_encode( $data['api_headers'] );
-        }
-        if ( is_array( $data['api_params'] ) ) {
-            $data['api_params'] = wp_json_encode( $data['api_params'] );
-        }
-        if ( is_array( $data['field_mappings'] ) ) {
-            $data['field_mappings'] = wp_json_encode( $data['field_mappings'] );
-        }
-
-        $result = $wpdb->insert( $this->table_name, $data );
-
-        if ( false === $result ) {
-            $this->logger->error( 'Failed to create import task: ' . $wpdb->last_error, null, 'core' );
-            return false;
-        }
-
-        $task_id = $wpdb->insert_id;
-        $this->logger->info( sprintf( 'Created import task: %s (ID: %d)', $data['name'], $task_id ), null, 'core' );
-
-        // Trigger action for scheduler
-        do_action( 'apprco_task_saved', $task_id );
-
-        return $task_id;
-    }
-
-    /**
-     * Update an import task
-     *
-     * @param int   $id   Task ID.
-     * @param array $data Task data.
-     * @return bool Success.
-     */
-    public function update( int $id, array $data ): bool {
-        global $wpdb;
-
-        // Encode arrays to JSON
-        if ( isset( $data['api_headers'] ) && is_array( $data['api_headers'] ) ) {
-            $data['api_headers'] = wp_json_encode( $data['api_headers'] );
-        }
-        if ( isset( $data['api_params'] ) && is_array( $data['api_params'] ) ) {
-            $data['api_params'] = wp_json_encode( $data['api_params'] );
-        }
-        if ( isset( $data['field_mappings'] ) && is_array( $data['field_mappings'] ) ) {
-            $data['field_mappings'] = wp_json_encode( $data['field_mappings'] );
-        }
-
-        $result = $wpdb->update( $this->table_name, $data, array( 'id' => $id ) );
-
-        if ( false === $result ) {
-            $this->logger->error( sprintf( 'Failed to update import task %d: %s', $id, $wpdb->last_error ), null, 'core' );
-            return false;
-        }
-
-        // Trigger action for scheduler
-        do_action( 'apprco_task_saved', $id );
-
-        return true;
-    }
-
-    /**
-     * Get a task by ID
-     *
-     * @param int $id Task ID.
-     * @return array|null Task data or null.
-     */
-    public function get( int $id ): ?array {
-        global $wpdb;
-
-        $row = $wpdb->get_row(
-            $wpdb->prepare( "SELECT * FROM {$this->table_name} WHERE id = %d", $id ),
-            ARRAY_A
-        );
-
-        if ( $row ) {
-            $row = $this->decode_json_fields( $row );
-        }
-
-        return $row;
-    }
-
-    /**
-     * Get all tasks
-     *
-     * @param array $args Query arguments.
-     * @return array Tasks.
-     */
-    public function get_all( array $args = array() ): array {
-        global $wpdb;
-
-        $defaults = array(
-            'status'   => '',
-            'orderby'  => 'created_at',
-            'order'    => 'DESC',
-            'limit'    => 50,
-            'offset'   => 0,
-        );
-
-        $args = wp_parse_args( $args, $defaults );
-
-        $where = '1=1';
-        $values = array();
-
-        if ( ! empty( $args['status'] ) ) {
-            $where .= ' AND status = %s';
-            $values[] = $args['status'];
-        }
-
-        $orderby = in_array( $args['orderby'], array( 'name', 'status', 'created_at', 'last_run_at' ), true )
-            ? $args['orderby'] : 'created_at';
-        $order = strtoupper( $args['order'] ) === 'ASC' ? 'ASC' : 'DESC';
-
-        $sql = "SELECT * FROM {$this->table_name} WHERE {$where} ORDER BY {$orderby} {$order} LIMIT %d OFFSET %d";
-        $values[] = $args['limit'];
-        $values[] = $args['offset'];
-
-        $rows = $wpdb->get_results( $wpdb->prepare( $sql, $values ), ARRAY_A );
-
-        return array_map( array( $this, 'decode_json_fields' ), $rows ?: array() );
-    }
-
-    /**
-     * Delete a task
-     *
-     * @param int $id Task ID.
-     * @return bool Success.
-     */
-    public function delete( int $id ): bool {
-        global $wpdb;
-
-        $result = $wpdb->delete( $this->table_name, array( 'id' => $id ), array( '%d' ) );
-
-        if ( $result ) {
-            $this->logger->info( sprintf( 'Deleted import task ID: %d', $id ), null, 'core' );
-
-            // Trigger action for scheduler
-            do_action( 'apprco_task_deleted', $id );
-        }
-
-        return (bool) $result;
-    }
-
-    /**
-     * Decode JSON fields in task data
-     *
-     * @param array $row Task row.
-     * @return array Decoded task.
-     */
-    private function decode_json_fields( array $row ): array {
-        $json_fields = array( 'api_headers', 'api_params', 'field_mappings' );
-
-        foreach ( $json_fields as $field ) {
-            if ( isset( $row[ $field ] ) && is_string( $row[ $field ] ) ) {
-                $decoded = json_decode( $row[ $field ], true );
-                $row[ $field ] = is_array( $decoded ) ? $decoded : array();
-            }
-        }
-
-        return $row;
-    }
-
-    /**
-     * Test API connection for a task
-     *
-     * @param int $task_id Task ID.
-     * @param int $limit   Number of records to fetch for test.
-     * @return array Test result with sample data.
-     */
-    public function test_connection( int $task_id, int $limit = 10 ): array {
-        $task = $this->get( $task_id );
-
-        if ( ! $task ) {
-            return array( 'success' => false, 'error' => 'Task not found.' );
-        }
-
-        return $this->execute_api_request( $task, $limit, true );
-    }
-
-    /**
-     * Execute API request for a task
-     *
-     * @param array $task     Task configuration.
-     * @param int   $limit    Max records.
-     * @param bool  $test_mode Whether this is a test (don't import).
-     * @return array Result with data or error.
-     */
-    public function execute_api_request( array $task, int $limit = 100, bool $test_mode = false ): array {
-        $client = new Apprco_API_Client( $task['api_base_url'], array(), $this->logger );
-
-        // Build headers
-        $headers = $task['api_headers'] ?? array();
-        if ( $task['api_auth_type'] === 'header_key' && ! empty( $task['api_auth_key'] ) && ! empty( $task['api_auth_value'] ) ) {
-            $headers[ $task['api_auth_key'] ] = $task['api_auth_value'];
-        }
-        $client->set_default_headers( $headers );
-
-        // Build params
-        $params = $task['api_params'] ?? array();
-        if ( $task['pagination_type'] === 'page_number' ) {
-            $params[ $task['page_param'] ] = 1;
-            $params[ $task['page_size_param'] ] = min( $limit, $task['page_size'] );
-        }
-
-        $result = $client->get( $task['api_endpoint'], $params );
-
-        if ( ! $result['success'] ) {
-            return array(
-                'success'      => false,
-                'error'        => $result['error'] ?? 'Request failed',
-                'status_code'  => $result['status_code'] ?? 0,
-                'raw_response' => isset( $result['data'] ) ? wp_json_encode( $result['data'] ) : '',
-            );
-        }
-
-        $data = $result['data'];
-
-        // Extract data array using data_path
-        $items = $this->get_nested_value( $data, $task['data_path'] );
-        $total = $this->get_nested_value( $data, $task['total_path'] ) ?? ( is_array( $items ) ? count( $items ) : 0 );
-
-        if ( ! is_array( $items ) ) {
-            return array(
-                'success'       => false,
-                'error'         => sprintf( 'Data path "%s" did not return an array', $task['data_path'] ),
-                'response_keys' => array_keys( $data ),
-                'raw_response'  => substr( wp_json_encode( $data ), 0, 2000 ),
-            );
-        }
-
-        // Get sample for test mode
-        $sample = array_slice( $items, 0, $limit );
-
-        // Detect available fields from first item
-        $available_fields = array();
-        if ( ! empty( $sample[0] ) && is_array( $sample[0] ) ) {
-            $available_fields = $this->flatten_array_keys( $sample[0] );
-        }
-
-        return array(
-            'success'          => true,
-            'total'            => $total,
-            'fetched'          => count( $items ),
-            'sample_count'     => count( $sample ),
-            'sample'           => $sample,
-            'available_fields' => $available_fields,
-            'response_keys'    => array_keys( $data ),
-        );
-    }
-
-    /**
-     * Run a full import for a task
-     *
-     * @param int      $task_id     Task ID.
-     * @param callable $on_progress Optional progress callback.
-     * @return array Import result.
-     */
-    public function run_import( int $task_id, ?callable $on_progress = null ): array {
-        $task = $this->get( $task_id );
-
-        if ( ! $task ) {
-            return array( 'success' => false, 'error' => 'Task not found.' );
-        }
-
-        if ( $task['status'] !== self::STATUS_ACTIVE ) {
-            return array( 'success' => false, 'error' => 'Task is not active.' );
-        }
-
-        $import_id = $this->logger->start_import();
-        $this->logger->info( sprintf( 'Starting import task: %s (ID: %d)', $task['name'], $task_id ), $import_id, 'core' );
-
-        $client = new Apprco_API_Client( $task['api_base_url'], array(), $this->logger );
-        $client->set_import_id( $import_id );
-
-        // Build headers
-        $headers = $task['api_headers'] ?? array();
-        if ( $task['api_auth_type'] === 'header_key' && ! empty( $task['api_auth_key'] ) && ! empty( $task['api_auth_value'] ) ) {
-            $headers[ $task['api_auth_key'] ] = $task['api_auth_value'];
-        }
-        $client->set_default_headers( $headers );
-
-        $max_pages = 100;
-        $params = $task['api_params'] ?? array();
-
-        $fetch_result = $client->fetch_all_pages(
-            $task['api_endpoint'],
-            $params,
-            $task['page_param'],
-            $task['data_path'],
-            $task['total_path'],
-            $max_pages,
-            function( $progress ) use ( $on_progress ) {
-                if ( is_callable( $on_progress ) ) {
-                    call_user_func( $on_progress, array(
-                        'phase'   => 'fetching',
-                        'page'    => $progress['page'],
-                        'fetched' => $progress['total_so_far'],
-                        'total'   => $progress['total_pages'],
-                    ) );
-                }
-            }
-        );
-
-        if ( ! $fetch_result['success'] && empty( $fetch_result['items'] ) ) {
-            $this->logger->error( sprintf( 'Import failed: %s', $fetch_result['error'] ?? 'Unknown error' ), $import_id, 'api' );
-            return array( 'success' => false, 'error' => $fetch_result['error'] ?? 'Fetch failed' );
-        }
-
-        $all_items = $fetch_result['items'];
-
-        // Process items
-        $created = 0;
-        $updated = 0;
-        $errors  = 0;
-        $api_references = array();
-
-        foreach ( $all_items as $index => $item ) {
-            $result = $this->process_item( $task, $item, $import_id );
-
-            if ( $result['success'] ) {
-                if ( $result['action'] === 'created' ) {
-                    $created++;
-                } else {
-                    $updated++;
-                }
-
-                $ref = $this->get_nested_value( $item, $task['unique_id_field'] );
-                if ( $ref ) {
-                    $api_references[] = $ref;
-                }
-            } else {
-                $errors++;
-            }
-
-            if ( is_callable( $on_progress ) && ( $index + 1 ) % 10 === 0 ) {
-                call_user_func( $on_progress, array(
-                    'phase'     => 'processing',
-                    'current'   => $index + 1,
-                    'total'     => count( $all_items ),
-                    'created'   => $created,
-                    'updated'   => $updated,
-                    'errors'    => $errors,
-                ) );
-            }
-        }
-
-        // Handle deletion of expired/missing vacancies if enabled in global settings
-        $settings_manager = Apprco_Settings_Manager::get_instance();
-        if ( $settings_manager->get( 'import', 'delete_expired' ) ) {
-            $this->cleanup_expired_vacancies( $api_references, $import_id );
-        }
-
-        // Update task stats
-        $this->update( $task_id, array(
-            'last_run_at'      => current_time( 'mysql' ),
-            'last_run_status'  => $errors > 0 ? 'completed_with_errors' : 'success',
-            'last_run_fetched' => count( $all_items ),
-            'last_run_created' => $created,
-            'last_run_updated' => $updated,
-            'last_run_errors'  => $errors,
-            'total_runs'       => $task['total_runs'] + 1,
-        ) );
-
-        $this->logger->end_import( $import_id, count( $all_items ) );
-
-        return array(
-            'success'   => true,
-            'fetched'   => count( $all_items ),
-            'created'   => $created,
-            'updated'   => $updated,
-            'errors'    => $errors,
-            'import_id' => $import_id,
-        );
-    }
-
-
-    /**
-     * Process a single item (create/update post)
-     *
-     * @param array  $task      Task config.
-     * @param array  $item      Item data.
-     * @param string $import_id Import ID.
-     * @return array Result.
-     */
-    private function process_item( array $task, array $item, string $import_id ): array {
-        // Apply transforms if enabled
-        if ( $task['transforms_enabled'] && ! empty( $task['transforms_code'] ) ) {
-            $item = $this->apply_transforms( $item, $task['transforms_code'] );
-        }
-
-        // Get unique ID
-        $unique_id = $this->get_nested_value( $item, $task['unique_id_field'] );
-
-        if ( empty( $unique_id ) ) {
-            return array( 'success' => false, 'error' => 'Missing unique ID' );
-        }
-
-        // Check if exists
-        $existing = $this->find_existing_post( $unique_id, $task['target_post_type'] );
-
-        // Map fields
-        $post_data = array(
-            'post_type'   => $task['target_post_type'],
-            'post_status' => $task['post_status'],
-        );
-
-        $meta_data = array();
-
-        foreach ( $task['field_mappings'] as $target => $source ) {
-            $value = $this->get_nested_value( $item, $source );
-
-            if ( strpos( $target, '_apprco_' ) === 0 || strpos( $target, '_' ) === 0 ) {
-                // Meta field
-                $meta_data[ $target ] = $value;
-            } else {
-                // Post field
-                $post_data[ $target ] = $value;
-            }
-        }
-
-        // Store raw data
-        $meta_data['_apprco_raw_data']    = $item;
-        $meta_data['_apprco_imported_at'] = current_time( 'mysql' );
-        $meta_data['_apprco_task_id']     = $task['id'];
-
-        if ( $existing ) {
-            $post_data['ID'] = $existing->ID;
-            $post_id = wp_update_post( $post_data, true );
-            $action  = 'updated';
-        } else {
-            $post_id = wp_insert_post( $post_data, true );
-            $action  = 'created';
-        }
-
-        if ( is_wp_error( $post_id ) ) {
-            $this->logger->error( sprintf( 'Failed to %s post for %s: %s', $action, $unique_id, $post_id->get_error_message() ), $import_id, 'core' );
-            return array( 'success' => false, 'error' => $post_id->get_error_message() );
-        }
-
-        // Save meta
-        foreach ( $meta_data as $key => $value ) {
-            update_post_meta( $post_id, $key, $value );
-        }
-
-        return array(
-            'success' => true,
-            'action'  => $action,
-            'post_id' => $post_id,
-        );
-    }
-
-    /**
-     * Apply custom PHP transforms
-     *
-     * @param array  $item Item data.
-     * @param string $code Transform code.
-     * @return array Transformed item.
-     */
-    private function apply_transforms( array $item, string $code ): array {
-        // Sandbox the transform code
-        $transform_func = function( $item ) use ( $code ) {
-            // $item is available to the code
-            eval( $code );
-            return $item;
-        };
-
-        try {
-            return $transform_func( $item );
-        } catch ( \Throwable $e ) {
-            $this->logger->error( 'Transform error: ' . $e->getMessage(), null, 'core' );
-            return $item;
-        }
-    }
-
-    /**
-     * Find existing post by unique ID
-     *
-     * @param string $unique_id Unique identifier.
-     * @param string $post_type Post type.
-     * @return WP_Post|null
-     */
-    private function find_existing_post( string $unique_id, string $post_type ): ?WP_Post {
-        $query = new WP_Query( array(
-            'post_type'      => $post_type,
-            'post_status'    => 'any',
-            'posts_per_page' => 1,
-            'meta_query'     => array(
-                array(
-                    'key'   => '_apprco_vacancy_reference',
-                    'value' => $unique_id,
-                ),
-            ),
-        ) );
-
-        return $query->have_posts() ? $query->posts[0] : null;
-    }
-
-    /**
-     * Get nested value from array using dot notation
-     *
-     * @param array  $array Array to search.
-     * @param string $path  Dot-notation path (e.g., 'addresses[0].postcode').
-     * @return mixed Value or null.
-     */
-    private function get_nested_value( array $array, string $path ) {
-        // Handle array index notation: addresses[0].postcode
-        $path = preg_replace( '/\[(\d+)\]/', '.$1', $path );
-        $keys = explode( '.', $path );
-
-        $value = $array;
-        foreach ( $keys as $key ) {
-            if ( is_array( $value ) && array_key_exists( $key, $value ) ) {
-                $value = $value[ $key ];
-            } elseif ( is_array( $value ) && is_numeric( $key ) && isset( $value[ (int) $key ] ) ) {
-                $value = $value[ (int) $key ];
-            } else {
-                return null;
-            }
-        }
-
-        return $value;
-    }
-
-    /**
-     * Flatten array keys for field detection
-     *
-     * @param array  $array  Array to flatten.
-     * @param string $prefix Key prefix.
-     * @return array Flattened keys.
-     */
-    private function flatten_array_keys( array $array, string $prefix = '' ): array {
-        $keys = array();
-
-        foreach ( $array as $key => $value ) {
-            $full_key = $prefix ? "{$prefix}.{$key}" : $key;
-
-            if ( is_array( $value ) && ! empty( $value ) ) {
-                if ( isset( $value[0] ) ) {
-                    // Indexed array
-                    $keys[] = "{$full_key}[]";
-                    if ( is_array( $value[0] ) ) {
-                        $keys = array_merge( $keys, $this->flatten_array_keys( $value[0], "{$full_key}[0]" ) );
-                    }
-                } else {
-                    // Associative array
-                    $keys = array_merge( $keys, $this->flatten_array_keys( $value, $full_key ) );
-                }
-            } else {
-                $keys[] = $full_key;
-            }
-        }
-
-        return $keys;
-    }
-
-    /**
-     * Get active scheduled tasks
-     *
-     * @return array Active tasks with schedule enabled.
-     */
-    public function get_scheduled_tasks(): array {
-        return $this->get_all( array(
-            'status' => self::STATUS_ACTIVE,
-        ) );
-    }
-
-    /**
-     * Cleanup expired or missing vacancies
-     *
-     * @param array  $api_references References found in current import.
-     * @param string $import_id      Current import session ID.
-     */
-    private function cleanup_expired_vacancies( array $api_references, string $import_id ): void {
-        $settings_manager = Apprco_Settings_Manager::get_instance();
-        $expire_after_days = (int) $settings_manager->get( 'import', 'expire_after_days', 30 );
-
-        $query = new WP_Query( array(
-            'post_type'      => 'apprco_vacancy',
-            'post_status'    => 'any',
-            'posts_per_page' => -1,
-            'fields'         => 'ids',
-        ) );
-
-        if ( ! $query->have_posts() ) {
-            return;
-        }
-
-        $api_ref_set = array_flip( $api_references );
-        $deleted_count = 0;
-
-        foreach ( $query->posts as $post_id ) {
-            $ref = get_post_meta( $post_id, '_apprco_vacancy_reference', true );
-
-            if ( ! $ref || isset( $api_ref_set[ $ref ] ) ) {
-                continue;
-            }
-
-            $closing_date = get_post_meta( $post_id, '_apprco_closing_date', true );
-            $should_delete = false;
-
-            if ( $closing_date ) {
-                $closing_timestamp = strtotime( $closing_date );
-                $expire_timestamp  = $closing_timestamp + ( $expire_after_days * DAY_IN_SECONDS );
-                if ( time() > $expire_timestamp ) {
-                    $should_delete = true;
-                }
-            } else {
-                $last_modified = get_post_modified_time( 'U', false, $post_id );
-                if ( time() > $last_modified + ( $expire_after_days * DAY_IN_SECONDS ) ) {
-                    $should_delete = true;
-                }
-            }
-
-            if ( $should_delete ) {
-                wp_delete_post( $post_id, true );
-                $deleted_count++;
-            }
-        }
-
-        if ( $deleted_count > 0 ) {
-            $this->logger->info( sprintf( 'Cleaned up %d expired or missing vacancies.', $deleted_count ), $import_id, 'core' );
-        }
-    }
+	public const TABLE_NAME = 'apprco_import_tasks';
+	public const STATUS_ACTIVE   = 'active';
+	public const STATUS_INACTIVE = 'inactive';
+	public const STATUS_DRAFT    = 'draft';
+
+	private static $instance = null;
+	private $table_name;
+	private $logger;
+
+	private function __construct() {
+		global $wpdb;
+		$this->table_name = $wpdb->prefix . self::TABLE_NAME;
+		$this->logger     = Apprco_Import_Logger::get_instance();
+	}
+
+	public static function get_instance(): Apprco_Import_Tasks {
+		if ( null === self::$instance ) {
+			self::$instance = new self();
+		}
+		return self::$instance;
+	}
+
+	public static function create_table(): void {
+		global $wpdb;
+		$table_name      = $wpdb->prefix . self::TABLE_NAME;
+		$charset_collate = $wpdb->get_charset_collate();
+
+		$sql = "CREATE TABLE $table_name (
+			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+			name varchar(255) NOT NULL,
+			description text DEFAULT NULL,
+			status varchar(20) NOT NULL DEFAULT 'draft',
+			provider_id varchar(100) NOT NULL DEFAULT 'uk-gov-apprenticeships',
+			api_base_url varchar(500) NOT NULL,
+			api_endpoint varchar(255) NOT NULL DEFAULT '/vacancy',
+			api_headers longtext DEFAULT NULL,
+			api_params longtext DEFAULT NULL,
+			page_param varchar(50) DEFAULT 'PageNumber',
+			data_path varchar(255) NOT NULL DEFAULT 'vacancies',
+			total_path varchar(255) DEFAULT 'total',
+			unique_id_field varchar(100) NOT NULL DEFAULT 'vacancyReference',
+			field_mappings longtext NOT NULL,
+			post_status varchar(20) NOT NULL DEFAULT 'publish',
+			schedule_enabled tinyint(1) DEFAULT 0,
+			schedule_frequency varchar(50) DEFAULT 'daily',
+			schedule_time time DEFAULT '03:00:00',
+			last_run_at datetime DEFAULT NULL,
+			total_runs int(11) DEFAULT 0,
+			PRIMARY KEY  (id)
+		) $charset_collate;";
+
+		require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+		dbDelta( $sql );
+	}
+
+	public function create( array $data ): int {
+		global $wpdb;
+		$wpdb->insert( $this->table_name, $this->prepare_data( $data ) );
+		return (int) $wpdb->insert_id;
+	}
+
+	public function update( int $id, array $data ): bool {
+		global $wpdb;
+		return false !== $wpdb->update( $this->table_name, $this->prepare_data( $data ), array( 'id' => $id ) );
+	}
+
+	public function delete( int $id ): bool {
+		global $wpdb;
+		return false !== $wpdb->delete( $this->table_name, array( 'id' => $id ) );
+	}
+
+	private function prepare_data( array $data ): array {
+		if ( isset( $data['api_headers'] ) && is_array( $data['api_headers'] ) ) {
+			$data['api_headers'] = wp_json_encode( $data['api_headers'] );
+		}
+		if ( isset( $data['api_params'] ) && is_array( $data['api_params'] ) ) {
+			$data['api_params'] = wp_json_encode( $data['api_params'] );
+		}
+		if ( isset( $data['field_mappings'] ) && is_array( $data['field_mappings'] ) ) {
+			$data['field_mappings'] = wp_json_encode( $data['field_mappings'] );
+		}
+		return $data;
+	}
+
+	public function get( int $id ): ?array {
+		global $wpdb;
+		$row = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$this->table_name} WHERE id = %d", $id ), ARRAY_A );
+		if ( $row ) {
+			$row['api_headers']    = json_decode( $row['api_headers'] ?? '[]', true ) ?: array();
+			$row['api_params']     = json_decode( $row['api_params'] ?? '[]', true ) ?: array();
+			$row['field_mappings'] = json_decode( $row['field_mappings'] ?? '[]', true ) ?: array();
+		}
+		return $row;
+	}
+
+	public function get_all(): array {
+		global $wpdb;
+		$rows = $wpdb->get_results( "SELECT * FROM {$this->table_name}", ARRAY_A );
+		foreach ( $rows as &$row ) {
+			$row['api_headers']    = json_decode( $row['api_headers'] ?? '[]', true ) ?: array();
+			$row['api_params']     = json_decode( $row['api_params'] ?? '[]', true ) ?: array();
+			$row['field_mappings'] = json_decode( $row['field_mappings'] ?? '[]', true ) ?: array();
+		}
+		return $rows;
+	}
+
+	public function run_import( int $task_id, ?callable $on_progress = null ): array {
+		$task = $this->get( $task_id );
+		if ( ! $task ) {
+			return array( 'success' => false, 'error' => 'Task not found.' );
+		}
+
+		$import_id = $this->logger->start_import( 'manual', $task['provider_id'] );
+		$this->logger->info( "Starting task: {$task['name']}", $import_id, 'core' );
+
+		$settings = Apprco_Settings_Manager::get_instance();
+		$client   = new Apprco_API_Client( $task['api_base_url'] );
+		$client->set_import_id( $import_id );
+
+		$client->set_default_headers( $task['api_headers'] );
+
+		$fetch_result = $client->fetch_all_pages(
+			$task['api_endpoint'],
+			$task['api_params'],
+			$task['page_param'],
+			$task['data_path'],
+			$task['total_path'],
+			$settings->get( 'import', 'max_pages', 0 )
+		);
+
+		if ( ! $fetch_result['success'] ) {
+			$this->logger->error( "Fetch failed: {$fetch_result['error']}", $import_id, 'api' );
+			$this->logger->end_import( $import_id, 0, 0, 0, 0, 0, 1, 'failed' );
+			return array( 'success' => false, 'error' => $fetch_result['error'] );
+		}
+
+		$items          = $fetch_result['items'];
+		$created        = 0;
+		$updated        = 0;
+		$errors         = 0;
+		$api_references = array();
+
+		foreach ( $items as $index => $item ) {
+			if ( $settings->get( 'import', 'deep_fetch', true ) ) {
+				$unique_id = $this->get_nested_value( $item, $task['unique_id_field'] );
+				if ( $unique_id ) {
+					$this->logger->debug( "Deep fetching vacancy: $unique_id", $import_id, 'api' );
+					$deep_res = $client->get( $task['api_endpoint'] . '/' . $unique_id );
+					if ( $deep_res['success'] ) {
+						$item = array_merge( $item, $deep_res['data'] );
+					}
+				}
+			}
+
+			$res = $this->process_item( $task, $item, $import_id );
+			if ( $res['success'] ) {
+				if ( 'created' === $res['action'] ) {
+					$created++;
+				} else {
+					$updated++;
+				}
+				$api_references[] = $this->get_nested_value( $item, $task['unique_id_field'] );
+			} else {
+				$errors++;
+			}
+
+			if ( $on_progress ) {
+				call_user_func( $on_progress, array( 'phase' => 'processing', 'current' => $index + 1, 'total' => count( $items ) ) );
+			}
+		}
+
+		$deleted = 0;
+		if ( $settings->get( 'import', 'delete_expired' ) ) {
+			$deleted = $this->cleanup_expired_vacancies( $api_references, $import_id );
+		}
+
+		$this->update_stats( $task_id );
+		$this->logger->end_import( $import_id, count( $items ), $created, $updated, $deleted, 0, $errors, 'completed' );
+
+		return array(
+			'success'   => true,
+			'import_id' => $import_id,
+			'fetched'   => count( $items ),
+			'created'   => $created,
+			'updated'   => $updated,
+			'deleted'   => $deleted,
+			'errors'    => $errors,
+		);
+	}
+
+	private function process_item( array $task, array $item, string $import_id ): array {
+		$unique_id = $this->get_nested_value( $item, $task['unique_id_field'] );
+		if ( ! $unique_id ) {
+			return array( 'success' => false, 'error' => 'Missing ID' );
+		}
+
+		$existing = $this->find_existing_post( $unique_id, 'apprco_vacancy' );
+		$mappings = $task['field_mappings'];
+
+		$post_data = array(
+			'post_type'    => 'apprco_vacancy',
+			'post_status'  => $task['post_status'],
+			'post_title'   => $this->get_nested_value( $item, $mappings['post_title'] ?? 'title' ),
+			'post_content' => $this->get_nested_value( $item, $mappings['post_content'] ?? 'fullDescription' ),
+			'post_excerpt' => $this->get_nested_value( $item, 'description' ),
+		);
+		$meta_data = array( '_apprco_vacancy_reference' => $unique_id );
+
+		// Extended Mapping for V2 Deep Fields
+		$v2_mappings = array(
+			'_apprco_vacancy_url'             => 'vacancyUrl',
+			'_apprco_closing_date'            => 'closingDate',
+			'_apprco_posted_date'             => 'postedDate',
+			'_apprco_start_date'              => 'startDate',
+			'_apprco_number_of_positions'     => 'numberOfPositions',
+			'_apprco_employer_name'           => 'employerName',
+			'_apprco_employer_description'    => 'employerDescription',
+			'_apprco_employer_website_url'    => 'employerWebsiteUrl',
+			'_apprco_is_disability_confident' => 'isDisabilityConfident',
+			'_apprco_address_line_1'          => 'addresses[0].addressLine1',
+			'_apprco_address_line_2'          => 'addresses[0].addressLine2',
+			'_apprco_address_line_3'          => 'addresses[0].addressLine3',
+			'_apprco_postcode'                => 'addresses[0].postcode',
+			'_apprco_wage_type'               => 'wage.wageType',
+			'_apprco_wage_amount'             => 'wage.wageAmount',
+			'_apprco_wage_unit'               => 'wage.wageUnit',
+			'_apprco_hours_per_week'          => 'hoursPerWeek',
+			'_apprco_expected_duration'       => 'expectedDuration',
+			'_apprco_apprenticeship_level'    => 'apprenticeshipLevel',
+			'_apprco_course_title'            => 'course.title',
+			'_apprco_course_lars_code'        => 'course.larsCode',
+			'_apprco_course_route'            => 'course.route',
+			'_apprco_skills'                  => 'skills',
+			'_apprco_qualifications'          => 'qualifications',
+			'_apprco_outcome_description'     => 'outcomeDescription',
+		);
+
+		foreach ( $v2_mappings as $meta_key => $api_path ) {
+			$meta_data[ $meta_key ] = $this->get_nested_value( $item, $api_path );
+		}
+
+		// Custom mappings override
+		foreach ( $mappings as $target => $source ) {
+			if ( 0 === strpos( $target, '_' ) ) {
+				$meta_data[ $target ] = $this->get_nested_value( $item, $source );
+			}
+		}
+
+		// Geocoding
+		if ( empty( $meta_data['_apprco_latitude'] ) && ! empty( $meta_data['_apprco_postcode'] ) ) {
+			$geo = Apprco_Geocoder::get_instance()->geocode( $meta_data['_apprco_postcode'] );
+			if ( $geo ) {
+				$meta_data['_apprco_latitude']  = $geo['lat'];
+				$meta_data['_apprco_longitude'] = $geo['lng'];
+			}
+		}
+
+		if ( $existing ) {
+			$post_data['ID'] = $existing->ID;
+			$post_id         = wp_update_post( $post_data, true );
+			$action          = 'updated';
+		} else {
+			$post_id = wp_insert_post( $post_data, true );
+			$action  = 'created';
+		}
+
+		if ( is_wp_error( $post_id ) ) {
+			return array( 'success' => false, 'error' => $post_id->get_error_message() );
+		}
+
+		foreach ( $meta_data as $k => $v ) {
+			if ( is_array( $v ) ) {
+				$v = wp_json_encode( $v );
+			}
+			update_post_meta( $post_id, $k, $v );
+		}
+		update_post_meta( $post_id, '_apprco_raw_data', $item );
+
+		$this->sync_taxonomies( $post_id, $item );
+		Apprco_Employer::get_instance()->upsert_from_vacancy( $item );
+
+		return array( 'success' => true, 'action' => $action, 'post_id' => $post_id );
+	}
+
+	private function sync_taxonomies( int $post_id, array $item ): void {
+		$level = $this->get_nested_value( $item, 'apprenticeshipLevel' );
+		if ( $level ) {
+			wp_set_object_terms( $post_id, $level, 'apprco_level' );
+		}
+
+		$route = $this->get_nested_value( $item, 'course.route' );
+		if ( $route ) {
+			wp_set_object_terms( $post_id, $route, 'apprco_route' );
+		}
+
+		$employer = $this->get_nested_value( $item, 'employerName' );
+		if ( $employer ) {
+			wp_set_object_terms( $post_id, $employer, 'apprco_employer' );
+		}
+	}
+
+	private function update_stats( int $id ): void {
+		global $wpdb;
+		$wpdb->query( $wpdb->prepare( "UPDATE {$this->table_name} SET last_run_at = %s, total_runs = total_runs + 1 WHERE id = %d", current_time( 'mysql' ), $id ) );
+	}
+
+	private function find_existing_post( $uid, $type ) {
+		$q = new WP_Query( array(
+			'post_type'              => $type,
+			'post_status'            => 'any',
+			'posts_per_page'         => 1,
+			'meta_query'             => array( array( 'key' => '_apprco_vacancy_reference', 'value' => $uid ) ),
+			'no_found_rows'          => true,
+			'update_post_term_cache' => false,
+			'update_post_meta_cache' => false,
+		) );
+		return $q->have_posts() ? $q->posts[0] : null;
+	}
+
+	private function get_nested_value( array $array, string $path ) {
+		$path = preg_replace( '/\[(\d+)\]/', '.$1', $path );
+		$keys = explode( '.', $path );
+		$val  = $array;
+		foreach ( $keys as $k ) {
+			if ( is_array( $val ) && isset( $val[ $k ] ) ) {
+				$val = $val[ $k ];
+			} else {
+				return null;
+			}
+		}
+		return $val;
+	}
+
+	private function cleanup_expired_vacancies( array $refs, string $import_id ): int {
+		if ( empty( $refs ) ) {
+			return 0;
+		}
+		$deleted = 0;
+		$q       = new WP_Query( array( 'post_type' => 'apprco_vacancy', 'posts_per_page' => -1, 'fields' => 'ids' ) );
+		foreach ( $q->posts as $post_id ) {
+			$ref = get_post_meta( $post_id, '_apprco_vacancy_reference', true );
+			if ( ! in_array( (string) $ref, array_map( 'strval', $refs ), true ) ) {
+				wp_delete_post( $post_id, true );
+				$deleted++;
+			}
+		}
+		return $deleted;
+	}
 }

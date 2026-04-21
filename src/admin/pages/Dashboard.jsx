@@ -1,198 +1,164 @@
-/**
- * Dashboard Page Component
- *
- * Main admin dashboard with stats, quick actions, and recent activity.
- *
- * @package ApprenticeshipConnect
- */
-
 import { useEffect, useState } from '@wordpress/element';
 import { __ } from '@wordpress/i18n';
 import apiFetch from '@wordpress/api-fetch';
-import {
-	Card,
-	CardBody,
-	CardHeader,
-	Button,
-	Spinner,
-	Notice,
-	Flex,
-	FlexBlock,
-	FlexItem,
-	__experimentalHeading as Heading,
-	__experimentalText as Text,
-} from '@wordpress/components';
-import { Icon, download, cloudUpload, settings, chartBar } from '@wordpress/icons';
+import { Card, CardBody, Button, Spinner, Notice, __experimentalHeading as Heading } from '@wordpress/components';
+import FancyLogViewer from '../components/FancyLogViewer';
+import RateLimitInfo from '../components/RateLimitInfo';
+import TaskEditor from '../components/TaskEditor';
 
-import StatsWidget from '../components/StatsWidget';
-import RecentImports from '../components/RecentImports';
-import QuickActions from '../components/QuickActions';
-import APIStatus from '../components/APIStatus';
-
-/**
- * Dashboard Component
- */
 const Dashboard = () => {
-	const [stats, setStats] = useState(null);
-	const [loading, setLoading] = useState(true);
-	const [error, setError] = useState(null);
-	const [syncing, setSyncing] = useState(false);
+    const [tasks, setTasks] = useState([]);
+    const [stats, setStats] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [runningTaskId, setRunningTaskId] = useState(null);
+    const [lastImportId, setLastImportId] = useState(null);
+    const [editingTaskId, setEditingTaskId] = useState(null);
+    const [isCreating, setIsCreating] = useState(false);
 
-	/**
-	 * Load dashboard stats
-	 */
-	useEffect(() => {
-		loadStats();
-	}, []);
+    useEffect(() => {
+        loadData();
+        const interval = setInterval(loadStats, 5000);
+        return () => clearInterval(interval);
+    }, []);
 
-	/**
-	 * Fetch stats from API
-	 */
-	const loadStats = async () => {
-		try {
-			setLoading(true);
-			const response = await apiFetch({
-				path: '/apprco/v1/stats',
-			});
+    const loadData = async () => {
+        setLoading(true);
+        try {
+            const [tRes, sRes] = await Promise.all([
+                apiFetch({ path: '/apprco/v1/tasks' }),
+                apiFetch({ path: '/apprco/v1/stats' })
+            ]);
+            setTasks(tRes);
+            setStats(sRes);
+        } catch (e) {
+        } finally {
+            setLoading(false);
+        }
+    };
 
-			setStats(response);
-			setError(null);
-		} catch (err) {
-			setError(err.message || __('Failed to load stats', 'apprenticeship-connect'));
-		} finally {
-			setLoading(false);
-		}
-	};
+    const loadStats = async () => {
+        try {
+            const sRes = await apiFetch({ path: '/apprco/v1/stats' });
+            setStats(sRes);
+        } catch (e) {}
+    };
 
-	/**
-	 * Handle manual sync
-	 */
-	const handleManualSync = async () => {
-		setSyncing(true);
-		setError(null);
+    const runTask = async (id) => {
+        setRunningTaskId(id);
+        setLastImportId(null);
+        try {
+            const res = await apiFetch({ path: `/apprco/v1/tasks/${id}/run`, method: 'POST' });
+            if (res.import_id) setLastImportId(res.import_id);
+            loadData();
+        } catch (e) {
+        } finally {
+            setRunningTaskId(null);
+        }
+    };
 
-		try {
-			const response = await apiFetch({
-				path: '/apprco/v1/import/manual',
-				method: 'POST',
-			});
+    const handleTaskSaved = () => {
+        setEditingTaskId(null);
+        setIsCreating(false);
+        loadData();
+    };
 
-			if (response.success) {
-				alert(
-					__('Import started successfully!', 'apprenticeship-connect') +
-						'\n' +
-						sprintf(
-							__('Fetched: %d, Created: %d, Updated: %d', 'apprenticeship-connect'),
-							response.fetched,
-							response.created,
-							response.updated
-						)
-				);
-				loadStats(); // Refresh stats
-			} else {
-				setError(response.error || __('Import failed', 'apprenticeship-connect'));
-			}
-		} catch (err) {
-			setError(err.message || __('Import request failed', 'apprenticeship-connect'));
-		} finally {
-			setSyncing(false);
-		}
-	};
+    if (loading) return <div style={{ padding: '40px', textAlign: 'center' }}><Spinner /></div>;
 
-	if (loading) {
-		return (
-			<div className="apprco-dashboard-loading">
-				<Spinner />
-				<Text>{__('Loading dashboard...', 'apprenticeship-connect')}</Text>
-			</div>
-		);
-	}
+    if (editingTaskId || isCreating) {
+        return (
+            <div style={{ padding: '20px' }}>
+                <TaskEditor
+                    taskId={editingTaskId}
+                    onSave={handleTaskSaved}
+                    onCancel={() => { setEditingTaskId(null); setIsCreating(false); }}
+                />
+            </div>
+        );
+    }
 
-	return (
-		<div className="apprco-dashboard">
-			<Flex justify="space-between" align="center" className="apprco-dashboard-header">
-				<FlexBlock>
-					<Heading level={1}>{__('Apprenticeship Connect Dashboard', 'apprenticeship-connect')}</Heading>
-					<Text variant="muted">
-						{__('Manage your apprenticeship vacancy imports and settings', 'apprenticeship-connect')}
-					</Text>
-				</FlexBlock>
-				<FlexItem>
-					<Button variant="primary" icon={cloudUpload} onClick={handleManualSync} isBusy={syncing} disabled={syncing}>
-						{syncing ? __('Syncing...', 'apprenticeship-connect') : __('Manual Sync', 'apprenticeship-connect')}
-					</Button>
-				</FlexItem>
-			</Flex>
+    return (
+        <div className="apprco-dashboard" style={{ padding: '20px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
+                <Heading level={1}>{__('Apprenticeship Connect Dashboard', 'apprenticeship-connect')}</Heading>
+                <Button variant="primary" onClick={() => setIsCreating(true)}>{__('Add New Import Task', 'apprenticeship-connect')}</Button>
+            </div>
 
-			{error && (
-				<Notice status="error" isDismissible onRemove={() => setError(null)}>
-					{error}
-				</Notice>
-			)}
+            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '30px' }}>
+                <div>
+                    <Heading level={2}>{__('Import Tasks', 'apprenticeship-connect')}</Heading>
+                    <div className="apprco-task-grid" style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '20px', marginTop: '15px' }}>
+                        {tasks.map(task => (
+                            <Card key={task.id}>
+                                <CardBody>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                        <div>
+                                            <Heading level={3} style={{ margin: '0 0 5px 0' }}>{task.name}</Heading>
+                                            <p style={{ margin: '0 0 15px 0', color: '#646970' }}>{task.description}</p>
+                                            <div style={{ display: 'flex', gap: '15px', fontSize: '12px' }}>
+                                                <span style={{ textTransform: 'capitalize' }}><strong>{__('Status:', 'apprenticeship-connect')}</strong> {task.status}</span>
+                                                <span><strong>{__('Frequency:', 'apprenticeship-connect')}</strong> {task.schedule_frequency}</span>
+                                                <span><strong>{__('Total Runs:', 'apprenticeship-connect')}</strong> {task.total_runs}</span>
+                                            </div>
+                                        </div>
+                                        <div style={{ display: 'flex', gap: '10px' }}>
+                                            <Button variant="secondary" onClick={() => setEditingTaskId(task.id)}>{__('Edit', 'apprenticeship-connect')}</Button>
+                                            <Button
+                                                variant="primary"
+                                                onClick={() => runTask(task.id)}
+                                                isBusy={runningTaskId === task.id}
+                                                disabled={runningTaskId !== null}
+                                            >
+                                                {__('Sync Now', 'apprenticeship-connect')}
+                                            </Button>
+                                        </div>
+                                    </div>
+                                </CardBody>
+                            </Card>
+                        ))}
+                        {tasks.length === 0 && (
+                            <Notice status="info" isDismissible={false}>{__('No import tasks configured. Click "Add New Import Task" to get started.', 'apprenticeship-connect')}</Notice>
+                        )}
+                    </div>
+                </div>
 
-			{/* Quick Actions */}
-			<QuickActions onSync={handleManualSync} syncing={syncing} />
+                <div>
+                    <Heading level={2}>{__('Resilience Monitor', 'apprenticeship-connect')}</Heading>
+                    <div style={{ marginTop: '15px' }}>
+                        <RateLimitInfo stats={stats?.resilience} />
 
-			{/* Stats Grid */}
-			<div className="apprco-stats-grid">
-				<StatsWidget
-					title={__('Total Vacancies', 'apprenticeship-connect')}
-					value={stats?.total_vacancies || 0}
-					icon={chartBar}
-					color="blue"
-				/>
-				<StatsWidget
-					title={__('Total Imports', 'apprenticeship-connect')}
-					value={stats?.total_imports || 0}
-					icon={download}
-					color="green"
-				/>
-				<StatsWidget
-					title={__('Last Import', 'apprenticeship-connect')}
-					value={stats?.last_import || __('Never', 'apprenticeship-connect')}
-					icon={cloudUpload}
-					color="purple"
-					isDate
-				/>
-				<StatsWidget
-					title={__('API Status', 'apprenticeship-connect')}
-					value={stats?.api_configured ? __('Configured', 'apprenticeship-connect') : __('Not Configured', 'apprenticeship-connect')}
-					icon={settings}
-					color={stats?.api_configured ? 'green' : 'red'}
-				/>
-			</div>
+                        <Card>
+                            <CardBody>
+                                <Heading level={4}>{__('System Health', 'apprenticeship-connect')}</Heading>
+                                <ul style={{ margin: '10px 0 0 0', padding: 0, listStyle: 'none' }}>
+                                    <li style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #f0f0f1' }}>
+                                        <span>{__('Log Entries', 'apprenticeship-connect')}</span>
+                                        <strong>{stats?.total_logs || 0}</strong>
+                                    </li>
+                                    <li style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #f0f0f1' }}>
+                                        <span>{__('Import Runs', 'apprenticeship-connect')}</span>
+                                        <strong>{stats?.total_runs || 0}</strong>
+                                    </li>
+                                    <li style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0' }}>
+                                        <span>{__('API Version', 'apprenticeship-connect')}</span>
+                                        <strong>v2</strong>
+                                    </li>
+                                </ul>
+                            </CardBody>
+                        </Card>
+                    </div>
+                </div>
+            </div>
 
-			{/* API Status Check */}
-			<APIStatus />
-
-			{/* Recent Imports */}
-			<RecentImports />
-
-			{/* Help & Documentation */}
-			<Card>
-				<CardHeader>
-					<Heading level={2}>{__('Getting Started', 'apprenticeship-connect')}</Heading>
-				</CardHeader>
-				<CardBody>
-					<ol>
-						<li>
-							{__('Configure your API credentials in', 'apprenticeship-connect')}{' '}
-							<a href="/wp-admin/admin.php?page=apprco-settings">{__('Settings', 'apprenticeship-connect')}</a>
-						</li>
-						<li>{__('Click "Manual Sync" to import vacancies', 'apprenticeship-connect')}</li>
-						<li>
-							{__('Set up scheduled imports in', 'apprenticeship-connect')}{' '}
-							<a href="/wp-admin/admin.php?page=apprco-import-tasks">{__('Import Tasks', 'apprenticeship-connect')}</a>
-						</li>
-						<li>
-							{__('View imported vacancies on', 'apprenticeship-connect')}{' '}
-							<a href="/wp-admin/edit.php?post_type=apprco_vacancy">{__('Vacancies page', 'apprenticeship-connect')}</a>
-						</li>
-					</ol>
-				</CardBody>
-			</Card>
-		</div>
-	);
+            {lastImportId && (
+                <div style={{ marginTop: '40px' }}>
+                    <Heading level={2}>{__('Real-Time Deep-Fetch Log', 'apprenticeship-connect')}</Heading>
+                    <div style={{ marginTop: '15px' }}>
+                        <FancyLogViewer importId={lastImportId} active={true} />
+                    </div>
+                </div>
+            )}
+        </div>
+    );
 };
 
 export default Dashboard;

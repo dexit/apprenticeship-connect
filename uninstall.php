@@ -1,52 +1,28 @@
 <?php
 /**
- * Uninstall file for Apprenticeship Connect
- *
- * This file is executed when the plugin is deleted from WordPress.
- * It removes all plugin data from the database.
+ * Uninstall File
  *
  * @package ApprenticeshipConnect
- * @version 1.2.0
  */
 
-// Exit if accessed directly
 if ( ! defined( 'WP_UNINSTALL_PLUGIN' ) ) {
-    exit;
+	die;
 }
 
-// Delete plugin options
-delete_option( 'apprco_plugin_options' );
+// Options
 delete_option( 'apprco_settings' );
-delete_option( 'apprco_settings_migrated' );
-delete_option( 'apprco_last_sync' );
-delete_option( 'apprco_setup_completed' );
-delete_option( 'apprco_plugin_activated' );
-delete_option( 'apprco_vacancy_page_id' );
 delete_option( 'apprco_db_version' );
-delete_option( 'apprco_sync_scheduled' );
+delete_option( 'apprco_last_api_stats' );
 
-// Clear all transients
+// Database tables
 global $wpdb;
-$wpdb->query( "DELETE FROM {$wpdb->options} WHERE option_name LIKE '_transient_apprco_%' OR option_name LIKE '_transient_timeout_apprco_%'" );
+$tables = array(
+    'apprco_import_tasks',
+    'apprco_import_logs',
+    'apprco_import_runs',
+    'apprco_employers'
+);
 
-// Drop custom tables
-require_once plugin_dir_path( __FILE__ ) . 'includes/class-apprco-import-logger.php';
-Apprco_Import_Logger::drop_table();
-
-// Delete all vacancy posts
-$vacancies = get_posts( array(
-    'post_type'      => 'apprco_vacancy',
-    'post_status'    => 'any',
-    'numberposts'    => -1,
-    'fields'         => 'ids',
-) );
-
-foreach ( $vacancies as $vacancy_id ) {
-    wp_delete_post( $vacancy_id, true );
+foreach ( $tables as $table ) {
+    $wpdb->query( "DROP TABLE IF EXISTS {$wpdb->prefix}$table" );
 }
-
-// Clear any scheduled cron events
-wp_clear_scheduled_hook( 'apprco_daily_fetch_vacancies' );
-
-// Flush rewrite rules
-flush_rewrite_rules();
