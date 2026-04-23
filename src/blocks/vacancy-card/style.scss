@@ -1,0 +1,161 @@
+/**
+ * Vacancy Card block – frontend styles.
+ *
+ * Compiled to build/blocks/vacancy-card/style-index.css by wp-scripts.
+ * Loaded on both the frontend and in the editor.
+ */
+
+// ── Card wrapper ───────────────────────────────────────────────────────────
+
+.appcon-vacancy-card {
+	display: flex;
+	flex-direction: column;
+	gap: 0.75rem;
+	padding: 1.25rem;
+	background: #fff;
+	border: 1px solid #dcdcde;
+	border-radius: 4px;
+	transition: box-shadow 0.2s ease;
+
+	&:hover {
+		box-shadow: 0 2px 8px rgba( 0, 0, 0, 0.08 );
+	}
+
+	&--expired {
+		opacity: 0.75;
+		border-color: #c3c4c7;
+
+		.appcon-vacancy-card__title a {
+			color: #646970;
+		}
+	}
+}
+
+// ── Header ─────────────────────────────────────────────────────────────────
+
+.appcon-vacancy-card__header {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 0.5rem;
+}
+
+.appcon-vacancy-card__title {
+	margin: 0;
+	font-size: 1.1rem;
+	font-weight: 600;
+	line-height: 1.4;
+
+	a {
+		color: #2271b1;
+		text-decoration: none;
+
+		&:hover {
+			text-decoration: underline;
+		}
+	}
+}
+
+// ── Badges ─────────────────────────────────────────────────────────────────
+
+.appcon-badge {
+	display: inline-block;
+	flex-shrink: 0;
+	padding: 0.2em 0.55em;
+	font-size: 0.75rem;
+	font-weight: 600;
+	border-radius: 3px;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+
+	&--expired {
+		background: #f0f0f1;
+		color: #50575e;
+	}
+
+	&--expiring {
+		background: #fcf9e8;
+		color: #9a6700;
+		border: 1px solid #f0d680;
+	}
+}
+
+// ── Meta ───────────────────────────────────────────────────────────────────
+
+.appcon-vacancy-card__meta {
+	margin: 0;
+	display: grid;
+	grid-template-columns: 1fr;
+	gap: 0.25rem;
+
+	@media ( min-width: 480px ) {
+		grid-template-columns: 1fr 1fr;
+	}
+}
+
+.appcon-vacancy-card__meta-item {
+	display: flex;
+	flex-direction: column;
+	gap: 0.1rem;
+
+	dt {
+		font-size: 0.75rem;
+		font-weight: 600;
+		color: #50575e;
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+	}
+
+	dd {
+		margin: 0;
+		font-size: 0.9rem;
+		color: #1d2327;
+	}
+}
+
+// ── Expiry soon indicator ──────────────────────────────────────────────────
+
+.appcon-expiry-soon {
+	font-size: 0.8em;
+	color: #9a6700;
+	font-weight: 600;
+}
+
+// ── Excerpt ────────────────────────────────────────────────────────────────
+
+.appcon-vacancy-card__excerpt {
+	font-size: 0.9rem;
+	line-height: 1.6;
+	color: #3c434a;
+}
+
+// ── Footer / CTA ───────────────────────────────────────────────────────────
+
+.appcon-vacancy-card__footer {
+	margin-block-start: auto;
+}
+
+.appcon-btn {
+	display: inline-flex;
+	align-items: center;
+	padding: 0.45rem 1rem;
+	border-radius: 4px;
+	font-size: 0.9rem;
+	font-weight: 600;
+	text-decoration: none;
+	cursor: pointer;
+	transition: background 0.15s ease;
+
+	&--primary {
+		background: #2271b1;
+		color: #fff;
+		border: 1px solid #2271b1;
+
+		&:hover,
+		&:focus {
+			background: #135e96;
+			border-color: #135e96;
+			color: #fff;
+		}
+	}
+}

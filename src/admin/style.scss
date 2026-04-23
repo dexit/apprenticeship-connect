@@ -1,4 +1,38 @@
 /**
+<<<<<<< HEAD
+=======
+ * Apprenticeship Connector Admin Styles
+ * @package ApprenticeshipConnector
+ */
+
+/* Stats */
+.appcon-stats { display: flex; gap: 16px; margin: 16px 0 24px; flex-wrap: wrap; }
+.appcon-stat-card { background: #fff; border: 1px solid #c3c4c7; border-radius: 4px; padding: 16px 24px; min-width: 140px; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.appcon-stat-number { font-size: 2rem; font-weight: 700; color: #1d2327; }
+.appcon-stat-label  { font-size: 0.8rem; color: #646970; text-align: center; }
+.appcon-status--completed { background: #d1fae5; color: #065f46; }
+.appcon-status--running   { background: #dbeafe; color: #1e40af; }
+.appcon-status--failed    { background: #fee2e2; color: #991b1b; }
+.appcon-status--queued    { background: #f3f4f6; color: #374151; }
+/* Field Mapper */
+.appcon-field-mapper { background: #fff; border: 1px solid #c3c4c7; border-radius: 4px; padding: 16px; }
+.mapper-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+.tree-key { cursor: pointer; color: #2271b1; font-family: monospace; }
+.badge { display: inline-block; font-size: .7rem; padding: 1px 6px; border-radius: 3px; margin-left: 6px; background: #dbeafe; color: #1e40af; }
+.badge-array { background: #fef3c7; color: #92400e; }
+.mapping-row { display: grid; grid-template-columns: 160px 1fr auto; gap: 8px; margin-bottom: 8px; }
+/* Progress */
+.appcon-progress { background: #e5e7eb; border-radius: 4px; height: 8px; overflow: hidden; }
+.appcon-progress__bar { height: 100%; background: #2271b1; transition: width .3s; }
+/* Log terminal */
+.appcon-logs-terminal { font-family: monospace; font-size: .82rem; max-height: 400px; overflow-y: auto; background: #1d2327; color: #e5e7eb; padding: 12px; border-radius: 4px; }
+.log-line--error,.log-line--critical { color: #fca5a5; }
+.log-line--warning { color: #fcd34d; }
+.log-line--info    { color: #93c5fd; }
+.log-line--debug,.log-line--trace { color: #9ca3af; }
+
+/**
+>>>>>>> origin/main
  * Apprenticeship Connect Admin Styles
  *
  * Modern SCSS implementation

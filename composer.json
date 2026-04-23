@@ -13,8 +13,8 @@
   "homepage": "https://github.com/dexit/apprenticeship-connect",
   "authors": [
     {
-      "name": "Your Name",
-      "email": "your-email@example.com"
+      "name": "Jules",
+      "email": "jules@example.com"
     }
   ],
   "support": {
@@ -22,7 +22,7 @@
     "source": "https://github.com/dexit/apprenticeship-connect"
   },
   "require": {
-    "php": ">=7.4",
+    "php": ">=8.2",
     "composer/installers": "^2.0",
     "woocommerce/action-scheduler": "^3.9"
   },
@@ -38,15 +38,7 @@
   "autoload": {
     "classmap": [
       "includes/"
-    ],
-    "files": [
-      "apprenticeship-connect.php"
     ]
-  },
-  "autoload-dev": {
-    "psr-4": {
-      "ApprCo\\Tests\\": "tests/"
-    }
   },
   "scripts": {
     "lint": [
@@ -57,9 +49,6 @@
     ],
     "test": [
       "phpunit"
-    ],
-    "test:coverage": [
-      "phpunit --coverage-html coverage"
     ]
   },
   "config": {
@@ -70,7 +59,7 @@
     "optimize-autoloader": true,
     "sort-packages": true,
     "platform": {
-      "php": "7.4"
+      "php": "8.2"
     }
   }
 }

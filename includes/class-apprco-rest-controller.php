@@ -78,10 +78,7 @@ class Apprco_REST_Controller {
     public function get_stats(): WP_REST_Response {
         $logger = Apprco_Import_Logger::get_instance();
         $stats = $logger->get_stats();
-
-        // Add Resilience Stats from last client run if available
         $stats['resilience'] = get_transient('apprco_last_api_stats') ?: array();
-
         return new WP_REST_Response( $stats, 200 );
     }
 
@@ -124,15 +121,10 @@ class Apprco_REST_Controller {
         $data = $request->get_json_params();
         $client = new Apprco_API_Client( $data['api_base_url'] );
         $client->set_default_headers( $data['api_headers'] ?? array() );
-
         $params = $data['api_params'] ?? array();
         $params[ $data['page_param'] ] = 1;
-
         $res = $client->get( $data['api_endpoint'], $params );
-
-        // Store resilience stats for UI
         set_transient('apprco_last_api_stats', $client->get_stats(), 300);
-
         return new WP_REST_Response( $res, 200 );
     }
 
@@ -142,5 +134,3 @@ class Apprco_REST_Controller {
         return new WP_REST_Response( array( 'logs' => $logs ), 200 );
     }
 }
-
-add_action( 'rest_api_init', array( Apprco_REST_Controller::get_instance(), 'register_routes' ) );

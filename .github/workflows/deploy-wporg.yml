@@ -1,0 +1,131 @@
+name: Deploy to WordPress.org
+
+# Triggers when a GitHub Release is published (not draft/pre-release).
+# This is intentionally separate from the release.yml build workflow so you
+# can test the build without deploying, and only deploy stable releases.
+#
+# ── Required GitHub Secrets ────────────────────────────────────────────────
+#
+#   WORDPRESS_USERNAME   Your WordPress.org contributor username
+#                        (must match the "Contributors:" line in readme.txt)
+#
+#   WORDPRESS_PASSWORD   Your WordPress.org SVN password
+#                        (distinct from your WP.org account password –
+#                         generate at https://profiles.wordpress.org/<user>/profile/edit/)
+#
+# ── Optional GitHub Variables ──────────────────────────────────────────────
+#
+#   WPORG_SLUG           Plugin slug on WordPress.org
+#                        Defaults to "apprenticeship-connector"
+#
+# ── How it works ───────────────────────────────────────────────────────────
+#
+#  1. Checks out the tag that was just released.
+#  2. Installs PHP (prod only) and Node dependencies, runs the production build.
+#  3. Uses 10up/action-wordpress-plugin-deploy to:
+#       a) Create/update the SVN trunk from the built plugin files
+#          (respecting .distignore).
+#       b) Copy trunk → tags/<version> in the SVN repository.
+#       c) Optionally copy assets/ to the SVN assets directory
+#          (for banner, icon, and screenshot images).
+
+on:
+  release:
+    types: [ published ]   # Only on final (non-draft, non-pre-release) publishes
+
+jobs:
+
+  # ── Guard: skip pre-releases ───────────────────────────────────────────────
+  deploy:
+    name: SVN deploy → WordPress.org
+    runs-on: ubuntu-latest
+    if: ${{ !github.event.release.prerelease && !github.event.release.draft }}
+
+    steps:
+      - name: Checkout release tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name }}
+
+      # ── PHP (production deps) ──────────────────────────────────────────────
+      - name: Setup PHP 8.2
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: mbstring, json, zip
+          tools: composer:v2
+          coverage: none
+
+      - name: Install Composer (no-dev)
+        run: composer install --no-dev --optimize-autoloader --no-interaction
+
+      # ── Node (production build) ────────────────────────────────────────────
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install Node dependencies
+        run: npm ci --prefer-offline --no-audit
+
+      - name: Build JS/CSS (production)
+        run: NODE_ENV=production npm run build
+
+      # ── Verify build before deploying ─────────────────────────────────────
+      - name: Verify required build artefacts
+        run: |
+          for f in \
+            build/admin/index.js \
+            build/admin/index.asset.php \
+            build/blocks/vacancy-listing/index.js \
+            build/blocks/vacancy-card/index.js \
+            vendor/autoload.php; do
+            [[ -f "$f" ]] && echo "✓ $f" || { echo "::error::Missing artefact: $f"; exit 1; }
+          done
+
+      # ── Sync readme.txt Stable tag ─────────────────────────────────────────
+      # Automatically update the Stable tag in readme.txt to match the release tag
+      # if they are out of sync (e.g. a patch release after manual bump).
+      - name: Sync readme.txt Stable tag to release version
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          CURRENT=$(grep -m1 "^Stable tag:" readme.txt | awk '{print $NF}' | tr -d '[:space:]')
+          if [[ "$CURRENT" != "$TAG" ]]; then
+            echo "Updating readme.txt Stable tag: ${CURRENT} → ${TAG}"
+            sed -i "s/^Stable tag:.*/Stable tag:        ${TAG}/" readme.txt
+          else
+            echo "✓ Stable tag already ${TAG}"
+          fi
+
+      # ── Deploy to SVN ──────────────────────────────────────────────────────
+      - name: Deploy to WordPress.org SVN
+        uses: 10up/action-wordpress-plugin-deploy@stable
+        with:
+          # Tag name to create in SVN (defaults to the git tag without 'v' prefix)
+          slug:         ${{ vars.WPORG_SLUG || 'apprenticeship-connector' }}
+          # Copy assets/ directory to the SVN assets directory
+          # (banner-1544x500.png, icon-256x256.png, screenshot-*.png, etc.)
+          assets-dir:   assets
+          # Dry-run mode: set to 'true' to skip the actual SVN commit
+          dry-run:      false
+        env:
+          WORDPRESS_USERNAME: ${{ secrets.WORDPRESS_USERNAME }}
+          WORDPRESS_PASSWORD: ${{ secrets.WORDPRESS_PASSWORD }}
+          # The deploy action uses these to access the SVN repository
+          SVN_USERNAME:       ${{ secrets.WORDPRESS_USERNAME }}
+          SVN_PASSWORD:       ${{ secrets.WORDPRESS_PASSWORD }}
+
+      # ── Announce deployment ────────────────────────────────────────────────
+      - name: Summary
+        if: success()
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo "## ✅ WordPress.org Deployment Complete" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Field | Value |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|-------|-------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Plugin slug | \`${{ vars.WPORG_SLUG || 'apprenticeship-connector' }}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Version | \`${VERSION}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| WP.org URL | https://wordpress.org/plugins/${{ vars.WPORG_SLUG || 'apprenticeship-connector' }}/ |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| SVN tag | https://plugins.svn.wordpress.org/${{ vars.WPORG_SLUG || 'apprenticeship-connector' }}/tags/${VERSION}/ |" >> "$GITHUB_STEP_SUMMARY"

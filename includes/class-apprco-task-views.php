@@ -1,10 +1,14 @@
 <?php
 /**
- * Task Views Helper - For advanced PHP-rendered components
+ * Task Views Helper
+ *
+ * @package ApprenticeshipConnect
  */
 
-if ( ! defined( 'ABSPATH' ) ) die;
+if ( ! defined( 'ABSPATH' ) ) {
+	die;
+}
 
 class Apprco_Task_Views {
-    // Kept for backward compatibility or potential future hybrid rendering
+	// This class is a placeholder for hybrid rendering logic if needed.
 }

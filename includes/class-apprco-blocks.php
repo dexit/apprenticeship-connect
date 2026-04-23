@@ -30,6 +30,10 @@ class Apprco_Blocks {
 				'limit' => array( 'type' => 'number', 'default' => 5 ),
 			),
 		) );
+
+        register_block_type( 'apprco/vacancy-search', array(
+            'render_callback' => array( $this, 'render_vacancy_search' ),
+        ) );
 	}
 
 	public function render_vacancy_list( $attributes ): string {
@@ -65,4 +69,8 @@ class Apprco_Blocks {
 		wp_reset_postdata();
 		return ob_get_clean();
 	}
+
+    public function render_vacancy_search(): string {
+        return '<div id="apprco-search-root" class="apprco-search-block"></div>';
+    }
 }

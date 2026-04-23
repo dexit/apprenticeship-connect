@@ -25,20 +25,6 @@ spl_autoload_register( function ( $class ) {
         require_once $file;
         return;
     }
-
-    // Check providers subfolder
-    $file = APPRCO_PLUGIN_DIR . 'includes/providers/class-' . str_replace( '_', '-', strtolower( $class ) ) . '.php';
-    if ( file_exists( $file ) ) {
-        require_once $file;
-        return;
-    }
-
-    // Abstract classes/interfaces
-    $file = APPRCO_PLUGIN_DIR . 'includes/providers/abstract-' . str_replace( '_', '-', strtolower( $class ) ) . '.php';
-    if ( file_exists( $file ) ) {
-        require_once $file;
-        return;
-    }
 } );
 
 /**
@@ -103,11 +89,4 @@ add_action( 'wp_enqueue_scripts', function() {
         wp_enqueue_script( 'apprco-frontend', APPRCO_PLUGIN_URL . 'assets/build/frontend.js', $asset['dependencies'], APPRCO_VERSION, true );
         wp_enqueue_style( 'apprco-frontend-style', APPRCO_PLUGIN_URL . 'assets/build/style-frontend-style.css', array(), APPRCO_VERSION );
     }
-} );
-
-/**
- * Vacancy Search Shortcode
- */
-add_shortcode( 'apprco_search', function() {
-    return '<div id="apprco-search-root"></div>';
 } );
