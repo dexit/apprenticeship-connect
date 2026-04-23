@@ -119,6 +119,15 @@ class ImportJobsController extends WP_REST_Controller {
 				'permission_callback' => [ $this, 'admin_permissions_check' ],
 			],
 		] );
+
+		// Aggregate dashboard stats (vacancy counts, job counts, last run).
+		register_rest_route( $this->namespace, '/stats', [
+			[
+				'methods'             => \WP_REST_Server::READABLE,
+				'callback'            => [ $this, 'get_dashboard_stats' ],
+				'permission_callback' => [ $this, 'admin_permissions_check' ],
+			],
+		] );
 	}
 
 	// ── Handlers ──────────────────────────────────────────────────────────
@@ -291,6 +300,71 @@ class ImportJobsController extends WP_REST_Controller {
 	public function get_expiry_stats( WP_REST_Request $request ): WP_REST_Response|WP_Error {
 		$expiry = new ExpiryManager();
 		return rest_ensure_response( $expiry->get_stats() );
+	}
+
+	/** Aggregate dashboard stats: vacancy counts, job totals, last run summary. */
+	public function get_dashboard_stats( $request ): WP_REST_Response|WP_Error {
+		global $wpdb;
+
+		$post_counts = wp_count_posts( 'appcon_vacancy' );
+		$published   = (int) ( $post_counts->publish ?? 0 );
+		$draft       = (int) ( $post_counts->draft   ?? 0 );
+
+		$today      = gmdate( 'Y-m-d' );
+		$seven_days = gmdate( 'Y-m-d', strtotime( '+7 days' ) );
+
+		$expiring_7d = (int) $wpdb->get_var( $wpdb->prepare(
+			"SELECT COUNT(*)
+			   FROM {$wpdb->postmeta} pm
+			   JOIN {$wpdb->posts} p ON p.ID = pm.post_id
+			  WHERE pm.meta_key   = '_appcon_closing_date'
+			    AND pm.meta_value BETWEEN %s AND %s
+			    AND p.post_status = 'publish'
+			    AND p.post_type   = 'appcon_vacancy'",
+			$today,
+			$seven_days
+		) );
+
+		$expired_total = (int) $wpdb->get_var(
+			"SELECT COUNT(*) FROM {$wpdb->postmeta}
+			  WHERE meta_key = '_appcon_expired' AND meta_value = '1'"
+		);
+
+		$jobs_table  = Database::get_jobs_table();
+		$runs_table  = Database::get_runs_table();
+		$total_jobs  = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$jobs_table}" );
+		$active_jobs = (int) $wpdb->get_var(
+			"SELECT COUNT(*) FROM {$jobs_table} WHERE status = 'active'"
+		);
+
+		$last_run = $wpdb->get_row(
+			"SELECT r.run_id, r.status, r.completed_at,
+			        r.stage1_total, r.stage2_processed, r.stage2_failed,
+			        j.name AS job_name
+			   FROM {$runs_table} r
+			   LEFT JOIN {$jobs_table} j ON j.id = r.job_id
+			  ORDER BY r.created_at DESC
+			  LIMIT 1",
+			ARRAY_A
+		);
+
+		$settings    = get_option( 'appcon_settings', [] );
+		$api_key_set = ! empty( $settings['api_key'] );
+
+		return rest_ensure_response( [
+			'vacancies'   => [
+				'published'   => $published,
+				'draft'       => $draft,
+				'expiring_7d' => $expiring_7d,
+				'expired'     => $expired_total,
+			],
+			'jobs'        => [
+				'total'  => $total_jobs,
+				'active' => $active_jobs,
+			],
+			'last_run'    => $last_run,
+			'api_key_set' => $api_key_set,
+		] );
 	}
 
 	// ── Permissions ────────────────────────────────────────────────────────

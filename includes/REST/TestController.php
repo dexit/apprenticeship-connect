@@ -29,6 +29,15 @@ class TestController extends WP_REST_Controller {
 				'permission_callback' => fn() => current_user_can( 'manage_options' ),
 			],
 		] );
+
+		// No-job-id connectivity ping – used by the dashboard API status widget.
+		register_rest_route( $this->namespace, '/' . $this->rest_base . '/connectivity', [
+			[
+				'methods'             => \WP_REST_Server::CREATABLE,
+				'callback'            => [ $this, 'test_connectivity' ],
+				'permission_callback' => fn() => current_user_can( 'manage_options' ),
+			],
+		] );
 	}
 
 	/**
@@ -86,5 +95,60 @@ class TestController extends WP_REST_Controller {
 		}
 
 		return rest_ensure_response( $result );
+	}
+
+	/**
+	 * Quick connectivity test using the globally stored API settings.
+	 * No job_id required – called by the dashboard API Status widget.
+	 *
+	 * POST /wp-json/appcon/v1/test/connectivity
+	 */
+	public function test_connectivity( WP_REST_Request $request ): WP_REST_Response|WP_Error {
+		$settings = get_option( 'appcon_settings', [] );
+		$api_key  = $settings['api_key']      ?? '';
+		$base_url = $settings['api_base_url'] ?? '';
+
+		if ( empty( $api_key ) ) {
+			return rest_ensure_response( [
+				'success' => false,
+				'stage'   => 'config',
+				'error'   => __( 'No API key configured. Visit Settings → API to add your key.', 'apprenticeship-connector' ),
+			] );
+		}
+
+		if ( empty( $base_url ) ) {
+			return rest_ensure_response( [
+				'success' => false,
+				'stage'   => 'config',
+				'error'   => __( 'No API base URL configured.', 'apprenticeship-connector' ),
+			] );
+		}
+
+		$api = new \ApprenticeshipConnector\API\DisplayAdvertAPI(
+			$base_url,
+			$api_key,
+			[
+				'rate_limit_ms'   => (int) ( $settings['rate_limit_ms']   ?? 2000 ),
+				'stage2_delay_ms' => (int) ( $settings['stage2_delay_ms'] ?? 2000 ),
+			]
+		);
+
+		$response = $api->getVacancies( [ 'PageNumber' => 1, 'PageSize' => 1 ] );
+
+		if ( ! $response['success'] ) {
+			return rest_ensure_response( [
+				'success' => false,
+				'stage'   => 'api',
+				'error'   => $response['error'] ?? __( 'API request failed.', 'apprenticeship-connector' ),
+				'status'  => $response['status'] ?? null,
+			] );
+		}
+
+		return rest_ensure_response( [
+			'success' => true,
+			'total'   => $response['data']['total'] ?? 0,
+			/* translators: %d: vacancy count returned by API */
+			'message' => sprintf( __( 'Connected. API reports %d vacancies.', 'apprenticeship-connector' ), $response['data']['total'] ?? 0 ),
+		] );
 	}
 }

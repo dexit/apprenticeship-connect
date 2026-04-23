@@ -1,52 +1,64 @@
 /**
- * Quick Actions Component
- *
- * Provides quick action buttons for common tasks.
- *
- * @package ApprenticeshipConnect
+ * QuickActions – navigation shortcuts for common admin tasks.
  */
-
-import { Button, Card, CardBody, CardHeader, Flex, __experimentalHeading as Heading } from '@wordpress/components';
+import { Button } from '@wordpress/components';
 import { __ } from '@wordpress/i18n';
-import { cloudUpload, cog, list, chartBar, download } from '@wordpress/icons';
+import { upload, settings, list, download, update } from '@wordpress/icons';
 
 /**
- * QuickActions Component
- *
- * @param {Object} props         Component props.
- * @param {Function} props.onSync Manual sync handler.
- * @param {boolean} props.syncing Whether sync is in progress.
+ * @param {Object}   props
+ * @param {Function} props.onRunExpiry   Trigger expiry check.
+ * @param {boolean}  props.expiryRunning Whether expiry check is in progress.
  */
-const QuickActions = ({ onSync, syncing }) => {
+const QuickActions = ( { onRunExpiry, expiryRunning } ) => {
+	const base = 'admin.php?page=';
+
 	return (
-		<Card className="apprco-quick-actions">
-			<CardHeader>
-				<Heading level={2}>{__('Quick Actions', 'apprenticeship-connect')}</Heading>
-			</CardHeader>
-			<CardBody>
-				<Flex gap={3} wrap>
-					<Button variant="secondary" icon={cloudUpload} onClick={onSync} isBusy={syncing} disabled={syncing}>
-						{__('Manual Sync', 'apprenticeship-connect')}
-					</Button>
+		<div style={ { display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 12 } }>
+			<Button
+				variant="primary"
+				icon={ upload }
+				href={ base + 'appcon-import-jobs' }
+			>
+				{ __( 'Import Jobs', 'apprenticeship-connector' ) }
+			</Button>
 
-					<Button variant="secondary" icon={cog} href="/wp-admin/admin.php?page=apprco-settings">
-						{__('Settings', 'apprenticeship-connect')}
-					</Button>
+			<Button
+				variant="secondary"
+				icon={ settings }
+				href={ base + 'appcon-settings' }
+			>
+				{ __( 'Settings', 'apprenticeship-connector' ) }
+			</Button>
 
-					<Button variant="secondary" icon={list} href="/wp-admin/admin.php?page=apprco-import-tasks">
-						{__('Import Tasks', 'apprenticeship-connect')}
-					</Button>
+			<Button
+				variant="secondary"
+				icon={ list }
+				href={ 'edit.php?post_type=appcon_vacancy' }
+			>
+				{ __( 'All Vacancies', 'apprenticeship-connector' ) }
+			</Button>
 
-					<Button variant="secondary" icon={chartBar} href="/wp-admin/admin.php?page=apprco-logs">
-						{__('View Logs', 'apprenticeship-connect')}
-					</Button>
+			<Button
+				variant="secondary"
+				icon={ download }
+				href={ 'edit.php?post_type=appcon_employer' }
+			>
+				{ __( 'Employers', 'apprenticeship-connector' ) }
+			</Button>
 
-					<Button variant="secondary" icon={download} href="/wp-admin/edit.php?post_type=apprco_vacancy">
-						{__('All Vacancies', 'apprenticeship-connect')}
-					</Button>
-				</Flex>
-			</CardBody>
-		</Card>
+			<Button
+				variant="secondary"
+				icon={ update }
+				isBusy={ expiryRunning }
+				disabled={ expiryRunning }
+				onClick={ onRunExpiry }
+			>
+				{ expiryRunning
+					? __( 'Running…', 'apprenticeship-connector' )
+					: __( 'Run Expiry Check', 'apprenticeship-connector' ) }
+			</Button>
+		</div>
 	);
 };
 

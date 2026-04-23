@@ -1,36 +1,43 @@
 /**
- * Dashboard page – quick stats, expiry overview, and recent runs.
+ * DashboardPage – main admin overview panel.
  */
-import { useEffect, useState } from '@wordpress/element';
-import { Button, Notice } from '@wordpress/components';
+import { useEffect, useState, useCallback } from '@wordpress/element';
+import { __, sprintf } from '@wordpress/i18n';
+import { Notice } from '@wordpress/components';
 import apiFetch from '@wordpress/api-fetch';
 
+import StatsWidget   from '../StatsWidget';
+import QuickActions  from '../QuickActions';
+import RecentImports from '../RecentImports';
+import APIStatus     from '../APIStatus';
+
 export default function DashboardPage() {
-	const [ jobs, setJobs ]           = useState( [] );
-	const [ expiryStats, setExpiry ]  = useState( null );
-	const [ running, setRunning ]     = useState( false );
-	const [ notice, setNotice ]       = useState( null );
-	const [ loading, setLoading ]     = useState( true );
+	const [ stats, setStats ]     = useState( null );
+	const [ loading, setLoading ] = useState( true );
+	const [ running, setRunning ] = useState( false );
+	const [ notice, setNotice ]   = useState( null );
 
-	const loadData = () => {
-		Promise.all( [
-			apiFetch( { path: '/appcon/v1/import-jobs' } ),
-			apiFetch( { path: '/appcon/v1/expiry/stats' } ),
-		] ).then( ( [ j, e ] ) => {
-			setJobs( j ?? [] );
-			setExpiry( e );
-		} ).finally( () => setLoading( false ) );
-	};
+	const loadStats = useCallback( () => {
+		setLoading( true );
+		apiFetch( { path: '/appcon/v1/stats' } )
+			.then( ( data ) => setStats( data ) )
+			.catch( () => {} )
+			.finally( () => setLoading( false ) );
+	}, [] );
 
-	useEffect( loadData, [] );
+	useEffect( loadStats, [ loadStats ] );
 
 	const runExpiry = async () => {
 		setRunning( true );
 		setNotice( null );
 		try {
 			const res = await apiFetch( { path: '/appcon/v1/expiry/run', method: 'POST' } );
-			setNotice( { type: 'success', msg: `Expiry complete – ${ res.expired } vacancies set to draft.` } );
-			loadData();
+			setNotice( {
+				type: 'success',
+				/* translators: %d: number of vacancies expired */
+				msg:  sprintf( __( 'Expiry complete – %d vacancies moved to draft.', 'apprenticeship-connector' ), res.expired ?? 0 ),
+			} );
+			loadStats();
 		} catch ( e ) {
 			setNotice( { type: 'error', msg: e.message } );
 		} finally {
@@ -38,9 +45,8 @@ export default function DashboardPage() {
 		}
 	};
 
-	if ( loading ) return <p>Loading…</p>;
-
-	const activeJobs = jobs.filter( ( j ) => j.status === 'active' );
+	const v = stats?.vacancies ?? {};
+	const j = stats?.jobs      ?? {};
 
 	return (
 		<div className="appcon-dashboard-react">
@@ -50,47 +56,88 @@ export default function DashboardPage() {
 				</Notice>
 			) }
 
-			<div className="appcon-stats">
-				<div className="appcon-stat-card">
-					<span className="appcon-stat-number">{ jobs.length }</span>
-					<span className="appcon-stat-label">Import Jobs</span>
-				</div>
-				<div className="appcon-stat-card">
-					<span className="appcon-stat-number">{ activeJobs.length }</span>
-					<span className="appcon-stat-label">Active Jobs</span>
-				</div>
-				{ expiryStats && (
-					<>
-						<div className="appcon-stat-card">
-							<span className="appcon-stat-number" style={ { color: '#d97706' } }>
-								{ expiryStats.upcoming_7d }
-							</span>
-							<span className="appcon-stat-label">Expiring in 7 days</span>
-						</div>
-						<div className="appcon-stat-card">
-							<span className="appcon-stat-number" style={ { color: '#6b7280' } }>
-								{ expiryStats.total_expired_drafts }
-							</span>
-							<span className="appcon-stat-label">Expired (draft)</span>
-						</div>
-					</>
-				) }
-			</div>
-
-			<div style={ { display: 'flex', gap: 12, marginTop: 8 } }>
-				<a href="?page=appcon-import-jobs" className="button button-primary">
-					Manage Import Jobs
-				</a>
-				<Button variant="secondary" isBusy={ running } onClick={ runExpiry } disabled={ running }>
-					{ running ? 'Running…' : 'Run Expiry Check Now' }
-				</Button>
-			</div>
-
-			{ expiryStats?.expired_today > 0 && (
-				<Notice status="info" isDismissible={ false } style={ { marginTop: 16 } }>
-					{ expiryStats.expired_today } vacancies were expired today.
+			{ ! stats?.api_key_set && ! loading && (
+				<Notice status="warning" isDismissible={ false }>
+					{ __( 'No API key configured. ', 'apprenticeship-connector' ) }
+					<a href="admin.php?page=appcon-settings">
+						{ __( 'Go to Settings → API', 'apprenticeship-connector' ) }
+					</a>
 				</Notice>
 			) }
+
+			{ /* Stats grid */ }
+			<div style={ { display: 'flex', flexWrap: 'wrap', gap: 12, marginBottom: 20 } }>
+				<StatsWidget
+					label={ __( 'Published Vacancies', 'apprenticeship-connector' ) }
+					value={ loading ? undefined : v.published }
+					color="blue"
+					href="edit.php?post_type=appcon_vacancy&post_status=publish"
+					loading={ loading }
+				/>
+				<StatsWidget
+					label={ __( 'Draft Vacancies', 'apprenticeship-connector' ) }
+					value={ loading ? undefined : v.draft }
+					color="grey"
+					href="edit.php?post_type=appcon_vacancy&post_status=draft"
+					loading={ loading }
+				/>
+				<StatsWidget
+					label={ __( 'Expiring in 7 Days', 'apprenticeship-connector' ) }
+					value={ loading ? undefined : v.expiring_7d }
+					color="amber"
+					loading={ loading }
+				/>
+				<StatsWidget
+					label={ __( 'Expired Total', 'apprenticeship-connector' ) }
+					value={ loading ? undefined : v.expired }
+					color="red"
+					loading={ loading }
+				/>
+				<StatsWidget
+					label={ __( 'Import Jobs', 'apprenticeship-connector' ) }
+					value={ loading ? undefined : j.total }
+					color="grey"
+					href="admin.php?page=appcon-import-jobs"
+					loading={ loading }
+				/>
+				<StatsWidget
+					label={ __( 'Active Jobs', 'apprenticeship-connector' ) }
+					value={ loading ? undefined : j.active }
+					color="green"
+					href="admin.php?page=appcon-import-jobs"
+					loading={ loading }
+				/>
+			</div>
+
+			{ /* Quick action buttons */ }
+			<QuickActions onRunExpiry={ runExpiry } expiryRunning={ running } />
+
+			{ /* Last run summary */ }
+			{ stats?.last_run && (
+				<p style={ { color: '#6b7280', fontSize: 13, marginTop: 12 } }>
+					{ sprintf(
+						/* translators: 1: job name, 2: run status, 3: datetime */
+						__( 'Last run: %1$s — %2$s at %3$s', 'apprenticeship-connector' ),
+						stats.last_run.job_name ?? '—',
+						stats.last_run.status   ?? '—',
+						stats.last_run.completed_at
+							? new Date( stats.last_run.completed_at ).toLocaleString()
+							: '—'
+					) }
+				</p>
+			) }
+
+			{ /* Recent imports table */ }
+			<h3 style={ { marginTop: 24, marginBottom: 8, fontSize: 14, fontWeight: 600 } }>
+				{ __( 'Import Jobs', 'apprenticeship-connector' ) }
+			</h3>
+			<RecentImports />
+
+			{ /* API connectivity */ }
+			<h3 style={ { marginTop: 24, marginBottom: 8, fontSize: 14, fontWeight: 600 } }>
+				{ __( 'API Status', 'apprenticeship-connector' ) }
+			</h3>
+			<APIStatus />
 		</div>
 	);
 }
