@@ -1,0 +1,64 @@
+<?xml version="1.0"?>
+<ruleset name="Apprenticeship Connector">
+	<description>PHPCS ruleset for the Apprenticeship Connector plugin (PHP 8.2+, WP 6.4+).</description>
+
+	<!-- Scope -->
+	<file>apprenticeship-connector.php</file>
+	<file>uninstall.php</file>
+	<file>includes/</file>
+
+	<exclude-pattern>includes/archive/*</exclude-pattern>
+	<exclude-pattern>includes/class-apprco-*</exclude-pattern>
+	<exclude-pattern>includes/interfaces/*</exclude-pattern>
+	<exclude-pattern>includes/providers/*</exclude-pattern>
+	<exclude-pattern>includes/rest/class-apprco-*</exclude-pattern>
+	<exclude-pattern>vendor/*</exclude-pattern>
+	<exclude-pattern>node_modules/*</exclude-pattern>
+	<exclude-pattern>build/*</exclude-pattern>
+	<exclude-pattern>tests/*</exclude-pattern>
+
+	<arg value="ps"/>
+	<arg name="colors"/>
+	<arg name="extensions" value="php"/>
+	<arg name="parallel" value="8"/>
+
+	<rule ref="WordPress-Extra">
+		<exclude name="WordPress.Files.FileName"/>
+		<exclude name="Generic.Arrays.DisallowShortArraySyntax"/>
+		<exclude name="Universal.Arrays.DisallowShortArraySyntax"/>
+	</rule>
+
+	<rule ref="WordPress-Docs">
+		<exclude name="Squiz.Commenting.FileComment.Missing"/>
+		<exclude name="Squiz.Commenting.FileComment.MissingPackageTag"/>
+		<exclude name="Squiz.Commenting.FunctionComment.Missing"/>
+	</rule>
+
+	<rule ref="Generic.CodeAnalysis.UnusedFunctionParameter"/>
+	<rule ref="Generic.Commenting.Todo"/>
+
+	<config name="testVersion" value="8.2-"/>
+	<rule ref="PHPCompatibility">
+		<include-pattern>*\.php$</include-pattern>
+	</rule>
+
+	<config name="minimum_supported_wp_version" value="6.4"/>
+
+	<rule ref="WordPress.WP.I18n">
+		<properties>
+			<property name="text_domain" type="array">
+				<element value="apprenticeship-connector"/>
+			</property>
+		</properties>
+	</rule>
+
+	<rule ref="WordPress.NamingConventions.PrefixAllGlobals">
+		<properties>
+			<property name="prefixes" type="array">
+				<element value="appcon"/>
+				<element value="APPCON"/>
+				<element value="ApprenticeshipConnector"/>
+			</property>
+		</properties>
+	</rule>
+</ruleset>

@@ -1,0 +1,83 @@
+/**
+ * Settings Styles
+ *
+ * @package ApprenticeshipConnect
+ */
+
+.apprco-settings {
+	max-width: 1200px;
+	margin: 20px 0;
+
+	&-header {
+		margin-bottom: 24px;
+	}
+
+	&-loading {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		padding: 40px;
+	}
+
+	&-tabs {
+		.components-tab-panel__tabs {
+			border-bottom: 1px solid #dcdcde;
+			margin-bottom: 24px;
+		}
+
+		.components-button {
+			padding: 12px 16px;
+			border-bottom: 2px solid transparent;
+
+			&[aria-selected='true'] {
+				border-bottom-color: #2271b1;
+				font-weight: 600;
+			}
+		}
+	}
+
+	&-tab-content {
+		padding: 24px 0;
+	}
+
+	&-category {
+		&-header {
+			display: flex;
+			justify-content: space-between;
+			align-items: center;
+			margin-bottom: 16px;
+			padding-bottom: 16px;
+			border-bottom: 1px solid #dcdcde;
+
+			h3 {
+				margin: 0;
+				font-size: 18px;
+			}
+		}
+
+		.components-base-control {
+			margin-bottom: 24px;
+		}
+
+		.components-toggle-control {
+			.components-base-control__field {
+				display: flex;
+				align-items: center;
+			}
+
+			.components-toggle-control__label {
+				flex: 1;
+				font-weight: 600;
+			}
+		}
+	}
+
+	&-footer {
+		margin-top: 32px;
+		padding-top: 24px;
+		border-top: 1px solid #dcdcde;
+		display: flex;
+		gap: 12px;
+		align-items: center;
+	}
+}
