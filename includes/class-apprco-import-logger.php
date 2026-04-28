@@ -137,7 +137,7 @@ class Apprco_Import_Logger {
         $charset_collate = $wpdb->get_charset_collate();
 
         // Enhanced logs table with component column
-        $sql = "CREATE TABLE {$table_name} (
+        $sql = "CREATE TABLE IF NOT EXISTS {$table_name} (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
             import_id varchar(36) NOT NULL,
             log_level varchar(20) NOT NULL DEFAULT 'info',
@@ -149,7 +149,8 @@ class Apprco_Import_Logger {
             KEY import_id (import_id),
             KEY log_level (log_level),
             KEY component (component),
-            KEY created_at (created_at)
+            KEY created_at (created_at),
+            KEY level_component (log_level, component)
         ) {$charset_collate};";
 
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';
@@ -157,7 +158,7 @@ class Apprco_Import_Logger {
 
         // Create import runs table for tracking individual imports
         $runs_table = $wpdb->prefix . 'apprco_import_runs';
-        $sql_runs = "CREATE TABLE {$runs_table} (
+        $sql_runs = "CREATE TABLE IF NOT EXISTS {$runs_table} (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
             import_id varchar(36) NOT NULL,
             status varchar(20) NOT NULL DEFAULT 'running',
@@ -178,36 +179,84 @@ class Apprco_Import_Logger {
         ) {$charset_collate};";
 
         dbDelta( $sql_runs );
+
+        // Add component column if missing (for upgrades)
+        self::maybe_add_component_column();
     }
 
     /**
-     * Private constructor for singleton
+     * Add component column to existing table (for upgrades)
      */
-    private function __construct() {}
+    private static function maybe_add_component_column(): void {
+        global $wpdb;
+
+        $table = self::get_table_name();
+
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+        $column_exists = $wpdb->get_var(
+            $wpdb->prepare(
+                "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+                WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s AND COLUMN_NAME = 'component'",
+                DB_NAME,
+                $table
+            )
+        );
+
+        if ( ! $column_exists ) {
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.DirectDatabaseQuery.SchemaChange
+            $wpdb->query( "ALTER TABLE {$table} ADD COLUMN component varchar(50) NOT NULL DEFAULT 'system' AFTER log_level" );
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.DirectDatabaseQuery.SchemaChange
+            $wpdb->query( "ALTER TABLE {$table} ADD INDEX component (component)" );
+        }
+    }
+
+    /**
+     * Drop the logs table on plugin uninstall
+     */
+    public static function drop_table(): void {
+        global $wpdb;
+
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.DirectDatabaseQuery.SchemaChange
+        $wpdb->query( "DROP TABLE IF EXISTS {$wpdb->prefix}apprco_import_logs" );
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.DirectDatabaseQuery.SchemaChange
+        $wpdb->query( "DROP TABLE IF EXISTS {$wpdb->prefix}apprco_import_runs" );
+    }
+
+    /**
+     * Generate a unique import ID
+     *
+     * @return string
+     */
+    public function generate_import_id(): string {
+        return wp_generate_uuid4();
+    }
 
     /**
      * Start a new import run
      *
-     * @param string      $trigger_type Type of trigger (manual, scheduled, wizard).
-     * @param string|null $provider     Provider name.
-     * @return string Unique import ID.
+     * @param string $trigger_type Type of trigger (manual, cron, scheduler, wizard).
+     * @param string $provider     Optional. Provider identifier.
+     * @return string Import ID.
      */
-    public function start_import( string $trigger_type = 'manual', ?string $provider = null ): string {
+    public function start_import( string $trigger_type = 'manual', string $provider = '' ): string {
         global $wpdb;
 
-        $import_id = wp_generate_uuid4();
+        $import_id = $this->generate_import_id();
 
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
         $wpdb->insert(
             $wpdb->prefix . 'apprco_import_runs',
             array(
                 'import_id'    => $import_id,
                 'status'       => 'running',
-                'trigger_type' => $trigger_type,
-                'provider'     => $provider,
                 'started_at'   => current_time( 'mysql' ),
-            )
+                'trigger_type' => $trigger_type,
+                'provider'     => $provider ?: null,
+            ),
+            array( '%s', '%s', '%s', '%s', '%s' )
         );
+
+        $this->info( sprintf( 'Import started (trigger: %s, provider: %s)', $trigger_type, $provider ?: 'default' ), $import_id, 'core' );
 
         return $import_id;
     }
@@ -215,16 +264,25 @@ class Apprco_Import_Logger {
     /**
      * End an import run
      *
-     * @param string $import_id Unique import ID.
-     * @param int    $fetched   Total fetched.
-     * @param int    $created   Total created.
-     * @param int    $updated   Total updated.
-     * @param int    $deleted   Total deleted.
-     * @param int    $skipped   Total skipped.
-     * @param int    $errors    Total errors.
-     * @param string $status    Final status.
+     * @param string $import_id    Import ID.
+     * @param int    $total_fetched Total fetched count.
+     * @param int    $created      Created count.
+     * @param int    $updated      Updated count.
+     * @param int    $deleted      Deleted count.
+     * @param int    $skipped      Skipped count.
+     * @param int    $errors       Error count.
+     * @param string $status       Final status.
      */
-    public function end_import( string $import_id, int $fetched = 0, int $created = 0, int $updated = 0, int $deleted = 0, int $skipped = 0, int $errors = 0, string $status = 'completed' ): void {
+    public function end_import(
+        string $import_id,
+        int $total_fetched = 0,
+        int $created = 0,
+        int $updated = 0,
+        int $deleted = 0,
+        int $skipped = 0,
+        int $errors = 0,
+        string $status = 'completed'
+    ): void {
         global $wpdb;
 
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
@@ -233,58 +291,90 @@ class Apprco_Import_Logger {
             array(
                 'status'        => $status,
                 'completed_at'  => current_time( 'mysql' ),
-                'total_fetched' => $fetched,
+                'total_fetched' => $total_fetched,
                 'total_created' => $created,
                 'total_updated' => $updated,
                 'total_deleted' => $deleted,
                 'total_skipped' => $skipped,
                 'error_count'   => $errors,
             ),
-            array( 'import_id' => $import_id )
+            array( 'import_id' => $import_id ),
+            array( '%s', '%s', '%d', '%d', '%d', '%d', '%d', '%d' ),
+            array( '%s' )
+        );
+
+        $this->info(
+            sprintf(
+                'Import %s: fetched=%d, created=%d, updated=%d, deleted=%d, skipped=%d, errors=%d',
+                $status,
+                $total_fetched,
+                $created,
+                $updated,
+                $deleted,
+                $skipped,
+                $errors
+            ),
+            $import_id,
+            'core'
         );
     }
 
     /**
-     * Add a log entry
+     * Main log method
      *
      * @param string      $level     Log level.
      * @param string      $message   Log message.
-     * @param string|null $import_id Optional. Import ID.
-     * @param string      $component Optional. Component.
-     * @param array       $context   Optional. Context.
+     * @param string|null $import_id Optional. Import ID for association.
+     * @param string      $component Optional. Component name.
+     * @param array       $context   Optional. Additional context data.
      */
     public function log( string $level, string $message, ?string $import_id = null, string $component = 'system', array $context = array() ): void {
+        global $wpdb;
+
+        // Validate level
+        if ( ! isset( self::LOG_LEVELS[ $level ] ) ) {
+            $level = 'info';
+        }
+
+        // Check if we should log this level
         if ( ! $this->should_log( $level ) ) {
             return;
         }
 
-        global $wpdb;
+        // Validate component
+        if ( ! in_array( $component, self::COMPONENTS, true ) ) {
+            $component = 'system';
+        }
 
-        $data = array(
-            'import_id'  => $import_id ?: 'system',
-            'log_level'  => $level,
-            'component'  => $component,
-            'message'    => $message,
-            'context'    => ! empty( $context ) ? wp_json_encode( $context ) : null,
-            'created_at' => current_time( 'mysql' ),
+        $import_id = $import_id ?? 'system';
+
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
+        $wpdb->insert(
+            self::get_table_name(),
+            array(
+                'import_id'  => $import_id,
+                'log_level'  => $level,
+                'component'  => $component,
+                'message'    => $message,
+                'context'    => ! empty( $context ) ? wp_json_encode( $context ) : null,
+                'created_at' => current_time( 'mysql' ),
+            ),
+            array( '%s', '%s', '%s', '%s', '%s', '%s' )
         );
 
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
-        $wpdb->insert( self::get_table_name(), $data );
-
-        // Optional: Also log to error_log in debug mode
-        $settings_manager = Apprco_Settings_Manager::get_instance();
-        if ( $settings_manager->get( 'advanced', 'debug_mode' ) ) {
-            error_log( sprintf( '[Apprco][%s][%s] %s', strtoupper( $level ), $component, $message ) );
+        // Also log to error_log for debugging (always for error and above, or when WP_DEBUG)
+        $should_error_log = ( defined( 'WP_DEBUG' ) && WP_DEBUG ) || self::LOG_LEVELS[ $level ] >= self::LOG_LEVELS['error'];
+        if ( $should_error_log ) {
+            error_log( sprintf( '[Apprco][%s][%s][%s] %s', strtoupper( $level ), $component, $import_id, $message ) );
         }
     }
 
-    /**
-     * Convenience methods for logging
-     */
+    // ==========================================
+    // Convenience methods for each log level
+    // ==========================================
 
     /**
-     * Log trace message
+     * Log trace message (most verbose)
      *
      * @param string      $message   Log message.
      * @param string|null $import_id Optional. Import ID.
