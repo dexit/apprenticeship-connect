@@ -144,7 +144,7 @@ class Apprco_Import_Logger {
             component varchar(50) NOT NULL DEFAULT 'system',
             message text NOT NULL,
             context longtext DEFAULT NULL,
-            created_at datetime NOT NULL DEFAULT '0000-00-00 00:00:00',
+            created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY  (id),
             KEY import_id (import_id),
             KEY log_level (log_level),
