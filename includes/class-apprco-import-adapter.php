@@ -119,7 +119,7 @@ class Apprco_Import_Adapter {
 			'transforms_code'    => '',
 			'schedule_enabled'   => 0,
 			'schedule_frequency' => 'none',
-			'status'             => Apprco_Import_Tasks::STATUS_ACTIVE,
+			'status'             => "active",
 		);
 
 		// Add UKPRN filter if configured
@@ -186,7 +186,7 @@ class Apprco_Import_Adapter {
 			'items_path'         => $provider_config['items_path'] ?? '',
 			'schedule_enabled'   => false,
 			'schedule_frequency' => 'none',
-			'status'             => Apprco_Import_Tasks::STATUS_ACTIVE,
+			'status'             => "active",
 		);
 
 		// Create task

@@ -138,7 +138,7 @@ class Apprco_Import_Logger {
 
         // Enhanced logs table with component column
         $sql = "CREATE TABLE IF NOT EXISTS {$table_name} (
-            id bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+            id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
             import_id varchar(36) NOT NULL,
             log_level varchar(20) NOT NULL DEFAULT 'info',
             component varchar(50) NOT NULL DEFAULT 'system',
@@ -159,10 +159,10 @@ class Apprco_Import_Logger {
         // Create import runs table for tracking individual imports
         $runs_table = $wpdb->prefix . 'apprco_import_runs';
         $sql_runs = "CREATE TABLE IF NOT EXISTS {$runs_table} (
-            id bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+            id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
             import_id varchar(36) NOT NULL,
             status varchar(20) NOT NULL DEFAULT 'running',
-            started_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            started_at datetime NOT NULL DEFAULT '0000-00-00 00:00:00',
             completed_at datetime DEFAULT NULL,
             total_fetched int(11) DEFAULT 0,
             total_created int(11) DEFAULT 0,

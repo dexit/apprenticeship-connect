@@ -1,21 +1,14 @@
 <?php
 /**
- * Import Tasks Manager - CRUD for import job configurations
+ * Import Task Repository - Abstracted Data Layer
  *
  * @package ApprenticeshipConnect
- * @since   2.1.0
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
-    exit;
+	die;
 }
 
-/**
- * Class Apprco_Import_Tasks
- *
- * Manages import task configurations stored in a custom database table.
- * Each task defines: API endpoint, field mappings, transforms, schedule.
- */
 class Apprco_Import_Tasks {
 
     /**
@@ -434,421 +427,144 @@ class Apprco_Import_Tasks {
 
         $result = $client->get( $task['api_endpoint'], $params );
 
-        if ( ! $result['success'] ) {
-            return array(
-                'success'      => false,
-                'error'        => $result['error'] ?? 'Request failed',
-                'status_code'  => $result['status_code'] ?? 0,
-                'raw_response' => isset( $result['data'] ) ? wp_json_encode( $result['data'] ) : '',
-            );
-        }
-
-        $data = $result['data'];
-
-        // Extract data array using data_path
-        $items = $this->get_nested_value( $data, $task['data_path'] );
-        $total = $this->get_nested_value( $data, $task['total_path'] ) ?? ( is_array( $items ) ? count( $items ) : 0 );
-
-        if ( ! is_array( $items ) ) {
-            return array(
-                'success'       => false,
-                'error'         => sprintf( 'Data path "%s" did not return an array', $task['data_path'] ),
-                'response_keys' => array_keys( $data ),
-                'raw_response'  => substr( wp_json_encode( $data ), 0, 2000 ),
-            );
-        }
-
-        // Get sample for test mode
-        $sample = array_slice( $items, 0, $limit );
-
-        // Detect available fields from first item
-        $available_fields = array();
-        if ( ! empty( $sample[0] ) && is_array( $sample[0] ) ) {
-            $available_fields = $this->flatten_array_keys( $sample[0] );
-        }
-
-        return array(
-            'success'          => true,
-            'total'            => $total,
-            'fetched'          => count( $items ),
-            'sample_count'     => count( $sample ),
-            'sample'           => $sample,
-            'available_fields' => $available_fields,
-            'response_keys'    => array_keys( $data ),
-        );
-    }
-
-    /**
-     * Run a full import for a task
-     *
-     * @param int      $task_id     Task ID.
-     * @param callable $on_progress Optional progress callback.
-     * @return array Import result.
-     */
     public function run_import( int $task_id, ?callable $on_progress = null ): array {
         $task = $this->get( $task_id );
+        if ( ! $task ) return array( 'success' => false, 'error' => 'Task not found' );
 
-        if ( ! $task ) {
-            return array( 'success' => false, 'error' => 'Task not found.' );
-        }
+        do_action( 'apprco_before_import_task', $task );
 
-        if ( $task['status'] !== self::STATUS_ACTIVE ) {
-            return array( 'success' => false, 'error' => 'Task is not active.' );
-        }
+        $logger = Apprco_Import_Logger::get_instance();
+        $import_id = $logger->start_import( 'manual', $task['provider_id'] );
 
-        $import_id = $this->logger->start_import();
-        $this->logger->info( sprintf( 'Starting import task: %s (ID: %d)', $task['name'], $task_id ), $import_id, 'core' );
-
-        $client = new Apprco_API_Client( $task['api_base_url'], array(), $this->logger );
+        $settings = Apprco_Settings_Manager::get_instance();
+        $client = new Apprco_API_Client( $task['api_base_url'] );
         $client->set_import_id( $import_id );
+        $client->set_default_headers( $task['api_headers'] );
 
-        // Build headers
-        $headers = $task['api_headers'] ?? array();
-        if ( $task['api_auth_type'] === 'header_key' && ! empty( $task['api_auth_key'] ) && ! empty( $task['api_auth_value'] ) ) {
-            $headers[ $task['api_auth_key'] ] = $task['api_auth_value'];
-        }
-        $client->set_default_headers( $headers );
-
-        $max_pages = 100;
-        $params = $task['api_params'] ?? array();
-
-        $fetch_result = $client->fetch_all_pages(
+        $fetch_res = $client->fetch_all_pages(
             $task['api_endpoint'],
-            $params,
+            $task['api_params'],
             $task['page_param'],
             $task['data_path'],
             $task['total_path'],
-            $max_pages,
-            function( $progress ) use ( $on_progress ) {
-                if ( is_callable( $on_progress ) ) {
-                    call_user_func( $on_progress, array(
-                        'phase'   => 'fetching',
-                        'page'    => $progress['page'],
-                        'fetched' => $progress['total_so_far'],
-                        'total'   => $progress['total_pages'],
-                    ) );
-                }
-            }
+            $settings->get( 'import', 'max_pages', 0 )
         );
 
-        if ( ! $fetch_result['success'] && empty( $fetch_result['items'] ) ) {
-            $this->logger->error( sprintf( 'Import failed: %s', $fetch_result['error'] ?? 'Unknown error' ), $import_id, 'api' );
-            return array( 'success' => false, 'error' => $fetch_result['error'] ?? 'Fetch failed' );
+        if ( ! $fetch_res['success'] ) {
+            $logger->end_import( $import_id, 0, 0, 0, 0, 0, 1, 'failed' );
+            return $fetch_res;
         }
 
-        $all_items = $fetch_result['items'];
-
-        // Process items
-        $created = 0;
-        $updated = 0;
-        $errors  = 0;
-        $api_references = array();
-
-        foreach ( $all_items as $index => $item ) {
-            $result = $this->process_item( $task, $item, $import_id );
-
-            if ( $result['success'] ) {
-                if ( $result['action'] === 'created' ) {
-                    $created++;
-                } else {
-                    $updated++;
+        $created = 0; $updated = 0; $errors = 0; $refs = array();
+        foreach ( $fetch_res['items'] as $index => $item ) {
+            if ( $settings->get('import', 'deep_fetch', true) ) {
+                $uid = $item[ $task['unique_id_field'] ] ?? null;
+                if ( $uid ) {
+                    $deep = $client->get( $task['api_endpoint'] . '/' . $uid );
+                    if ( $deep['success'] ) $item = array_merge( $item, $deep['data'] );
                 }
+            }
 
-                $ref = $this->get_nested_value( $item, $task['unique_id_field'] );
-                if ( $ref ) {
-                    $api_references[] = $ref;
-                }
+            $item = apply_filters( 'apprco_import_item_data', $item, $task );
+            $res = $this->process_item( $task, $item, $import_id );
+
+            if ( $res['success'] ) {
+                'created' === $res['action'] ? $created++ : $updated++;
+                $refs[] = $item[ $task['unique_id_field'] ] ?? null;
             } else {
                 $errors++;
             }
 
-            if ( is_callable( $on_progress ) && ( $index + 1 ) % 10 === 0 ) {
-                call_user_func( $on_progress, array(
-                    'phase'     => 'processing',
-                    'current'   => $index + 1,
-                    'total'     => count( $all_items ),
-                    'created'   => $created,
-                    'updated'   => $updated,
-                    'errors'    => $errors,
-                ) );
-            }
+            if ( $on_progress ) call_user_func( $on_progress, array( 'phase' => 'processing', 'current' => $index + 1, 'total' => count($fetch_res['items']) ) );
         }
 
-        // Handle deletion of expired/missing vacancies if enabled in global settings
-        $settings_manager = Apprco_Settings_Manager::get_instance();
-        if ( $settings_manager->get( 'import', 'delete_expired' ) ) {
-            $this->cleanup_expired_vacancies( $api_references, $import_id );
-        }
+        $deleted = 0;
+        if ( $settings->get( 'import', 'delete_expired' ) ) $deleted = $this->cleanup_expired_vacancies( $refs, $import_id );
 
-        // Update task stats
-        $this->update( $task_id, array(
-            'last_run_at'      => current_time( 'mysql' ),
-            'last_run_status'  => $errors > 0 ? 'completed_with_errors' : 'success',
-            'last_run_fetched' => count( $all_items ),
-            'last_run_created' => $created,
-            'last_run_updated' => $updated,
-            'last_run_errors'  => $errors,
-            'total_runs'       => $task['total_runs'] + 1,
-        ) );
+        $this->update_stats( $task_id );
+        $logger->end_import( $import_id, count($fetch_res['items']), $created, $updated, $deleted, 0, $errors, 'completed' );
 
-        $this->logger->end_import( $import_id, count( $all_items ) );
+        do_action( 'apprco_after_import_task', $task_id, $import_id );
 
-        return array(
-            'success'   => true,
-            'fetched'   => count( $all_items ),
-            'created'   => $created,
-            'updated'   => $updated,
-            'errors'    => $errors,
-            'import_id' => $import_id,
-        );
+        return array( 'success' => true, 'import_id' => $import_id, 'fetched' => count($fetch_res['items']), 'created' => $created, 'updated' => $updated );
     }
 
-
-    /**
-     * Process a single item (create/update post)
-     *
-     * @param array  $task      Task config.
-     * @param array  $item      Item data.
-     * @param string $import_id Import ID.
-     * @return array Result.
-     */
     private function process_item( array $task, array $item, string $import_id ): array {
-        // Apply transforms if enabled
-        if ( $task['transforms_enabled'] && ! empty( $task['transforms_code'] ) ) {
-            $item = $this->apply_transforms( $item, $task['transforms_code'] );
-        }
+        $uid = $item[ $task['unique_id_field'] ] ?? null;
+        if ( ! $uid ) return array( 'success' => false, 'error' => 'Missing UID' );
 
-        // Get unique ID
-        $unique_id = $this->get_nested_value( $item, $task['unique_id_field'] );
+        $existing = new WP_Query( array( 'post_type' => 'apprco_vacancy', 'meta_query' => array( array( 'key' => '_apprco_vacancy_reference', 'value' => $uid ) ), 'posts_per_page' => 1 ) );
+        $exists = $existing->have_posts() ? $existing->posts[0] : null;
 
-        if ( empty( $unique_id ) ) {
-            return array( 'success' => false, 'error' => 'Missing unique ID' );
-        }
-
-        // Check if exists
-        $existing = $this->find_existing_post( $unique_id, $task['target_post_type'] );
-
-        // Map fields
         $post_data = array(
-            'post_type'   => $task['target_post_type'],
+            'post_type' => 'apprco_vacancy',
             'post_status' => $task['post_status'],
+            'post_title' => $item['title'] ?? '',
+            'post_content' => $item['fullDescription'] ?? $item['description'] ?? '',
         );
 
-        $meta_data = array();
-
-        foreach ( $task['field_mappings'] as $target => $source ) {
-            $value = $this->get_nested_value( $item, $source );
-
-            if ( strpos( $target, '_apprco_' ) === 0 || strpos( $target, '_' ) === 0 ) {
-                // Meta field
-                $meta_data[ $target ] = $value;
-            } else {
-                // Post field
-                $post_data[ $target ] = $value;
-            }
-        }
-
-        // Store raw data
-        $meta_data['_apprco_raw_data']    = $item;
-        $meta_data['_apprco_imported_at'] = current_time( 'mysql' );
-        $meta_data['_apprco_task_id']     = $task['id'];
-
-        if ( $existing ) {
-            $post_data['ID'] = $existing->ID;
-            $post_id = wp_update_post( $post_data, true );
-            $action  = 'updated';
+        if ( $exists ) {
+            $post_data['ID'] = $exists->ID;
+            $post_id = wp_update_post( $post_data );
+            $action = 'updated';
         } else {
-            $post_id = wp_insert_post( $post_data, true );
-            $action  = 'created';
+            $post_id = wp_insert_post( $post_data );
+            $action = 'created';
         }
 
-        if ( is_wp_error( $post_id ) ) {
-            $this->logger->error( sprintf( 'Failed to %s post for %s: %s', $action, $unique_id, $post_id->get_error_message() ), $import_id, 'core' );
-            return array( 'success' => false, 'error' => $post_id->get_error_message() );
-        }
+        if ( is_wp_error( $post_id ) ) return array( 'success' => false, 'error' => $post_id->get_error_message() );
 
-        // Save meta
-        foreach ( $meta_data as $key => $value ) {
-            update_post_meta( $post_id, $key, $value );
-        }
-
-        return array(
-            'success' => true,
-            'action'  => $action,
-            'post_id' => $post_id,
+        // Map meta
+        $mappings = array(
+            '_apprco_vacancy_reference' => $task['unique_id_field'],
+            '_apprco_employer_name' => 'employerName',
+            '_apprco_vacancy_url' => 'vacancyUrl',
+            '_apprco_postcode' => 'addresses[0].postcode'
         );
-    }
-
-    /**
-     * Apply custom PHP transforms
-     *
-     * @param array  $item Item data.
-     * @param string $code Transform code.
-     * @return array Transformed item.
-     */
-    private function apply_transforms( array $item, string $code ): array {
-        // Sandbox the transform code
-        $transform_func = function( $item ) use ( $code ) {
-            // $item is available to the code
-            eval( $code );
-            return $item;
-        };
-
-        try {
-            return $transform_func( $item );
-        } catch ( \Throwable $e ) {
-            $this->logger->error( 'Transform error: ' . $e->getMessage(), null, 'core' );
-            return $item;
+        foreach ( $mappings as $meta => $key ) {
+            $path = explode('.', $key);
+            $val = $item;
+            foreach($path as $pk) {
+                if (preg_match('/\[(\d+)\]/', $pk, $m)) { $pk = str_replace($m[0], '', $pk); $val = $val[$pk][$m[1]] ?? null; }
+                else { $val = $val[$pk] ?? null; }
+            }
+            update_post_meta( $post_id, $meta, $val );
         }
+        update_post_meta( $post_id, '_apprco_raw_data', $item );
+
+        do_action( 'apprco_item_imported', $post_id, $item, $action );
+
+        return array( 'success' => true, 'action' => $action, 'post_id' => $post_id );
     }
 
-    /**
-     * Find existing post by unique ID
-     *
-     * @param string $unique_id Unique identifier.
-     * @param string $post_type Post type.
-     * @return WP_Post|null
-     */
-    private function find_existing_post( string $unique_id, string $post_type ): ?WP_Post {
-        $query = new WP_Query( array(
-            'post_type'      => $post_type,
-            'post_status'    => 'any',
-            'posts_per_page' => 1,
-            'meta_query'     => array(
-                array(
-                    'key'   => '_apprco_vacancy_reference',
-                    'value' => $unique_id,
-                ),
-            ),
-        ) );
-
-        return $query->have_posts() ? $query->posts[0] : null;
+    private function update_stats( int $id ) {
+        global $wpdb;
+        $wpdb->query( $wpdb->prepare( "UPDATE {$this->table} SET last_run_at = %s, total_runs = total_runs + 1 WHERE id = %d", current_time('mysql'), $id ) );
     }
 
-    /**
-     * Get nested value from array using dot notation
-     *
-     * @param array  $array Array to search.
-     * @param string $path  Dot-notation path (e.g., 'addresses[0].postcode').
-     * @return mixed Value or null.
-     */
-    private function get_nested_value( array $array, string $path ) {
-        // Handle array index notation: addresses[0].postcode
-        $path = preg_replace( '/\[(\d+)\]/', '.$1', $path );
-        $keys = explode( '.', $path );
+    private function cleanup_expired_vacancies( array $refs, string $import_id ): int {
+        $refs = array_filter( array_map( 'strval', $refs ) );
+        if ( empty($refs) ) return 0;
 
-        $value = $array;
-        foreach ( $keys as $key ) {
-            if ( is_array( $value ) && array_key_exists( $key, $value ) ) {
-                $value = $value[ $key ];
-            } elseif ( is_array( $value ) && is_numeric( $key ) && isset( $value[ (int) $key ] ) ) {
-                $value = $value[ (int) $key ];
-            } else {
-                return null;
+        $q = new WP_Query( array( 'post_type' => 'apprco_vacancy', 'posts_per_page' => -1, 'fields' => 'ids' ) );
+        $deleted = 0;
+        foreach ( $q->posts as $pid ) {
+            $r = get_post_meta( $pid, '_apprco_vacancy_reference', true );
+            if ( ! in_array( (string)$r, $refs, true ) ) {
+                wp_delete_post( $pid, true );
+                $deleted++;
             }
         }
-
-        return $value;
+        return $deleted;
     }
 
-    /**
-     * Flatten array keys for field detection
-     *
-     * @param array  $array  Array to flatten.
-     * @param string $prefix Key prefix.
-     * @return array Flattened keys.
-     */
-    private function flatten_array_keys( array $array, string $prefix = '' ): array {
-        $keys = array();
-
-        foreach ( $array as $key => $value ) {
-            $full_key = $prefix ? "{$prefix}.{$key}" : $key;
-
-            if ( is_array( $value ) && ! empty( $value ) ) {
-                if ( isset( $value[0] ) ) {
-                    // Indexed array
-                    $keys[] = "{$full_key}[]";
-                    if ( is_array( $value[0] ) ) {
-                        $keys = array_merge( $keys, $this->flatten_array_keys( $value[0], "{$full_key}[0]" ) );
-                    }
-                } else {
-                    // Associative array
-                    $keys = array_merge( $keys, $this->flatten_array_keys( $value, $full_key ) );
-                }
-            } else {
-                $keys[] = $full_key;
-            }
-        }
-
-        return $keys;
-    }
-
-    /**
-     * Get active scheduled tasks
-     *
-     * @return array Active tasks with schedule enabled.
-     */
-    public function get_scheduled_tasks(): array {
-        return $this->get_all( array(
-            'status' => self::STATUS_ACTIVE,
-        ) );
-    }
-
-    /**
-     * Cleanup expired or missing vacancies
-     *
-     * @param array  $api_references References found in current import.
-     * @param string $import_id      Current import session ID.
-     */
-    private function cleanup_expired_vacancies( array $api_references, string $import_id ): void {
-        $settings_manager = Apprco_Settings_Manager::get_instance();
-        $expire_after_days = (int) $settings_manager->get( 'import', 'expire_after_days', 30 );
-
-        $query = new WP_Query( array(
-            'post_type'      => 'apprco_vacancy',
-            'post_status'    => 'any',
-            'posts_per_page' => -1,
-            'fields'         => 'ids',
-        ) );
-
-        if ( ! $query->have_posts() ) {
-            return;
-        }
-
-        $api_ref_set = array_flip( $api_references );
-        $deleted_count = 0;
-
-        foreach ( $query->posts as $post_id ) {
-            $ref = get_post_meta( $post_id, '_apprco_vacancy_reference', true );
-
-            if ( ! $ref || isset( $api_ref_set[ $ref ] ) ) {
-                continue;
-            }
-
-            $closing_date = get_post_meta( $post_id, '_apprco_closing_date', true );
-            $should_delete = false;
-
-            if ( $closing_date ) {
-                $closing_timestamp = strtotime( $closing_date );
-                $expire_timestamp  = $closing_timestamp + ( $expire_after_days * DAY_IN_SECONDS );
-                if ( time() > $expire_timestamp ) {
-                    $should_delete = true;
-                }
-            } else {
-                $last_modified = get_post_modified_time( 'U', false, $post_id );
-                if ( time() > $last_modified + ( $expire_after_days * DAY_IN_SECONDS ) ) {
-                    $should_delete = true;
-                }
-            }
-
-            if ( $should_delete ) {
-                wp_delete_post( $post_id, true );
-                $deleted_count++;
-            }
-        }
-
-        if ( $deleted_count > 0 ) {
-            $this->logger->info( sprintf( 'Cleaned up %d expired or missing vacancies.', $deleted_count ), $import_id, 'core' );
-        }
+    public static function get_default_field_mappings(): array {
+        return array(
+            array( 'source' => 'vacancyReference', 'target' => '_apprco_vacancy_reference', 'type' => 'meta' ),
+            array( 'source' => 'title', 'target' => 'post_title', 'type' => 'core' ),
+            array( 'source' => 'description', 'target' => 'post_content', 'type' => 'core' ),
+            array( 'source' => 'employerName', 'target' => '_apprco_employer_name', 'type' => 'meta' ),
+            array( 'source' => 'vacancyUrl', 'target' => '_apprco_vacancy_url', 'type' => 'meta' ),
+        );
     }
 }
