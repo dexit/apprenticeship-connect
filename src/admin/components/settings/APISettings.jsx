@@ -1,7 +1,3 @@
-<<<<<<< HEAD
-import { __ } from '@wordpress/i18n';
-import { Button, TextControl, __experimentalHeading as Heading } from '@wordpress/components';
-=======
 /**
  * API Settings Component
  *
@@ -10,7 +6,6 @@ import { Button, TextControl, __experimentalHeading as Heading } from '@wordpres
 
 import { __ } from '@wordpress/i18n';
 import { Button, TextControl, __experimentalText as Text, __experimentalSpacer as Spacer } from '@wordpress/components';
->>>>>>> origin/main
 
 const APISettings = ({ settings, updateSetting, onReset }) => {
 	return (
@@ -22,23 +17,17 @@ const APISettings = ({ settings, updateSetting, onReset }) => {
 				</Button>
 			</div>
 
-<<<<<<< HEAD
-=======
 			<Text variant="muted">
 				{__('Configure connection to the UK Government Apprenticeships API.', 'apprenticeship-connect')}
 			</Text>
 
 			<Spacer marginY={4} />
 
->>>>>>> origin/main
 			<TextControl
 				label={__('API Base URL', 'apprenticeship-connect')}
 				value={settings.base_url}
 				onChange={(value) => updateSetting('base_url', value)}
-<<<<<<< HEAD
-=======
 				help={__('The base URL for the API endpoint.', 'apprenticeship-connect')}
->>>>>>> origin/main
 				type="url"
 			/>
 
@@ -46,31 +35,6 @@ const APISettings = ({ settings, updateSetting, onReset }) => {
 				label={__('Subscription Key', 'apprenticeship-connect')}
 				value={settings.subscription_key}
 				onChange={(value) => updateSetting('subscription_key', value)}
-<<<<<<< HEAD
-				type="password"
-			/>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '15px' }}>
-                <TextControl
-                    label={__('Max Retries', 'apprenticeship-connect')}
-                    value={settings.retry_max}
-                    onChange={(v) => updateSetting('retry_max', parseInt(v, 10))}
-                    type="number"
-                />
-                <TextControl
-                    label={__('Retry Delay (ms)', 'apprenticeship-connect')}
-                    value={settings.retry_delay_ms}
-                    onChange={(v) => updateSetting('retry_delay_ms', parseInt(v, 10))}
-                    type="number"
-                />
-                <TextControl
-                    label={__('Backoff Multiplier', 'apprenticeship-connect')}
-                    value={settings.retry_multiplier}
-                    onChange={(v) => updateSetting('retry_multiplier', parseInt(v, 10))}
-                    type="number"
-                />
-            </div>
-=======
 				help={__('Your API subscription key (Ocp-Apim-Subscription-Key).', 'apprenticeship-connect')}
 				type="password"
 			/>
@@ -118,7 +82,6 @@ const APISettings = ({ settings, updateSetting, onReset }) => {
 				min={1}
 				max={60}
 			/>
->>>>>>> origin/main
 		</div>
 	);
 };

@@ -1,26 +1,59 @@
-.git/
-.github/
-.vscode/
-.idea/
-node_modules/
-tests/
-bin/
-src/
-assets/src/
-composer.json
-composer.lock
+# .distignore – files/directories excluded from WordPress.org SVN deployment
+# Used by the 10up/action-wordpress-plugin-deploy GitHub Action.
+#
+# The React build output (build/) and vendor/ ARE included (compiled artefacts).
+
+# VCS
+.git
+.gitignore
+.gitattributes
+
+# CI / GitHub
+.github
+
+# Node
+node_modules
 package.json
 package-lock.json
 webpack.config.js
+.eslintrc.js
+.eslintignore
+
+# PHP dev tooling
 phpcs.xml
 phpunit.xml
-.gitignore
-.distignore
-.editorconfig
-.prettierrc
-babel.config.js
+phpunit.xml.dist
+
+# Source (compiled to build/)
+src
+
+# Tests
+tests
+coverage
+
+# Build tooling
 build-plugin.sh
-README.md
-CONTRIBUTING.md
-phpstan.neon
-psalm.xml
+verify.php
+Makefile
+
+# Distribution artefacts (not needed in SVN)
+dist
+
+# Dev docs
+docs
+ARCHITECTURE-ANALYSIS.md
+BUILD-SETUP.md
+CODEBASE-ANALYSIS-AND-CRITICAL-BUGS.md
+DEPLOYMENT.md
+ENDPOINT-TESTS.md
+IMPLEMENTATION-SUMMARY.md
+IMPORT-TASKS-GUIDE.md
+PRODUCTION-READY.md
+REALITY-CHECK.md
+SESSION-PROGRESS.md
+SETTINGS-FIX-SUMMARY.md
+UPGRADE-PLAN.md
+UPGRADE-STATUS.md
+
+# Legacy / archived code
+includes/archive

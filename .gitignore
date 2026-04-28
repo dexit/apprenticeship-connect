@@ -1,21 +1,54 @@
-# Node & Composer
-node_modules/
-vendor/
+# Dependencies
+/node_modules/
+/vendor/
 
-# Build artifacts
-assets/build/
-build/
-dist/
-*.zip
+# Build output
+/assets/build/
+/build/
+/dist/
+*.asset.php
 
-# OS files
+# WordPress
+/wordpress/
+/wp-content/
+/.wp-env.json
+
+# Testing
+/coverage/
+/tests/_output/
+/.phpunit.result.cache
+
+# IDE
+/.idea/
+/.vscode/
+*.sublime-project
+*.sublime-workspace
 .DS_Store
 Thumbs.db
 
-# IDEs
-.vscode/
-.idea/
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.log
 
-# PHPUnit
-.phpunit.result.cache
-coverage/
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+# Package files
+/build/
+/dist/
+*.zip
+
+# Composer
+composer.lock
+composer.phar

@@ -1,12 +1,9 @@
-<<<<<<< HEAD
-=======
 /**
  * Advanced Settings Component
  *
  * @package ApprenticeshipConnect
  */
 
->>>>>>> origin/main
 import { __ } from '@wordpress/i18n';
 import { Button, ToggleControl, TextControl, __experimentalText as Text, __experimentalSpacer as Spacer } from '@wordpress/components';
 
@@ -20,28 +17,6 @@ const AdvancedSettings = ({ settings, updateSetting, onReset }) => {
 				</Button>
 			</div>
 
-<<<<<<< HEAD
-			<ToggleControl
-				label={__('Enable Geocoding', 'apprenticeship-connect')}
-				checked={settings.enable_geocoding}
-				onChange={(val) => updateSetting('enable_geocoding', val)}
-				help={__('Automatically resolve latitude/longitude for imported vacancies using OpenStreetMap.', 'apprenticeship-connect')}
-			/>
-
-			<ToggleControl
-				label={__('Debug Mode', 'apprenticeship-connect')}
-				checked={settings.debug_mode}
-				onChange={(val) => updateSetting('debug_mode', val)}
-				help={__('Enable verbose logging for troubleshooting.', 'apprenticeship-connect')}
-			/>
-
-            <TextControl
-                label={__('Log Retention (Days)', 'apprenticeship-connect')}
-                value={settings.log_retention_days}
-                onChange={(val) => updateSetting('log_retention_days', parseInt(val, 10))}
-                type="number"
-            />
-=======
 			<Text variant="muted">{__('Advanced options for power users. Change with caution.', 'apprenticeship-connect')}</Text>
 
 			<Spacer marginY={4} />
@@ -85,7 +60,6 @@ const AdvancedSettings = ({ settings, updateSetting, onReset }) => {
 				onChange={(value) => updateSetting('debug_mode', value)}
 				help={__('Enable verbose logging and error output. Use for troubleshooting only.', 'apprenticeship-connect')}
 			/>
->>>>>>> origin/main
 		</div>
 	);
 };

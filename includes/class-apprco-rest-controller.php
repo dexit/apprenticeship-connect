@@ -1,136 +1,161 @@
 <?php
 /**
  * REST API Controller
+ *
+ * Provides REST endpoints for React dashboard and settings.
+ *
+ * @package ApprenticeshipConnect
+ * @since   3.0.0
  */
 
-if ( ! defined( 'ABSPATH' ) ) die;
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
 
+/**
+ * Class Apprco_REST_Controller
+ */
 class Apprco_REST_Controller {
 
-    private static $instance = null;
+	/**
+	 * Register REST API routes
+	 */
+	public static function register_routes(): void {
+		// Stats endpoint
+		register_rest_route(
+			'apprco/v1',
+			'/stats',
+			array(
+				'methods'             => 'GET',
+				'callback'            => array( __CLASS__, 'get_stats' ),
+				'permission_callback' => array( __CLASS__, 'permission_check' ),
+			)
+		);
 
-    public static function get_instance(): Apprco_REST_Controller {
-        if ( null === self::$instance ) self::$instance = new self();
-        return self::$instance;
-    }
+		// Recent imports endpoint
+		register_rest_route(
+			'apprco/v1',
+			'/imports/recent',
+			array(
+				'methods'             => 'GET',
+				'callback'            => array( __CLASS__, 'get_recent_imports' ),
+				'permission_callback' => array( __CLASS__, 'permission_check' ),
+			)
+		);
 
-    public function register_routes(): void {
-        register_rest_route( 'apprco/v1', '/stats', array(
-            'methods' => 'GET',
-            'callback' => array( $this, 'get_stats' ),
-            'permission_callback' => array( $this, 'permission_check' ),
-        ) );
+		// Manual import endpoint
+		register_rest_route(
+			'apprco/v1',
+			'/import/manual',
+			array(
+				'methods'             => 'POST',
+				'callback'            => array( __CLASS__, 'run_manual_import' ),
+				'permission_callback' => array( __CLASS__, 'permission_check' ),
+			)
+		);
 
-        register_rest_route( 'apprco/v1', '/tasks', array(
-            array(
-                'methods' => 'GET',
-                'callback' => array( $this, 'get_tasks' ),
-                'permission_callback' => array( $this, 'permission_check' ),
-            ),
-            array(
-                'methods' => 'POST',
-                'callback' => array( $this, 'create_task' ),
-                'permission_callback' => array( $this, 'permission_check' ),
-            ),
-        ) );
+		// API test endpoint
+		register_rest_route(
+			'apprco/v1',
+			'/api/test',
+			array(
+				'methods'             => 'POST',
+				'callback'            => array( __CLASS__, 'test_api_connection' ),
+				'permission_callback' => array( __CLASS__, 'permission_check' ),
+			)
+		);
+	}
 
-        register_rest_route( 'apprco/v1', '/tasks/(?P<id>\d+)', array(
-            array(
-                'methods' => 'GET',
-                'callback' => array( $this, 'get_task' ),
-                'permission_callback' => array( $this, 'permission_check' ),
-            ),
-            array(
-                'methods' => 'POST',
-                'callback' => array( $this, 'update_task' ),
-                'permission_callback' => array( $this, 'permission_check' ),
-            ),
-            array(
-                'methods' => 'DELETE',
-                'callback' => array( $this, 'delete_task' ),
-                'permission_callback' => array( $this, 'permission_check' ),
-            ),
-        ) );
+	/**
+	 * Permission check
+	 *
+	 * @return bool
+	 */
+	public static function permission_check(): bool {
+		return current_user_can( 'manage_options' );
+	}
 
-        register_rest_route( 'apprco/v1', '/tasks/(?P<id>\d+)/run', array(
-            'methods' => 'POST',
-            'callback' => array( $this, 'run_task' ),
-            'permission_callback' => array( $this, 'permission_check' ),
-        ) );
+	/**
+	 * Get dashboard stats
+	 *
+	 * @return WP_REST_Response
+	 */
+	public static function get_stats(): WP_REST_Response {
+		$adapter = Apprco_Import_Adapter::get_instance();
+		$stats   = $adapter->get_stats();
 
-        register_rest_route( 'apprco/v1', '/tasks/test', array(
-            'methods' => 'POST',
-            'callback' => array( $this, 'test_task' ),
-            'permission_callback' => array( $this, 'permission_check' ),
-        ) );
+		// Add API configured status
+		$settings_manager = Apprco_Settings_Manager::get_instance();
+		$api_key = $settings_manager->get( 'api', 'subscription_key' );
 
-        register_rest_route( 'apprco/v1', '/logs/(?P<import_id>[a-zA-Z0-9-]+)', array(
-            'methods' => 'GET',
-            'callback' => array( $this, 'get_import_logs' ),
-            'permission_callback' => array( $this, 'permission_check' ),
-        ) );
-    }
+		$stats['api_configured'] = ! empty( $api_key );
 
-    public function permission_check(): bool {
-        return current_user_can( 'manage_options' );
-    }
+		return new WP_REST_Response( $stats, 200 );
+	}
 
-    public function get_stats(): WP_REST_Response {
-        $logger = Apprco_Import_Logger::get_instance();
-        $stats = $logger->get_stats();
-        $stats['resilience'] = get_transient('apprco_last_api_stats') ?: array();
-        return new WP_REST_Response( $stats, 200 );
-    }
+	/**
+	 * Get recent imports
+	 *
+	 * @param WP_REST_Request $request Request object.
+	 * @return WP_REST_Response
+	 */
+	public static function get_recent_imports( WP_REST_Request $request ): WP_REST_Response {
+		$limit = $request->get_param( 'limit' ) ?: 5;
+		$limit = min( absint( $limit ), 100 );
 
-    public function get_tasks(): WP_REST_Response {
-        $manager = Apprco_Import_Tasks::get_instance();
-        return new WP_REST_Response( $manager->get_all(), 200 );
-    }
+		$logger = Apprco_Import_Logger::get_instance();
+		$imports = $logger->get_recent( $limit );
 
-    public function get_task( WP_REST_Request $request ): WP_REST_Response {
-        $manager = Apprco_Import_Tasks::get_instance();
-        return new WP_REST_Response( $manager->get( (int) $request['id'] ), 200 );
-    }
+		return new WP_REST_Response(
+			array( 'imports' => $imports ),
+			200
+		);
+	}
 
-    public function create_task( WP_REST_Request $request ): WP_REST_Response {
-        $manager = Apprco_Import_Tasks::get_instance();
-        $id = $manager->create( $request->get_json_params() );
-        return new WP_REST_Response( array( 'id' => $id ), 200 );
-    }
+	/**
+	 * Run manual import
+	 *
+	 * @return WP_REST_Response
+	 */
+	public static function run_manual_import(): WP_REST_Response {
+		$adapter = Apprco_Import_Adapter::get_instance();
+		$result = $adapter->run_manual_sync();
 
-    public function update_task( WP_REST_Request $request ): WP_REST_Response {
-        $manager = Apprco_Import_Tasks::get_instance();
-        $success = $manager->update( (int) $request['id'], $request->get_json_params() );
-        return new WP_REST_Response( array( 'success' => $success ), 200 );
-    }
+		if ( ! $result['success'] ) {
+			return new WP_REST_Response( $result, 400 );
+		}
 
-    public function delete_task( WP_REST_Request $request ): WP_REST_Response {
-        $manager = Apprco_Import_Tasks::get_instance();
-        $success = $manager->delete( (int) $request['id'] );
-        return new WP_REST_Response( array( 'success' => $success ), 200 );
-    }
+		return new WP_REST_Response( $result, 200 );
+	}
 
-    public function run_task( WP_REST_Request $request ): WP_REST_Response {
-        $id = (int) $request['id'];
-        $manager = Apprco_Import_Tasks::get_instance();
-        $result = $manager->run_import( $id );
-        return new WP_REST_Response( $result, $result['success'] ? 200 : 400 );
-    }
+	/**
+	 * Test API connection
+	 *
+	 * @return WP_REST_Response
+	 */
+	public static function test_api_connection(): WP_REST_Response {
+		$registry = Apprco_Provider_Registry::get_instance();
+		$provider = $registry->get( 'uk-gov-apprenticeships' );
 
-    public function test_task( WP_REST_Request $request ): WP_REST_Response {
-        $data = $request->get_json_params();
-        $client = new Apprco_API_Client( $data['api_base_url'] );
-        $client->set_default_headers( $data['api_headers'] ?? array() );
-        $params = $data['api_params'] ?? array();
-        $params[ $data['page_param'] ] = 1;
-        $res = $client->get( $data['api_endpoint'], $params );
-        set_transient('apprco_last_api_stats', $client->get_stats(), 300);
-        return new WP_REST_Response( $res, 200 );
-    }
+		if ( ! $provider ) {
+			return new WP_REST_Response(
+				array(
+					'success' => false,
+					'error'   => __( 'UK Government Provider not found.', 'apprenticeship-connect' ),
+				),
+				500
+			);
+		}
 
-    public function get_import_logs( WP_REST_Request $request ): WP_REST_Response {
-        $logger = Apprco_Import_Logger::get_instance();
-        $logs = $logger->get_logs_by_import( $request['import_id'] );
-        return new WP_REST_Response( array( 'logs' => $logs ), 200 );
-    }
+		$result = $provider->test_connection();
+
+		if ( ! $result['success'] ) {
+			return new WP_REST_Response( $result, 400 );
+		}
+
+		return new WP_REST_Response( $result, 200 );
+	}
 }
+
+// Register routes on init
+add_action( 'rest_api_init', array( 'Apprco_REST_Controller', 'register_routes' ) );

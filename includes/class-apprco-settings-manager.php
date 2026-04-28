@@ -25,12 +25,50 @@ class Apprco_Settings_Manager {
 
 	private function __construct() {
 		$this->load();
+		$this->maybe_migrate();
 	}
 
 	private function load(): void {
 		$defaults       = $this->get_defaults();
 		$stored         = get_option( self::OPTION_NAME, array() );
 		$this->settings = array_replace_recursive( $defaults, $stored );
+	}
+
+	/**
+	 * Migrate legacy settings from apprco_plugin_options
+	 */
+	private function maybe_migrate(): void {
+		$old_options = get_option( 'apprco_plugin_options' );
+		if ( empty( $old_options ) || ! is_array( $old_options ) ) {
+			return;
+		}
+
+		if ( get_option( 'apprco_settings_migrated' ) ) {
+			return;
+		}
+
+		$migrated = false;
+		$mapping  = array(
+			'api_subscription_key' => array( 'api', 'subscription_key' ),
+			'api_base_url'         => array( 'api', 'base_url' ),
+			'api_ukprn'            => array( 'api', 'ukprn' ),
+			'batch_size'           => array( 'import', 'batch_size' ),
+			'post_status'          => array( 'import', 'post_status' ),
+			'max_pages'            => array( 'import', 'max_pages' ),
+			'enable_geocoding'     => array( 'advanced', 'enable_geocoding' ),
+		);
+
+		foreach ( $mapping as $old_key => $new_path ) {
+			if ( isset( $old_options[ $old_key ] ) ) {
+				$this->settings[ $new_path[0] ][ $new_path[1] ] = $old_options[ $old_key ];
+				$migrated = true;
+			}
+		}
+
+		if ( $migrated ) {
+			update_option( self::OPTION_NAME, $this->settings );
+		}
+		update_option( 'apprco_settings_migrated', true );
 	}
 
 	public function get_defaults(): array {
@@ -74,6 +112,21 @@ class Apprco_Settings_Manager {
 
 	public function get( string $group, string $key, $default = null ) {
 		return $this->settings[ $group ][ $key ] ?? $default;
+	}
+
+	/**
+	 * Get all settings as a flattened array for backward compatibility
+	 */
+	public function get_options_array(): array {
+		return array(
+			'api_subscription_key' => $this->get( 'api', 'subscription_key' ),
+			'api_base_url'         => $this->get( 'api', 'base_url' ),
+			'api_ukprn'            => $this->get( 'api', 'ukprn' ),
+			'batch_size'           => $this->get( 'import', 'batch_size' ),
+			'post_status'          => $this->get( 'import', 'post_status' ),
+			'max_pages'            => $this->get( 'import', 'max_pages' ),
+			'enable_geocoding'     => $this->get( 'advanced', 'enable_geocoding' ),
+		);
 	}
 
 	public function get_all(): array {
