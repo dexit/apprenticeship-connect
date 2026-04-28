@@ -12,6 +12,10 @@ if ( ! defined( 'ABSPATH' ) ) {
 class Apprco_Import_Tasks {
 
 	private const TABLE_NAME = 'apprco_import_tasks';
+	public const STATUS_ACTIVE = 'active';
+	public const STATUS_DRAFT = 'draft';
+	public const STATUS_FAILED = 'failed';
+
 	private static $instance = null;
 	private $table;
 
@@ -237,5 +241,15 @@ class Apprco_Import_Tasks {
             }
         }
         return $deleted;
+    }
+
+    public static function get_default_field_mappings(): array {
+        return array(
+            array( 'source' => 'vacancyReference', 'target' => '_apprco_vacancy_reference', 'type' => 'meta' ),
+            array( 'source' => 'title', 'target' => 'post_title', 'type' => 'core' ),
+            array( 'source' => 'description', 'target' => 'post_content', 'type' => 'core' ),
+            array( 'source' => 'employerName', 'target' => '_apprco_employer_name', 'type' => 'meta' ),
+            array( 'source' => 'vacancyUrl', 'target' => '_apprco_vacancy_url', 'type' => 'meta' ),
+        );
     }
 }

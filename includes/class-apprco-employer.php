@@ -82,7 +82,7 @@ class Apprco_Employer {
         $charset_collate = $wpdb->get_charset_collate();
 
         $sql = "CREATE TABLE {$table_name} (
-            id bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+            id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
             employer_id varchar(100) DEFAULT NULL,
             name varchar(255) NOT NULL,
             name_normalized varchar(255) NOT NULL,
@@ -96,15 +96,15 @@ class Apprco_Employer {
             address_line3 varchar(255) DEFAULT NULL,
             address_line4 varchar(255) DEFAULT NULL,
             postcode varchar(20) DEFAULT NULL,
-            latitude decimal(10, 8) DEFAULT NULL,
-            longitude decimal(11, 8) DEFAULT NULL,
+            latitude decimal(10,8) DEFAULT NULL,
+            longitude decimal(11,8) DEFAULT NULL,
             is_disability_confident tinyint(1) DEFAULT 0,
             vacancy_count int(11) DEFAULT 0,
             last_vacancy_date datetime DEFAULT NULL,
             provider_id varchar(50) DEFAULT NULL,
             raw_data longtext DEFAULT NULL,
-            created_at datetime DEFAULT CURRENT_TIMESTAMP,
-            updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            created_at datetime DEFAULT '0000-00-00 00:00:00',
+            updated_at datetime DEFAULT '0000-00-00 00:00:00' ,
             PRIMARY KEY  (id),
             UNIQUE KEY employer_name_unique (name_normalized(191)),
             KEY employer_id_idx (employer_id),
