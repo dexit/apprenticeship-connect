@@ -1,6 +1,6 @@
 <?php
 /**
- * REST Proxy
+ * REST API Proxy Class
  *
  * @package ApprenticeshipConnect
  */
@@ -9,9 +9,25 @@ if ( ! defined( 'ABSPATH' ) ) {
 	die;
 }
 
+/**
+ * Class Apprco_REST_Proxy
+ *
+ * Provides a secure proxy for vacancy searches.
+ */
 class Apprco_REST_Proxy {
+
+	/**
+	 * Singleton instance.
+	 *
+	 * @var Apprco_REST_Proxy|null
+	 */
 	private static $instance = null;
 
+	/**
+	 * Get singleton instance.
+	 *
+	 * @return self
+	 */
 	public static function get_instance(): self {
 		if ( null === self::$instance ) {
 			self::$instance = new self();
@@ -19,50 +35,55 @@ class Apprco_REST_Proxy {
 		return self::$instance;
 	}
 
+	/**
+	 * Constructor.
+	 */
 	private function __construct() {
-		add_action( 'rest_api_init', array( $this, 'register_routes' ) );
+		add_action( 'rest_api_init', array( $this, 'register_proxy_routes' ) );
 	}
 
-	public function register_routes(): void {
+	/**
+	 * Registers proxy routes for the frontend.
+	 *
+	 * @return void
+	 */
+	public function register_proxy_routes(): void {
 		register_rest_route(
 			'apprco/v1',
 			'/proxy/vacancies',
 			array(
 				'methods'             => 'GET',
-				'callback'            => array( $this, 'proxy_request' ),
+				'callback'            => array( $this, 'proxy_vacancies' ),
 				'permission_callback' => '__return_true',
 			)
 		);
 	}
 
-	public function proxy_request( WP_REST_Request $request ): WP_REST_Response {
+	/**
+	 * Proxy request to the Apprenticeships API.
+	 *
+	 * @param WP_REST_Request $request The REST request object.
+	 * @return WP_REST_Response
+	 */
+	public function proxy_vacancies( $request ): WP_REST_Response {
 		$settings = Apprco_Settings_Manager::get_instance();
-		$base_url = $settings->get( 'api', 'base_url' );
 		$api_key  = $settings->get( 'api', 'subscription_key' );
 
-		if ( empty( $api_key ) ) {
+		if ( ! $api_key ) {
 			return new WP_REST_Response( array( 'error' => 'API not configured' ), 500 );
 		}
 
-		$params   = $request->get_query_params();
-		$url      = add_query_arg( $params, $base_url . '/vacancy' );
-		$response = wp_remote_get(
-			$url,
+		$params = $request->get_params();
+		$client = new Apprco_API_Client( $settings->get( 'api', 'base_url' ) );
+		$client->set_default_headers(
 			array(
-				'headers' => array(
-					'Ocp-Apim-Subscription-Key' => $api_key,
-					'X-Version'                 => '2',
-					'Accept'                    => 'application/json',
-				),
-				'timeout' => 30,
+				'Ocp-Apim-Subscription-Key' => $api_key,
+				'X-Version'                 => '2',
 			)
 		);
 
-		if ( is_wp_error( $response ) ) {
-			return new WP_REST_Response( array( 'error' => $response->get_error_message() ), 500 );
-		}
+		$result = $client->get( '/vacancy', $params );
 
-		$body = json_decode( wp_remote_retrieve_body( $response ), true );
-		return new WP_REST_Response( $body, 200 );
+		return new WP_REST_Response( $result, 200 );
 	}
 }

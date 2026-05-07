@@ -1,0 +1,36 @@
+{
+    "$schema": "https://playground.wordpress.net/blueprint-schema.json",
+    "landingPage": "/wp-admin/admin.php?page=apprco-dashboard",
+    "preferredPhpVersion": "8.2",
+    "steps": [
+        {
+            "step": "installPlugin",
+            "pluginZipFile": {
+                "resource": "url",
+                "url": "https://downloads.wordpress.org/plugin/action-scheduler.zip"
+            }
+        },
+        {
+            "step": "activatePlugin",
+            "pluginPath": "action-scheduler/action-scheduler.php"
+        },
+        {
+            "step": "installPlugin",
+            "pluginData": {
+                "resource": "wordpress.org",
+                "slug": "elementor"
+            }
+        },
+        {
+            "step": "importPayload",
+            "payload": {
+                "resource": "vfs",
+                "path": "wp-content/plugins/apprenticeship-connect"
+            }
+        },
+        {
+            "step": "activatePlugin",
+            "pluginPath": "apprenticeship-connect/apprenticeship-connect.php"
+        }
+    ]
+}

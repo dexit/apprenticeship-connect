@@ -1,6 +1,6 @@
 <?php
 /**
- * Meta Box Manager - Enhanced V3.1.0
+ * Meta Box Manager Class
  *
  * @package ApprenticeshipConnect
  */
@@ -9,12 +9,25 @@ if ( ! defined( 'ABSPATH' ) ) {
 	die;
 }
 
+/**
+ * Class Apprco_Meta_Box
+ *
+ * Handles the display and saving of vacancy meta data in the admin.
+ */
 class Apprco_Meta_Box {
 
+	/**
+	 * Singleton instance.
+	 *
+	 * @var Apprco_Meta_Box|null
+	 */
 	private static $instance = null;
-	const NONCE_ACTION       = 'apprco_vacancy_meta_nonce';
-	const NONCE_NAME         = 'apprco_vacancy_meta_nonce_field';
 
+	/**
+	 * Get singleton instance.
+	 *
+	 * @return self
+	 */
 	public static function get_instance(): self {
 		if ( null === self::$instance ) {
 			self::$instance = new self();
@@ -22,157 +35,98 @@ class Apprco_Meta_Box {
 		return self::$instance;
 	}
 
+	/**
+	 * Constructor.
+	 */
 	private function __construct() {
 		add_action( 'add_meta_boxes', array( $this, 'add_vacancy_meta_boxes' ) );
-		add_action( 'save_post', array( $this, 'save_meta_box_data' ), 10, 2 );
+		add_action( 'save_post_apprco_vacancy', array( $this, 'save_vacancy_meta_box' ) );
 	}
 
+	/**
+	 * Adds the vacancy meta box.
+	 *
+	 * @return void
+	 */
 	public function add_vacancy_meta_boxes(): void {
-		add_meta_box( 'apprco_vacancy_core', __( 'Core Vacancy Details', 'apprenticeship-connect' ), array( $this, 'render_core_meta_box' ), 'apprco_vacancy', 'normal', 'high' );
-		add_meta_box( 'apprco_vacancy_wage', __( 'Wage & Benefits', 'apprenticeship-connect' ), array( $this, 'render_wage_meta_box' ), 'apprco_vacancy', 'normal', 'default' );
-		add_meta_box( 'apprco_vacancy_employer', __( 'Employer & Location', 'apprenticeship-connect' ), array( $this, 'render_employer_meta_box' ), 'apprco_vacancy', 'side', 'default' );
-		add_meta_box( 'apprco_vacancy_requirements', __( 'Requirements & Outcome', 'apprenticeship-connect' ), array( $this, 'render_requirements_meta_box' ), 'apprco_vacancy', 'normal', 'low' );
-		add_meta_box( 'apprco_vacancy_source', __( 'Source Data (Raw JSON)', 'apprenticeship-connect' ), array( $this, 'render_source_meta_box' ), 'apprco_vacancy', 'normal', 'low' );
-	}
-
-	private function render_fields_grid( $post, $fields ) {
-		echo '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; padding: 10px;">';
-		foreach ( $fields as $key => $field ) {
-			$val      = get_post_meta( $post->ID, $key, true );
-			$readonly = ! empty( $field['readonly'] ) ? 'readonly style="background:#f6f7f7;"' : '';
-			echo '<div>';
-			echo '<label style="display:block;font-weight:600;margin-bottom:4px;">' . esc_html( $field['label'] ) . '</label>';
-			if ( 'textarea' === $field['type'] ) {
-				echo "<textarea name='apprco_meta[$key]' class='widefat' rows='3' $readonly>" . esc_textarea( $val ) . "</textarea>";
-			} else {
-				echo "<input type='{$field['type']}' name='apprco_meta[$key]' value='" . esc_attr( $val ) . "' class='widefat' $readonly />";
-			}
-			echo '</div>';
-		}
-		echo '</div>';
-	}
-
-	public function render_core_meta_box( $post ) {
-		wp_nonce_field( self::NONCE_ACTION, self::NONCE_NAME );
-		$this->render_fields_grid(
-			$post,
-			array(
-				'_apprco_vacancy_reference'    => array(
-					'label'    => 'Reference',
-					'type'     => 'text',
-					'readonly' => true,
-				),
-				'_apprco_vacancy_url'          => array(
-					'label' => 'Application URL',
-					'type'  => 'url',
-				),
-				'_apprco_closing_date'         => array(
-					'label' => 'Closing Date',
-					'type'  => 'date',
-				),
-				'_apprco_start_date'           => array(
-					'label' => 'Start Date',
-					'type'  => 'date',
-				),
-				'_apprco_number_of_positions'  => array(
-					'label' => 'Positions',
-					'type'  => 'number',
-				),
-				'_apprco_apprenticeship_level' => array(
-					'label' => 'Appr. Level',
-					'type'  => 'text',
-				),
-			)
+		add_meta_box(
+			'apprco_vacancy_details',
+			__( 'Vacancy Details', 'apprenticeship-connect' ),
+			array( $this, 'render_vacancy_meta_box' ),
+			'apprco_vacancy',
+			'normal',
+			'high'
 		);
 	}
 
-	public function render_wage_meta_box( $post ) {
-		$this->render_fields_grid(
-			$post,
-			array(
-				'_apprco_wage_amount'       => array(
-					'label' => 'Wage Amount',
-					'type'  => 'text',
-				),
-				'_apprco_wage_type'         => array(
-					'label' => 'Wage Type',
-					'type'  => 'text',
-				),
-				'_apprco_wage_unit'         => array(
-					'label' => 'Wage Unit',
-					'type'  => 'text',
-				),
-				'_apprco_hours_per_week'    => array(
-					'label' => 'Hours/Week',
-					'type'  => 'number',
-				),
-				'_apprco_expected_duration' => array(
-					'label' => 'Duration',
-					'type'  => 'text',
-				),
-			)
-		);
+	/**
+	 * Renders the meta box HTML.
+	 *
+	 * @param WP_Post $post The current post object.
+	 * @return void
+	 */
+	public function render_vacancy_meta_box( $post ): void {
+		wp_nonce_field( 'apprco_save_meta', 'apprco_meta_nonce' );
+
+		$ref      = get_post_meta( $post->ID, '_apprco_vacancy_reference', true );
+		$url      = get_post_meta( $post->ID, '_apprco_vacancy_url', true );
+		$employer = get_post_meta( $post->ID, '_apprco_employer_name', true );
+		$postcode = get_post_meta( $post->ID, '_apprco_postcode', true );
+
+		?>
+		<div class="apprco-meta-field">
+			<label for="apprco_ref"><?php esc_html_e( 'Vacancy Reference', 'apprenticeship-connect' ); ?></label>
+			<input type="text" id="apprco_ref" name="apprco_vacancy_reference" value="<?php echo esc_attr( (string) $ref ); ?>" class="widefat" />
+		</div>
+		<div class="apprco-meta-field" style="margin-top: 10px;">
+			<label for="apprco_url"><?php esc_html_e( 'API Vacancy URL', 'apprenticeship-connect' ); ?></label>
+			<input type="url" id="apprco_url" name="apprco_vacancy_url" value="<?php echo esc_url( (string) $url ); ?>" class="widefat" />
+		</div>
+		<div class="apprco-meta-field" style="margin-top: 10px;">
+			<label for="apprco_employer"><?php esc_html_e( 'Employer Name', 'apprenticeship-connect' ); ?></label>
+			<input type="text" id="apprco_employer" name="apprco_employer_name" value="<?php echo esc_attr( (string) $employer ); ?>" class="widefat" />
+		</div>
+		<div class="apprco-meta-field" style="margin-top: 10px;">
+			<label for="apprco_postcode"><?php esc_html_e( 'Postcode', 'apprenticeship-connect' ); ?></label>
+			<input type="text" id="apprco_postcode" name="apprco_postcode" value="<?php echo esc_attr( (string) $postcode ); ?>" class="widefat" />
+		</div>
+		<?php
 	}
 
-	public function render_employer_meta_box( $post ) {
-		foreach ( array(
-			'_apprco_employer_name' => 'Employer Name',
-			'_apprco_postcode'      => 'Postcode',
-			'_apprco_latitude'      => 'Latitude',
-			'_apprco_longitude'     => 'Longitude',
-		) as $key => $label ) {
-			$val = get_post_meta( $post->ID, $key, true );
-			echo "<p><strong>$label:</strong><br/><input type='text' name='apprco_meta[$key]' value='" . esc_attr( $val ) . "' class='widefat'/></p>";
-		}
-	}
-
-	public function render_requirements_meta_box( $post ) {
-		$this->render_fields_grid(
-			$post,
-			array(
-				'_apprco_skills'              => array(
-					'label' => 'Skills',
-					'type'  => 'textarea',
-				),
-				'_apprco_qualifications'      => array(
-					'label' => 'Qualifications',
-					'type'  => 'textarea',
-				),
-				'_apprco_outcome_description' => array(
-					'label' => 'Outcome',
-					'type'  => 'textarea',
-				),
-			)
-		);
-	}
-
-	public function render_source_meta_box( $post ) {
-		$raw_data = get_post_meta( $post->ID, '_apprco_raw_data', true );
-		if ( empty( $raw_data ) ) {
-			echo '<p>' . esc_html__( 'No raw source data available.', 'apprenticeship-connect' ) . '</p>';
+	/**
+	 * Saves the meta box data.
+	 *
+	 * @param int $post_id The ID of the post being saved.
+	 * @return void
+	 */
+	public function save_vacancy_meta_box( int $post_id ): void {
+		if ( ! isset( $_POST['apprco_meta_nonce'] ) || ! wp_verify_nonce( sanitize_key( $_POST['apprco_meta_nonce'] ), 'apprco_save_meta' ) ) {
 			return;
 		}
-		echo '<pre style="background: #1e1e1e; color: #d4d4d4; padding: 15px; border-radius: 4px; font-size: 11px; max-height: 300px; overflow: auto;">';
-		echo esc_html( wp_json_encode( $raw_data, JSON_PRETTY_PRINT ) );
-		echo '</pre>';
-	}
 
-	public function save_meta_box_data( $post_id, $post ) {
-		if ( ! isset( $_POST[ self::NONCE_NAME ] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST[ self::NONCE_NAME ] ) ), self::NONCE_ACTION ) ) {
-			return;
-		}
 		if ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) {
 			return;
 		}
-		if ( 'apprco_vacancy' !== $post->post_type ) {
-			return;
-		}
-		if ( ! isset( $_POST['apprco_meta'] ) ) {
+
+		if ( ! current_user_can( 'edit_post', $post_id ) ) {
 			return;
 		}
 
-		foreach ( (array) $_POST['apprco_meta'] as $key => $value ) {
-			update_post_meta( $post_id, sanitize_key( $key ), wp_unslash( $value ) );
+		$fields = array(
+			'apprco_vacancy_reference' => '_apprco_vacancy_reference',
+			'apprco_vacancy_url'       => '_apprco_vacancy_url',
+			'apprco_employer_name'     => '_apprco_employer_name',
+			'apprco_postcode'          => '_apprco_postcode',
+		);
+
+		foreach ( $fields as $post_key => $meta_key ) {
+			if ( isset( $_POST[ $post_key ] ) ) {
+				$val = sanitize_text_field( wp_unslash( $_POST[ $post_key ] ) );
+				if ( '_apprco_vacancy_url' === $meta_key ) {
+					$val = esc_url_raw( $val );
+				}
+				update_post_meta( $post_id, $meta_key, $val );
+			}
 		}
 	}
 }

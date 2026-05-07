@@ -1,21 +1,47 @@
 <?php
 /**
- * Settings Manager - Centralized Configuration API
+ * Settings Manager Class
  *
  * @package ApprenticeshipConnect
- * @since   3.1.0
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
 	die;
 }
 
+/**
+ * Class Apprco_Settings_Manager
+ *
+ * Single source of truth for plugin settings.
+ */
 class Apprco_Settings_Manager {
 
-	public const OPTION_NAME = 'apprco_settings';
-	private static $instance = null;
-	private $settings        = array();
+	/**
+	 * Option name for settings.
+	 *
+	 * @var string
+	 */
+	private const OPTION_NAME = 'apprco_settings';
 
+	/**
+	 * Singleton instance.
+	 *
+	 * @var Apprco_Settings_Manager|null
+	 */
+	private static $instance = null;
+
+	/**
+	 * Settings cache.
+	 *
+	 * @var array
+	 */
+	private $settings;
+
+	/**
+	 * Get singleton instance.
+	 *
+	 * @return self
+	 */
 	public static function get_instance(): self {
 		if ( null === self::$instance ) {
 			self::$instance = new self();
@@ -23,72 +49,57 @@ class Apprco_Settings_Manager {
 		return self::$instance;
 	}
 
+	/**
+	 * Constructor.
+	 */
 	private function __construct() {
-		$this->load();
+		$this->settings = get_option( self::OPTION_NAME, $this->get_defaults() );
 	}
 
-	private function load(): void {
-		$defaults       = $this->get_defaults();
-		$stored         = get_option( self::OPTION_NAME, array() );
-		$this->settings = array_replace_recursive( $defaults, $stored );
-	}
-
+	/**
+	 * Get default settings.
+	 *
+	 * @return array
+	 */
 	public function get_defaults(): array {
-		$defaults = array(
+		return array(
 			'api'      => array(
 				'base_url'         => 'https://api.apprenticeships.education.gov.uk/vacancies',
 				'subscription_key' => '',
-				'ukprn'            => '',
-				'version'          => '2',
-				'timeout'          => 60,
-				'retry_max'        => 5,
+				'retry_max'        => 3,
 				'retry_delay_ms'   => 1000,
 				'retry_multiplier' => 2,
 			),
 			'import'   => array(
-				'batch_size'        => 100,
-				'max_pages'         => 0,
-				'rate_limit_delay'  => 500,
-				'duplicate_action'  => 'update',
-				'post_status'       => 'publish',
-				'delete_expired'    => true,
-				'expire_after_days' => 30,
-				'deep_fetch'        => true,
-			),
-			'schedule' => array(
-				'enabled'              => false,
-				'frequency'            => 'daily',
-				'time'                 => '03:00',
-				'use_action_scheduler' => true,
+				'max_pages'      => 100,
+				'deep_fetch'     => true,
+				'delete_expired' => false,
 			),
 			'advanced' => array(
-				'enable_geocoding'   => true,
 				'enable_logging'     => true,
 				'log_retention_days' => 30,
 				'debug_mode'         => false,
 			),
 		);
-
-		return apply_filters( 'apprco_settings_defaults', $defaults );
 	}
 
-	public function get( string $group, string $key, $default = null ) {
-		return $this->settings[ $group ][ $key ] ?? $default;
+	/**
+	 * Get a setting value.
+	 *
+	 * @param string $category Category name.
+	 * @param string $key      Setting key.
+	 * @param mixed  $default_value Default value.
+	 * @return mixed
+	 */
+	public function get( string $category, string $key, $default_value = null ) {
+		return isset( $this->settings[ $category ][ $key ] ) ? $this->settings[ $category ][ $key ] : $default_value;
 	}
 
-	public function get_all(): array {
-		return $this->settings;
-	}
-
-	public function update_group( string $group, array $values ): bool {
-		if ( ! isset( $this->settings[ $group ] ) ) {
-			return false;
-		}
-
-		$this->settings[ $group ] = array_merge( $this->settings[ $group ], $values );
-		return update_option( self::OPTION_NAME, $this->settings );
-	}
-
+	/**
+	 * Registers settings REST routes.
+	 *
+	 * @return void
+	 */
 	public function register_rest_routes(): void {
 		register_rest_route(
 			'apprco/v1',
@@ -96,36 +107,52 @@ class Apprco_Settings_Manager {
 			array(
 				array(
 					'methods'             => 'GET',
-					'callback'            => array( $this, 'rest_get_settings' ),
-					'permission_callback' => array( $this, 'rest_permission_check' ),
+					'callback'            => array( $this, 'get_settings_rest' ),
+					'permission_callback' => array( $this, 'permission_check' ),
 				),
 				array(
 					'methods'             => 'POST',
-					'callback'            => array( $this, 'rest_update_settings' ),
-					'permission_callback' => array( $this, 'rest_permission_check' ),
+					'callback'            => array( $this, 'update_settings_rest' ),
+					'permission_callback' => array( $this, 'permission_check' ),
 				),
 			)
 		);
 	}
 
-	public function rest_permission_check(): bool {
+	/**
+	 * REST permission check.
+	 *
+	 * @return bool
+	 */
+	public function permission_check(): bool {
 		return current_user_can( 'manage_options' );
 	}
 
-	public function rest_get_settings(): WP_REST_Response {
+	/**
+	 * Get settings for REST.
+	 *
+	 * @return WP_REST_Response
+	 */
+	public function get_settings_rest(): WP_REST_Response {
 		return new WP_REST_Response(
 			array(
-				'settings' => $this->get_all(),
+				'settings' => $this->settings,
 				'defaults' => $this->get_defaults(),
 			),
 			200
 		);
 	}
 
-	public function rest_update_settings( WP_REST_Request $request ): WP_REST_Response {
-		$params = $request->get_json_params();
-		$this->settings = array_replace_recursive( $this->settings, $params );
+	/**
+	 * Update settings via REST.
+	 *
+	 * @param WP_REST_Request $request The request object.
+	 * @return WP_REST_Response
+	 */
+	public function update_settings_rest( $request ): WP_REST_Response {
+		$new_settings   = $request->get_json_params();
+		$this->settings = array_replace_recursive( $this->settings, $new_settings );
 		update_option( self::OPTION_NAME, $this->settings );
-		return new WP_REST_Response( array( 'success' => true, 'settings' => $this->settings ), 200 );
+		return new WP_REST_Response( array( 'success' => true ), 200 );
 	}
 }
