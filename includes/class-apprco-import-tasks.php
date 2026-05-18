@@ -327,6 +327,7 @@ class Apprco_Import_Tasks {
 
 		if ( $row_id ) {
 			$store->mark_stage_2( $ref );
+			$this->process_to_cpt( $detail_data, $task );
 
 			/**
 			 * Action after a stage 2 vacancy is fully fetched.
@@ -341,6 +342,82 @@ class Apprco_Import_Tasks {
 				sprintf( 'Stage 2 upsert failed for ref %s', $ref ),
 				array( 'task_id' => $task_id, 'ref' => $ref )
 			);
+		}
+	}
+
+	/**
+	 * Map API detail data to CPT, meta, taxonomies, provider, and geocoder.
+	 *
+	 * @param array $data  Full vacancy detail data from the API.
+	 * @param array $task  Decoded task row (includes field_mappings).
+	 * @return void
+	 */
+	private function process_to_cpt( array $data, array $task ): void {
+		$mappings = ! empty( $task['field_mappings'] ) ? $task['field_mappings'] : Apprco_DTO_Mapper::default_mappings();
+		$mapper   = new Apprco_DTO_Mapper();
+		$mapped   = $mapper->map( $data, $mappings );
+
+		$post_data = $mapped['post_data'] ?? array();
+		$meta      = $mapped['meta'] ?? array();
+		$taxs      = $mapped['taxonomies'] ?? array();
+
+		// Find existing CPT post by vacancy reference.
+		$ref          = $data[ $task['unique_id_field'] ] ?? '';
+		$existing_ids = get_posts(
+			array(
+				'post_type'      => 'apprco_vacancy',
+				'meta_key'       => '_apprco_vacancy_ref',
+				'meta_value'     => $ref,
+				'posts_per_page' => 1,
+				'fields'         => 'ids',
+				'post_status'    => 'any',
+			)
+		);
+
+		if ( ! empty( $existing_ids ) ) {
+			$post_data['ID'] = $existing_ids[0];
+		}
+
+		$post_data['post_type']   = 'apprco_vacancy';
+		$post_data['post_status'] = $post_data['post_status'] ?? 'publish';
+
+		$post_id = empty( $post_data['ID'] ) ? wp_insert_post( $post_data, true ) : wp_update_post( $post_data, true );
+
+		if ( is_wp_error( $post_id ) || ! $post_id ) {
+			return;
+		}
+
+		// Always store the reference for future lookups.
+		update_post_meta( $post_id, '_apprco_vacancy_ref', $ref );
+
+		// Set all mapped meta.
+		foreach ( $meta as $key => $value ) {
+			update_post_meta( $post_id, $key, $value );
+		}
+
+		// Set taxonomy terms.
+		foreach ( $taxs as $taxonomy => $terms ) {
+			if ( ! empty( $terms ) ) {
+				wp_set_post_terms( $post_id, (array) $terms, $taxonomy, false );
+			}
+		}
+
+		// Sync provider CPT and workplace locations.
+		if ( class_exists( 'Apprco_Provider' ) ) {
+			$provider      = Apprco_Provider::get_instance();
+			$provider_id   = $provider->sync_from_vacancy( $data );
+			$ukprn         = intval( $data['providerUkprn'] ?? $data['provider_ukprn'] ?? 0 );
+			$all_addresses = $data['otherAddresses'] ?? $data['all_addresses'] ?? array();
+
+			if ( $provider_id && $ukprn && is_array( $all_addresses ) ) {
+				$provider->sync_workplaces( $ukprn, $provider_id, $all_addresses );
+			}
+		}
+
+		// Enqueue async geocoding (Stage 3) for the vacancy postcode.
+		$postcode = $data['address']['postcode'] ?? $data['postcode'] ?? '';
+		if ( $postcode && class_exists( 'Apprco_Geocoder' ) ) {
+			Apprco_Geocoder::get_instance()->enqueue_for_vacancy( $ref, $postcode );
 		}
 	}
 

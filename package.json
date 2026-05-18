@@ -24,7 +24,7 @@
   },
   "scripts": {
     "build": "wp-scripts build && npm run copy-blocks",
-    "copy-blocks": "node -e \"const fs=require('fs');const path=require('path');const blocksDir='src/blocks';if(fs.existsSync(blocksDir)){fs.readdirSync(blocksDir).forEach(b=>{const src=path.join(blocksDir,b,'block.json');const dest=path.join('build/blocks',b,'block.json');if(fs.existsSync(src)){fs.mkdirSync(path.dirname(dest),{recursive:true});fs.copyFileSync(src,dest);}});}\"",
+    "copy-blocks": "node -e \"const fs=require('fs');const path=require('path');const blocksDir='src/blocks';if(fs.existsSync(blocksDir)){fs.readdirSync(blocksDir).forEach(b=>{const destDir=path.join('build/blocks',b);fs.mkdirSync(destDir,{recursive:true});['block.json','render.php'].forEach(f=>{const src=path.join(blocksDir,b,f);if(fs.existsSync(src)){fs.copyFileSync(src,path.join(destDir,f));}});});}\"",
     "build:plugin": "bash build-plugin.sh",
     "build:production": "NODE_ENV=production npm run build && bash build-plugin.sh",
     "start": "wp-scripts start",

@@ -51,6 +51,7 @@ class Apprco_Blocks {
 		$blocks = array(
 			'vacancy-card',
 			'vacancy-listing',
+			'jobs-archive',
 		);
 
 		foreach ( $blocks as $block ) {
