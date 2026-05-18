@@ -1,152 +1,10 @@
 /**
-<<<<<<< HEAD
- * Apprenticeship Connect Frontend Styles
+ * Apprenticeship Connect – Frontend stylesheet.
  *
- * Modern SCSS implementation
+ * Compiled to assets/build/frontend-style.css by wp-scripts.
+ * Enqueued on all public pages.
  *
  * @package ApprenticeshipConnect
- */
-
-// Vacancy list styles
-.apprco-vacancy-list {
-	.vacancy-item {
-		padding: 20px;
-		margin-bottom: 20px;
-		background: #fff;
-		border: 1px solid #ddd;
-		border-radius: 4px;
-		transition: box-shadow 0.2s ease;
-
-		&:hover {
-			box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-		}
-
-		.vacancy-title {
-			font-size: 20px;
-			font-weight: 600;
-			margin-bottom: 10px;
-
-			a {
-				color: #2271b1;
-				text-decoration: none;
-
-				&:hover {
-					text-decoration: underline;
-				}
-			}
-		}
-
-		.vacancy-meta {
-			color: #646970;
-			font-size: 14px;
-			margin-bottom: 15px;
-
-			span {
-				margin-right: 15px;
-			}
-		}
-
-		.vacancy-excerpt {
-			margin-bottom: 15px;
-			line-height: 1.6;
-		}
-
-		.vacancy-apply {
-			display: inline-block;
-			padding: 10px 20px;
-			background: #2271b1;
-			color: #fff;
-			text-decoration: none;
-			border-radius: 4px;
-			transition: background 0.2s ease;
-
-			&:hover {
-				background: #135e96;
-			}
-		}
-	}
-}
-
-// Search form styles
-.apprco-search-form {
-	padding: 20px;
-	background: #f6f7f7;
-	border-radius: 4px;
-	margin-bottom: 30px;
-
-	.search-field {
-		margin-bottom: 15px;
-
-		label {
-			display: block;
-			margin-bottom: 5px;
-			font-weight: 600;
-		}
-
-		input,
-		select {
-			width: 100%;
-			padding: 8px 12px;
-			border: 1px solid #ddd;
-			border-radius: 4px;
-		}
-	}
-
-	button {
-		padding: 10px 20px;
-		background: #2271b1;
-		color: #fff;
-		border: none;
-		border-radius: 4px;
-		cursor: pointer;
-		transition: background 0.2s ease;
-
-		&:hover {
-			background: #135e96;
-		}
-	}
-}
-
-// Pagination styles
-.apprco-pagination {
-	display: flex;
-	justify-content: center;
-	gap: 5px;
-	margin-top: 30px;
-
-	a,
-	span {
-		display: inline-block;
-		padding: 8px 12px;
-		border: 1px solid #ddd;
-		border-radius: 4px;
-		text-decoration: none;
-		color: #2271b1;
-
-		&.current {
-			background: #2271b1;
-			color: #fff;
-			border-color: #2271b1;
-		}
-
-		&:hover:not(.current) {
-			background: #f6f7f7;
-		}
-	}
-}
-=======
- * Apprenticeship Connector – Frontend stylesheet.
- *
- * Compiled to build/frontend/index.css by wp-scripts.
- * Enqueued on all public pages via FrontendLoader::enqueue_assets().
- *
- * Styles in this file supplement the per-block style-index.css files and
- * cover:
- *   - Search/filter form on the vacancy archive
- *   - Single vacancy page layout
- *   - Utility classes shared across the frontend
- *
- * @package ApprenticeshipConnector
  */
 
 // ── Variables ──────────────────────────────────────────────────────────────
@@ -243,6 +101,67 @@
 	}
 }
 
+// ── Vacancy list (legacy shortcode / archive template) ─────────────────────
+
+.apprco-vacancy-list {
+	.vacancy-item {
+		padding: 20px;
+		margin-bottom: 20px;
+		background: #fff;
+		border: 1px solid var( --appcon-border );
+		border-radius: var( --appcon-radius );
+		transition: box-shadow 0.2s ease;
+
+		&:hover {
+			box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+		}
+
+		.vacancy-title {
+			font-size: 20px;
+			font-weight: 600;
+			margin-bottom: 10px;
+
+			a {
+				color: var( --appcon-primary );
+				text-decoration: none;
+
+				&:hover {
+					text-decoration: underline;
+				}
+			}
+		}
+
+		.vacancy-meta {
+			color: var( --appcon-muted );
+			font-size: 14px;
+			margin-bottom: 15px;
+
+			span {
+				margin-right: 15px;
+			}
+		}
+
+		.vacancy-excerpt {
+			margin-bottom: 15px;
+			line-height: 1.6;
+		}
+
+		.vacancy-apply {
+			display: inline-block;
+			padding: 10px 20px;
+			background: var( --appcon-primary );
+			color: #fff;
+			text-decoration: none;
+			border-radius: var( --appcon-radius );
+			transition: background 0.2s ease;
+
+			&:hover {
+				background: var( --appcon-primary-dk );
+			}
+		}
+	}
+}
+
 // ── Single vacancy page ────────────────────────────────────────────────────
 
 .appcon-single-vacancy {
@@ -328,6 +247,76 @@
 	}
 }
 
+// ── Search form (shortcode) ────────────────────────────────────────────────
+
+.apprco-search-form {
+	padding: 20px;
+	background: var( --appcon-surface );
+	border-radius: var( --appcon-radius );
+	margin-bottom: 30px;
+
+	.search-field {
+		margin-bottom: 15px;
+
+		label {
+			display: block;
+			margin-bottom: 5px;
+			font-weight: 600;
+		}
+
+		input,
+		select {
+			width: 100%;
+			padding: 8px 12px;
+			border: 1px solid var( --appcon-border );
+			border-radius: var( --appcon-radius );
+		}
+	}
+
+	button {
+		padding: 10px 20px;
+		background: var( --appcon-primary );
+		color: #fff;
+		border: none;
+		border-radius: var( --appcon-radius );
+		cursor: pointer;
+		transition: background 0.2s ease;
+
+		&:hover {
+			background: var( --appcon-primary-dk );
+		}
+	}
+}
+
+// ── Pagination ─────────────────────────────────────────────────────────────
+
+.apprco-pagination {
+	display: flex;
+	justify-content: center;
+	gap: 5px;
+	margin-top: 30px;
+
+	a,
+	span {
+		display: inline-block;
+		padding: 8px 12px;
+		border: 1px solid var( --appcon-border );
+		border-radius: var( --appcon-radius );
+		text-decoration: none;
+		color: var( --appcon-primary );
+
+		&.current {
+			background: var( --appcon-primary );
+			color: #fff;
+			border-color: var( --appcon-primary );
+		}
+
+		&:hover:not(.current) {
+			background: var( --appcon-surface );
+		}
+	}
+}
+
 // ── Employer logo ──────────────────────────────────────────────────────────
 
 .appcon-employer-logo {
@@ -355,4 +344,3 @@
 	&--level    { background: #e8f0fb; color: #1a4b8c; }
 	&--route    { background: #e8fbe8; color: #1a5c1a; }
 }
->>>>>>> origin/main
