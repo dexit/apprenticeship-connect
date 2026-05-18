@@ -119,11 +119,11 @@ Apprco_Connector::get_instance();
 add_action(
 	'wp_enqueue_scripts',
 	function() {
-		$asset_file = APPRCO_PLUGIN_DIR . 'assets/build/frontend.asset.php';
+		$asset_file = APPRCO_PLUGIN_DIR . 'build/frontend/index.asset.php';
 		if ( file_exists( $asset_file ) ) {
 			$asset = require $asset_file;
-			wp_enqueue_script( 'apprco-frontend', APPRCO_PLUGIN_URL . 'assets/build/frontend.js', $asset['dependencies'], APPRCO_VERSION, true );
-			wp_enqueue_style( 'apprco-frontend-style', APPRCO_PLUGIN_URL . 'assets/build/style-frontend.css', array(), APPRCO_VERSION );
+			wp_enqueue_script( 'apprco-frontend', APPRCO_PLUGIN_URL . 'build/frontend/index.js', $asset['dependencies'], APPRCO_VERSION, true );
+			wp_enqueue_style( 'apprco-frontend-style', APPRCO_PLUGIN_URL . 'build/frontend/index.css', array(), APPRCO_VERSION );
 		}
 	}
 );

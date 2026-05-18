@@ -54,7 +54,7 @@ class Apprco_Blocks {
 		);
 
 		foreach ( $blocks as $block ) {
-			$block_dir = APPRCO_PLUGIN_DIR . 'assets/build/blocks/' . $block;
+			$block_dir = APPRCO_PLUGIN_DIR . 'build/blocks/' . $block;
 			if ( file_exists( $block_dir . '/block.json' ) ) {
 				register_block_type( $block_dir );
 			}

@@ -97,14 +97,14 @@ class Apprco_Admin {
 			return;
 		}
 
-		$asset_file = APPRCO_PLUGIN_DIR . 'assets/build/admin.asset.php';
+		$asset_file = APPRCO_PLUGIN_DIR . 'build/admin/index.asset.php';
 		$deps       = array( 'wp-element', 'wp-i18n', 'wp-api-fetch', 'wp-components' );
 		if ( file_exists( $asset_file ) ) {
 			$asset = require $asset_file;
 			$deps  = $asset['dependencies'];
 		}
 
-		wp_enqueue_script( 'apprco-admin', APPRCO_PLUGIN_URL . 'assets/build/admin.js', $deps, APPRCO_VERSION, true );
-		wp_enqueue_style( 'apprco-admin-style', APPRCO_PLUGIN_URL . 'assets/build/style-admin-style.css', array( 'wp-components' ), APPRCO_VERSION );
+		wp_enqueue_script( 'apprco-admin', APPRCO_PLUGIN_URL . 'build/admin/index.js', $deps, APPRCO_VERSION, true );
+		wp_enqueue_style( 'apprco-admin-style', APPRCO_PLUGIN_URL . 'build/admin/index.css', array( 'wp-components' ), APPRCO_VERSION );
 	}
 }
