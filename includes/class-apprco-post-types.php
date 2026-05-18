@@ -66,7 +66,7 @@ class Apprco_Post_Types {
 				'supports'     => array( 'title', 'editor', 'excerpt', 'thumbnail' ),
 				'show_in_rest' => true,
 				'menu_icon'    => 'dashicons-id-alt',
-				'has_archive'  => true,
+				'has_archive'  => false,
 				'rewrite'      => array( 'slug' => 'apprenticeship' ),
 			)
 		);

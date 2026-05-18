@@ -21,7 +21,7 @@ class Apprco_Database {
 	 *
 	 * @var string
 	 */
-	public const VERSION = '3.1.0';
+	public const VERSION = '3.2.0';
 
 	/**
 	 * Option name for DB version.
@@ -98,6 +98,7 @@ class Apprco_Database {
 			'import_tasks' => array( 'Apprco_Import_Tasks', 'create_table' ),
 			'import_logs'  => array( 'Apprco_Import_Logger', 'create_table' ),
 			'employers'    => array( 'Apprco_Employer', 'create_table' ),
+			'vacancies'    => array( 'Apprco_Vacancy_Store', 'create_table' ),
 		);
 
 		foreach ( $tables as $name => $callback ) {

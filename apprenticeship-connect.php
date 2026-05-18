@@ -80,6 +80,7 @@ class Apprco_Connector {
 
 		// Initialize Core Components.
 		Apprco_Database::get_instance()->init();
+		Apprco_Vacancy_Store::get_instance();
 		Apprco_Post_Types::get_instance();
 		Apprco_Task_Scheduler::get_instance()->init();
 
@@ -87,6 +88,7 @@ class Apprco_Connector {
 		Apprco_Blocks::get_instance();
 		Apprco_Elementor::get_instance();
 		Apprco_Shortcodes::get_instance();
+		Apprco_Archive::get_instance();
 
 		// Initialize API & Routing.
 		add_action( 'rest_api_init', array( Apprco_REST_Controller::get_instance(), 'register_routes' ) );

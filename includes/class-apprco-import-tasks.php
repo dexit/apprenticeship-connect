@@ -1,6 +1,6 @@
 <?php
 /**
- * Import Task Repository - Abstracted Data Layer
+ * Import Task Repository - Two-Stage Import Pipeline
  *
  * @package ApprenticeshipConnect
  */
@@ -12,7 +12,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 /**
  * Class Apprco_Import_Tasks
  *
- * Handles database operations for import tasks.
+ * Handles database operations for import tasks and the two-stage import pipeline.
  */
 class Apprco_Import_Tasks {
 
@@ -156,6 +156,245 @@ class Apprco_Import_Tasks {
 		return false !== $wpdb->delete( $this->table, array( 'id' => $id ) );
 	}
 
+	// -------------------------------------------------------------------------
+	// Two-Stage Import Pipeline
+	// -------------------------------------------------------------------------
+
+	/**
+	 * Stage 1: Fetch all pages from the listing API and enqueue per-vacancy
+	 * Stage 2 deep-fetch actions.
+	 *
+	 * @param int $task_id Task ID.
+	 * @return array Result summary.
+	 */
+	public function run_stage1( int $task_id ): array {
+		$task = $this->get( $task_id );
+		if ( ! $task ) {
+			return array(
+				'success' => false,
+				'error'   => 'Task not found',
+			);
+		}
+
+		/**
+		 * Action before stage 1 starts.
+		 */
+		do_action( 'apprco_before_import_task', $task );
+
+		$logger    = Apprco_Import_Logger::get_instance();
+		$import_id = $logger->start_import( 'stage1', $task['provider_id'] );
+
+		$settings = Apprco_Settings_Manager::get_instance();
+		$client   = new Apprco_API_Client( $task['api_base_url'] );
+		$client->set_import_id( $import_id );
+		$client->set_default_headers( $task['api_headers'] );
+
+		$fetch_res = $client->fetch_all_pages(
+			$task['api_endpoint'],
+			$task['api_params'],
+			$task['page_param'],
+			$task['data_path'],
+			$task['total_path'],
+			$settings->get( 'import', 'max_pages', 0 )
+		);
+
+		if ( ! $fetch_res['success'] ) {
+			$logger->end_import( $import_id, 0, 0, 0, 0, 0, 1, 'failed' );
+			return $fetch_res;
+		}
+
+		$store      = Apprco_Vacancy_Store::get_instance();
+		$batch_size = (int) $settings->get( 'import', 'stage2_batch_size', 50 );
+		$upserted   = 0;
+		$errors     = 0;
+		$refs       = array();
+
+		foreach ( $fetch_res['items'] as $item ) {
+			// Upsert with stage 1 data only.
+			$item['import_stage'] = 1;
+			$row_id               = $store->upsert( $item, $task_id );
+
+			if ( $row_id ) {
+				$uid = isset( $item[ $task['unique_id_field'] ] ) ? (string) $item[ $task['unique_id_field'] ] : '';
+				if ( $uid ) {
+					$refs[] = $uid;
+					++$upserted;
+				}
+			} else {
+				++$errors;
+			}
+		}
+
+		// Enqueue per-vacancy stage 2 actions in batches.
+		if ( function_exists( 'as_enqueue_async_action' ) ) {
+			$enqueued = 0;
+			foreach ( $refs as $ref ) {
+				// Respect batch size to avoid flooding the AS queue in one go.
+				if ( $batch_size > 0 && $enqueued >= $batch_size ) {
+					break;
+				}
+				as_enqueue_async_action(
+					Apprco_Task_Scheduler::HOOK_STAGE2,
+					array(
+						'task_id' => $task_id,
+						'ref'     => $ref,
+					),
+					'apprco'
+				);
+				++$enqueued;
+			}
+
+			// If we hit the batch limit, schedule remaining via a follow-up action.
+			if ( $batch_size > 0 && count( $refs ) > $batch_size ) {
+				$remaining = array_slice( $refs, $batch_size );
+				foreach ( $remaining as $ref ) {
+					as_enqueue_async_action(
+						Apprco_Task_Scheduler::HOOK_STAGE2,
+						array(
+							'task_id' => $task_id,
+							'ref'     => $ref,
+						),
+						'apprco'
+					);
+				}
+			}
+		}
+
+		$this->update_stats( $task_id );
+		$logger->end_import( $import_id, count( $fetch_res['items'] ), $upserted, 0, 0, 0, $errors, 'completed' );
+
+		$message = sprintf( 'Stage 1 complete: %d vacancies queued for deep fetch', $upserted );
+
+		/**
+		 * Action after stage 1 completes.
+		 */
+		do_action( 'apprco_stage1_complete', $task_id, $import_id, $upserted );
+
+		return array(
+			'success'   => true,
+			'import_id' => $import_id,
+			'fetched'   => count( $fetch_res['items'] ),
+			'upserted'  => $upserted,
+			'errors'    => $errors,
+			'message'   => $message,
+		);
+	}
+
+	/**
+	 * Stage 2: Fetch full details for a single vacancy and update the store.
+	 *
+	 * @param int    $task_id Task ID.
+	 * @param string $ref     Vacancy reference.
+	 * @return void
+	 */
+	public function run_stage2_single( int $task_id, string $ref ): void {
+		$task = $this->get( $task_id );
+		if ( ! $task ) {
+			return;
+		}
+
+		$client = new Apprco_API_Client( $task['api_base_url'] );
+		$client->set_default_headers( $task['api_headers'] );
+
+		$endpoint = rtrim( $task['api_endpoint'], '/' ) . '/' . rawurlencode( $ref );
+		$response = $client->get( $endpoint );
+
+		if ( ! $response['success'] ) {
+			// Log failure but don't throw — other stage 2 jobs should continue.
+			$logger = Apprco_Import_Logger::get_instance();
+			$logger->log(
+				'stage2',
+				'error',
+				'import',
+				sprintf( 'Stage 2 failed for ref %s: %s', $ref, isset( $response['error'] ) ? $response['error'] : 'Unknown error' ),
+				array( 'task_id' => $task_id, 'ref' => $ref )
+			);
+			return;
+		}
+
+		$detail_data = $response['data'];
+
+		// Merge listing reference into detail data so upsert can identify the row.
+		if ( ! isset( $detail_data[ $task['unique_id_field'] ] ) ) {
+			$detail_data[ $task['unique_id_field'] ] = $ref;
+		}
+
+		// Mark as stage 2.
+		$detail_data['import_stage'] = 2;
+
+		$store  = Apprco_Vacancy_Store::get_instance();
+		$row_id = $store->upsert( $detail_data, $task_id );
+
+		if ( $row_id ) {
+			$store->mark_stage_2( $ref );
+
+			/**
+			 * Action after a stage 2 vacancy is fully fetched.
+			 */
+			do_action( 'apprco_stage2_vacancy_complete', $ref, $task_id, $detail_data );
+		} else {
+			$logger = Apprco_Import_Logger::get_instance();
+			$logger->log(
+				'stage2',
+				'error',
+				'import',
+				sprintf( 'Stage 2 upsert failed for ref %s', $ref ),
+				array( 'task_id' => $task_id, 'ref' => $ref )
+			);
+		}
+	}
+
+	/**
+	 * Get progress of a two-stage import for a given task.
+	 *
+	 * @param int $task_id Task ID.
+	 * @return array { stage1_done: bool, stage2_total: int, stage2_done: int, stage2_pending: int }
+	 */
+	public function get_stage_progress( int $task_id ): array {
+		$store  = Apprco_Vacancy_Store::get_instance();
+		$counts = $store->count_by_stage( $task_id );
+
+		$stage2_done    = $counts['stage2'];
+		$stage2_total   = $counts['stage1'] + $counts['stage2'];
+		$stage2_pending = $counts['stage1'];
+
+		// Check Action Scheduler pending count for remaining stage 2 jobs.
+		$as_pending = 0;
+		if ( function_exists( 'as_get_scheduled_actions' ) ) {
+			$pending_actions = as_get_scheduled_actions(
+				array(
+					'hook'   => Apprco_Task_Scheduler::HOOK_STAGE2,
+					'args'   => array( 'task_id' => $task_id ),
+					'status' => 'pending',
+					'per_page' => -1,
+				)
+			);
+			$as_pending = is_array( $pending_actions ) ? count( $pending_actions ) : 0;
+		}
+
+		return array(
+			'stage1_done'    => $stage2_total > 0,
+			'stage2_total'   => $stage2_total,
+			'stage2_done'    => $stage2_done,
+			'stage2_pending' => max( $stage2_pending, $as_pending ),
+		);
+	}
+
+	/**
+	 * Run an import task (legacy compatibility wrapper — routes to stage1).
+	 *
+	 * @param int           $task_id     Task ID.
+	 * @param callable|null $on_progress Progress callback.
+	 * @return array
+	 */
+	public function run_import( int $task_id, ?callable $on_progress = null ): array {
+		return $this->run_stage1( $task_id );
+	}
+
+	// -------------------------------------------------------------------------
+	// Private helpers
+	// -------------------------------------------------------------------------
+
 	/**
 	 * Decode task JSON fields.
 	 *
@@ -189,241 +428,14 @@ class Apprco_Import_Tasks {
 	}
 
 	/**
-	 * Run an import task.
-	 *
-	 * @param int           $task_id     Task ID.
-	 * @param callable|null $on_progress Progress callback.
-	 * @return array
-	 */
-	public function run_import( int $task_id, ?callable $on_progress = null ): array {
-		$task = $this->get( $task_id );
-		if ( ! $task ) {
-			return array(
-				'success' => false,
-				'error'   => 'Task not found',
-			);
-		}
-
-		/**
-		 * Action before import task starts.
-		 */
-		do_action( 'apprco_before_import_task', $task );
-
-		$logger    = Apprco_Import_Logger::get_instance();
-		$import_id = $logger->start_import( 'manual', $task['provider_id'] );
-
-		$settings = Apprco_Settings_Manager::get_instance();
-		$client   = new Apprco_API_Client( $task['api_base_url'] );
-		$client->set_import_id( $import_id );
-		$client->set_default_headers( $task['api_headers'] );
-
-		$fetch_res = $client->fetch_all_pages(
-			$task['api_endpoint'],
-			$task['api_params'],
-			$task['page_param'],
-			$task['data_path'],
-			$task['total_path'],
-			$settings->get( 'import', 'max_pages', 0 )
-		);
-
-		if ( ! $fetch_res['success'] ) {
-			$logger->end_import( $import_id, 0, 0, 0, 0, 0, 1, 'failed' );
-			return $fetch_res;
-		}
-
-		$created = 0;
-		$updated = 0;
-		$errors  = 0;
-		$refs    = array();
-
-		foreach ( $fetch_res['items'] as $index => $item ) {
-			if ( $settings->get( 'import', 'deep_fetch', true ) ) {
-				$uid = isset( $item[ $task['unique_id_field'] ] ) ? $item[ $task['unique_id_field'] ] : null;
-				if ( $uid ) {
-					$deep = $client->get( $task['api_endpoint'] . '/' . $uid );
-					if ( $deep['success'] ) {
-						$item = array_merge( $item, $deep['data'] );
-					}
-				}
-			}
-
-			/**
-			 * Filter import item data.
-			 */
-			$item = apply_filters( 'apprco_import_item_data', $item, $task );
-			$res  = $this->process_item( $task, $item );
-
-			if ( $res['success'] ) {
-				if ( 'created' === $res['action'] ) {
-					++$created;
-				} else {
-					++$updated;
-				}
-				$refs[] = isset( $item[ $task['unique_id_field'] ] ) ? $item[ $task['unique_id_field'] ] : null;
-			} else {
-				++$errors;
-			}
-
-			if ( $on_progress ) {
-				call_user_func(
-					$on_progress,
-					array(
-						'phase'   => 'processing',
-						'current' => $index + 1,
-						'total'   => count( $fetch_res['items'] ),
-					)
-				);
-			}
-		}
-
-		$deleted = 0;
-		if ( $settings->get( 'import', 'delete_expired' ) ) {
-			$deleted = $this->cleanup_expired_vacancies( $refs );
-		}
-
-		$this->update_stats( $task_id );
-		$logger->end_import( $import_id, count( $fetch_res['items'] ), $created, $updated, $deleted, 0, $errors, 'completed' );
-
-		/**
-		 * Action after import task ends.
-		 */
-		do_action( 'apprco_after_import_task', $task_id, $import_id );
-
-		return array(
-			'success'   => true,
-			'import_id' => $import_id,
-			'fetched'   => count( $fetch_res['items'] ),
-			'created'   => $created,
-			'updated'   => $updated,
-		);
-	}
-
-	/**
-	 * Process a single import item.
-	 *
-	 * @param array $task Task data.
-	 * @param array $item Item data.
-	 * @return array
-	 */
-	private function process_item( array $task, array $item ): array {
-		$uid = isset( $item[ $task['unique_id_field'] ] ) ? $item[ $task['unique_id_field'] ] : null;
-		if ( ! $uid ) {
-			return array(
-				'success' => false,
-				'error'   => 'Missing UID',
-			);
-		}
-
-		$existing = new WP_Query(
-			array(
-				'post_type'      => 'apprco_vacancy',
-				'meta_query'     => array(
-					array(
-						'key'   => '_apprco_vacancy_reference',
-						'value' => $uid,
-					),
-				),
-				'posts_per_page' => 1,
-			)
-		);
-		$exists   = $existing->have_posts() ? $existing->posts[0] : null;
-
-		$post_data = array(
-			'post_type'    => 'apprco_vacancy',
-			'post_status'  => $task['post_status'],
-			'post_title'   => isset( $item['title'] ) ? $item['title'] : '',
-			'post_content' => isset( $item['fullDescription'] ) ? $item['fullDescription'] : ( isset( $item['description'] ) ? $item['description'] : '' ),
-		);
-
-		if ( $exists ) {
-			$post_data['ID'] = $exists->ID;
-			$post_id         = wp_update_post( $post_data );
-			$action          = 'updated';
-		} else {
-			$post_id = wp_insert_post( $post_data );
-			$action  = 'created';
-		}
-
-		if ( is_wp_error( $post_id ) ) {
-			return array(
-				'success' => false,
-				'error'   => $post_id->get_error_message(),
-			);
-		}
-
-		// Map meta.
-		$mappings = array(
-			'_apprco_vacancy_reference' => $task['unique_id_field'],
-			'_apprco_employer_name'     => 'employerName',
-			'_apprco_vacancy_url'       => 'vacancyUrl',
-			'_apprco_postcode'          => 'addresses[0].postcode',
-		);
-		foreach ( $mappings as $meta => $key ) {
-			$path = explode( '.', $key );
-			$val  = $item;
-			foreach ( $path as $pk ) {
-				if ( preg_match( '/\[(\d+)\]/', $pk, $m ) ) {
-					$pk  = str_replace( $m[0], '', $pk );
-					$val = isset( $val[ $pk ][ $m[1] ] ) ? $val[ $pk ][ $m[1] ] : null;
-				} else {
-					$val = isset( $val[ $pk ] ) ? $val[ $pk ] : null;
-				}
-			}
-			update_post_meta( $post_id, $meta, $val );
-		}
-		update_post_meta( $post_id, '_apprco_raw_data', $item );
-
-		/**
-		 * Action after item imported.
-		 */
-		do_action( 'apprco_item_imported', $post_id, $item, $action );
-
-		return array(
-			'success' => true,
-			'action'  => $action,
-			'post_id' => $post_id,
-		);
-	}
-
-	/**
-	 * Update task stats.
+	 * Update task stats after a run.
 	 *
 	 * @param int $id Task ID.
 	 * @return void
 	 */
-	private function update_stats( int $id ) {
+	private function update_stats( int $id ): void {
 		global $wpdb;
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
 		$wpdb->query( $wpdb->prepare( 'UPDATE %i SET last_run_at = %s, total_runs = total_runs + 1 WHERE id = %d', $this->table, current_time( 'mysql' ), $id ) );
-	}
-
-	/**
-	 * Cleanup expired vacancies.
-	 *
-	 * @param array $refs Active references.
-	 * @return int Number of deleted posts.
-	 */
-	private function cleanup_expired_vacancies( array $refs ): int {
-		$refs = array_filter( array_map( 'strval', $refs ) );
-		if ( empty( $refs ) ) {
-			return 0;
-		}
-
-		$q       = new WP_Query(
-			array(
-				'post_type'      => 'apprco_vacancy',
-				'posts_per_page' => -1,
-				'fields'         => 'ids',
-			)
-		);
-		$deleted = 0;
-		foreach ( $q->posts as $pid ) {
-			$r = get_post_meta( $pid, '_apprco_vacancy_reference', true );
-			if ( ! in_array( (string) $r, $refs, true ) ) {
-				wp_delete_post( $pid, true );
-				++$deleted;
-			}
-		}
-		return $deleted;
 	}
 }

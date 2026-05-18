@@ -71,9 +71,13 @@ class Apprco_Settings_Manager {
 				'retry_multiplier' => 2,
 			),
 			'import'   => array(
-				'max_pages'      => 100,
-				'deep_fetch'     => true,
-				'delete_expired' => false,
+				'max_pages'          => 100,
+				'deep_fetch'         => true,
+				'delete_expired'     => false,
+				'stage2_batch_size'  => 50,
+			),
+			'archive'  => array(
+				'jobs_archive_page_id' => 0,
 			),
 			'advanced' => array(
 				'enable_logging'     => true,
