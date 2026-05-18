@@ -138,7 +138,23 @@ class Apprco_REST_Controller {
 	public function get_stats(): WP_REST_Response {
 		$logger              = Apprco_Import_Logger::get_instance();
 		$stats               = $logger->get_stats();
-		$stats['resilience'] = get_transient( 'apprco_last_api_stats' ) ? get_transient( 'apprco_last_api_stats' ) : array();
+		$stats['resilience'] = get_transient( 'apprco_last_api_stats' ) ?: array();
+
+		// Vacancy counts.
+		$store                  = Apprco_Vacancy_Store::get_instance();
+		$vacancy_counts         = $store->count_by_stage( 0 ); // 0 = all tasks.
+		$stats['vacancies']     = $vacancy_counts;
+
+		// Enquiry counts.
+		if ( class_exists( 'Apprco_Enquiry' ) ) {
+			$enquiry             = Apprco_Enquiry::get_instance();
+			$stats['enquiries']  = array(
+				'total'   => $enquiry->get_all( array( 'per_page' => 1 ) )['total'],
+				'new'     => $enquiry->get_all( array( 'status' => Apprco_Enquiry::STATUS_NEW, 'per_page' => 1 ) )['total'],
+				'replied' => $enquiry->get_all( array( 'status' => Apprco_Enquiry::STATUS_REPLIED, 'per_page' => 1 ) )['total'],
+			);
+		}
+
 		return new WP_REST_Response( $stats, 200 );
 	}
 

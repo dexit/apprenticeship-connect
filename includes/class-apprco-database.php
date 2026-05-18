@@ -100,6 +100,7 @@ class Apprco_Database {
 			'employers'    => array( 'Apprco_Employer', 'create_table' ),
 			'vacancies'    => array( 'Apprco_Vacancy_Store', 'create_table' ),
 			'workplaces'   => array( 'Apprco_Provider', 'create_workplaces_table' ),
+			'enquiries'    => array( 'Apprco_Enquiry', 'create_table' ),
 		);
 
 		foreach ( $tables as $name => $callback ) {

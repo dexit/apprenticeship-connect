@@ -293,33 +293,35 @@ class Apprco_Import_Tasks {
 			return;
 		}
 
+		$logger    = Apprco_Import_Logger::get_instance();
+		$import_id = $this->get_stage2_import_id( $task_id, $logger );
+
 		$client = new Apprco_API_Client( $task['api_base_url'] );
 		$client->set_default_headers( $task['api_headers'] );
+		$client->set_import_id( $import_id );
 
 		$endpoint = rtrim( $task['api_endpoint'], '/' ) . '/' . rawurlencode( $ref );
+
+		$logger->log( $import_id, 'info', 'stage2', sprintf( 'Fetching detail for vacancy %s', $ref ) );
+
 		$response = $client->get( $endpoint );
 
 		if ( ! $response['success'] ) {
-			// Log failure but don't throw — other stage 2 jobs should continue.
-			$logger = Apprco_Import_Logger::get_instance();
 			$logger->log(
-				'stage2',
+				$import_id,
 				'error',
-				'import',
-				sprintf( 'Stage 2 failed for ref %s: %s', $ref, isset( $response['error'] ) ? $response['error'] : 'Unknown error' ),
-				array( 'task_id' => $task_id, 'ref' => $ref )
+				'stage2',
+				sprintf( 'Stage 2 failed for ref %s: %s (code: %d)', $ref, $response['error'] ?? 'unknown', $response['code'] ?? 0 )
 			);
 			return;
 		}
 
-		$detail_data = $response['data'];
+		$detail_data = $response['data'] ?? array();
 
-		// Merge listing reference into detail data so upsert can identify the row.
+		// Ensure the reference field is present so the store can identify the row.
 		if ( ! isset( $detail_data[ $task['unique_id_field'] ] ) ) {
 			$detail_data[ $task['unique_id_field'] ] = $ref;
 		}
-
-		// Mark as stage 2.
 		$detail_data['import_stage'] = 2;
 
 		$store  = Apprco_Vacancy_Store::get_instance();
@@ -329,20 +331,47 @@ class Apprco_Import_Tasks {
 			$store->mark_stage_2( $ref );
 			$this->process_to_cpt( $detail_data, $task );
 
+			$api_stats = $client->get_stats();
+			$logger->log( $import_id, 'info', 'stage2', sprintf(
+				'Vacancy %s stored (row %d). API stats — requests:%d retries:%d errors:%d remaining:%s',
+				$ref,
+				$row_id,
+				$api_stats['requests'],
+				$api_stats['retries'],
+				$api_stats['errors'],
+				$api_stats['remaining'] ?? 'n/a'
+			) );
+
 			/**
 			 * Action after a stage 2 vacancy is fully fetched.
 			 */
 			do_action( 'apprco_stage2_vacancy_complete', $ref, $task_id, $detail_data );
 		} else {
-			$logger = Apprco_Import_Logger::get_instance();
-			$logger->log(
-				'stage2',
-				'error',
-				'import',
-				sprintf( 'Stage 2 upsert failed for ref %s', $ref ),
-				array( 'task_id' => $task_id, 'ref' => $ref )
-			);
+			$logger->log( $import_id, 'error', 'stage2', sprintf( 'DB upsert failed for vacancy %s', $ref ) );
 		}
+	}
+
+	/**
+	 * Get (or create) a persistent stage-2 import_id for the given task.
+	 * Re-uses the same run across all per-vacancy AS jobs for the task so logs
+	 * are grouped together in the dashboard.
+	 *
+	 * @param int                  $task_id Task ID.
+	 * @param Apprco_Import_Logger $logger  Logger instance.
+	 * @return string Import UUID.
+	 */
+	private function get_stage2_import_id( int $task_id, Apprco_Import_Logger $logger ): string {
+		$transient_key = 'apprco_s2_importid_' . $task_id;
+		$import_id     = get_transient( $transient_key );
+
+		if ( ! $import_id ) {
+			$task      = $this->get( $task_id );
+			$import_id = $logger->start_import( 'stage2', $task['provider_id'] ?? 'uk-gov-apprenticeships' );
+			// Keep for 24 h — long enough to cover a full deep-fetch batch.
+			set_transient( $transient_key, $import_id, DAY_IN_SECONDS );
+		}
+
+		return $import_id;
 	}
 
 	/**

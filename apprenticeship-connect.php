@@ -1,11 +1,17 @@
 <?php
 /**
  * Plugin Name: Apprenticeship Connect
- * Description: Robust integration with UK Government Apprenticeships API v2. Features deep-fetching, rate-limit resilience, and modern dashboard.
+ * Plugin URI: https://github.com/dexit/apprenticeship-connect
+ * Description: Robust integration with UK Government Apprenticeships API v2. Features deep-fetching, rate-limit resilience, modern jobs archive, and enquiry management.
  * Version: 3.1.0
  * Author: Jules
+ * Author URI: https://github.com/dexit
  * Text Domain: apprenticeship-connect
+ * Domain Path: /languages
  * License: GPL-2.0-or-later
+ * License URI: https://www.gnu.org/licenses/gpl-2.0.html
+ * Requires at least: 6.1
+ * Requires PHP: 8.2
  *
  * @package ApprenticeshipConnect
  */
@@ -91,6 +97,7 @@ class Apprco_Connector {
 		Apprco_Elementor::get_instance();
 		Apprco_Shortcodes::get_instance();
 		Apprco_Archive::get_instance();
+		Apprco_Enquiry::get_instance();
 
 		// Initialize API & Routing.
 		add_action( 'rest_api_init', array( Apprco_REST_Controller::get_instance(), 'register_routes' ) );

@@ -42,6 +42,7 @@ class Apprco_Shortcodes {
 	private function __construct() {
 		add_shortcode( 'apprco_search', array( $this, 'render_search' ) );
 		add_shortcode( 'apprco_vacancy', array( $this, 'render_vacancy' ) );
+		add_shortcode( 'apprco_jobs', array( $this, 'render_jobs' ) );
 	}
 
 	/**
@@ -51,6 +52,38 @@ class Apprco_Shortcodes {
 	 */
 	public function render_search(): string {
 		return '<div id="apprco-search-root"></div>';
+	}
+
+	/**
+	 * Renders the full jobs archive — delegates to Apprco_Archive::render().
+	 *
+	 * @param array $atts Shortcode attributes.
+	 * @return string
+	 */
+	public function render_jobs( $atts ): string {
+		if ( ! class_exists( 'Apprco_Archive' ) ) {
+			return '';
+		}
+		$atts = shortcode_atts(
+			array(
+				'per_page'             => 20,
+				'columns'              => 3,
+				'layout'               => 'grid',
+				'show_search'          => true,
+				'show_filters'         => true,
+				'show_distance_filter' => true,
+				'show_stats'           => true,
+				'show_pagination'      => true,
+				'order_by'             => 'closing_date',
+				'order'                => 'ASC',
+				'filter_level'         => '',
+				'filter_route'         => '',
+				'color_primary'        => '#1d70b8',
+			),
+			(array) $atts,
+			'apprco_jobs'
+		);
+		return Apprco_Archive::get_instance()->render( $atts );
 	}
 
 	/**
