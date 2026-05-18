@@ -1,0 +1,59 @@
+{
+	"$schema": "https://schemas.wp.org/trunk/block.json",
+	"apiVersion": 3,
+	"name": "apprenticeship-connector/vacancy-listing",
+	"version": "1.0.0",
+	"title": "Vacancy Listing",
+	"category": "widgets",
+	"icon": "welcome-learn-more",
+	"description": "Display a filterable, paginated list of apprenticeship vacancies.",
+	"keywords": [ "apprenticeship", "vacancy", "jobs", "listing" ],
+	"textdomain": "apprenticeship-connector",
+	"supports": {
+		"html": false,
+		"align": [ "wide", "full" ],
+		"color": { "background": true, "text": true },
+		"spacing": { "margin": true, "padding": true }
+	},
+	"attributes": {
+		"postsPerPage": {
+			"type": "number",
+			"default": 10
+		},
+		"orderBy": {
+			"type": "string",
+			"default": "date"
+		},
+		"order": {
+			"type": "string",
+			"default": "DESC"
+		},
+		"filterLevel": {
+			"type": "string",
+			"default": ""
+		},
+		"filterRoute": {
+			"type": "string",
+			"default": ""
+		},
+		"showExpired": {
+			"type": "boolean",
+			"default": false
+		},
+		"layout": {
+			"type": "string",
+			"default": "list"
+		},
+		"showPagination": {
+			"type": "boolean",
+			"default": true
+		},
+		"showSearch": {
+			"type": "boolean",
+			"default": true
+		}
+	},
+	"editorScript": "file:./index.js",
+	"editorStyle": "file:./index.css",
+	"style": "file:./style-index.css"
+}

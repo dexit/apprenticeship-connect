@@ -4,7 +4,6 @@ vendor/
 
 # Build artifacts
 assets/build/
-build/
 dist/
 *.zip
 
