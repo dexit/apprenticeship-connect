@@ -99,6 +99,7 @@ class Apprco_Database {
 			'import_logs'  => array( 'Apprco_Import_Logger', 'create_table' ),
 			'employers'    => array( 'Apprco_Employer', 'create_table' ),
 			'vacancies'    => array( 'Apprco_Vacancy_Store', 'create_table' ),
+			'workplaces'   => array( 'Apprco_Provider', 'create_workplaces_table' ),
 		);
 
 		foreach ( $tables as $name => $callback ) {

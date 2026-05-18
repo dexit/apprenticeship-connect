@@ -70,17 +70,87 @@ class Apprco_Archive {
 	public function render_archive( $atts = array(), $content = '' ): string {
 		$atts = shortcode_atts(
 			array(
-				'per_page' => 20,
+				'per_page'            => 20,
+				'columns'             => 3,
+				'show_search'         => true,
+				'show_filters'        => true,
+				'show_distance_filter'=> true,
+				'show_stats'          => true,
+				'show_pagination'     => true,
+				'order_by'            => 'closing_date',
+				'order'               => 'ASC',
+				'filter_level'        => '',
+				'filter_route'        => '',
+				'color_primary'       => '#1d70b8',
+				'layout'              => 'grid',
 			),
 			$atts,
 			'apprco_jobs'
 		);
+		return $this->render( $atts );
+	}
+
+	/**
+	 * Unified render method — called by shortcode, Gutenberg block, and Elementor widget.
+	 *
+	 * Accepts a flat atts array (camelCase from block attributes OR snake_case
+	 * from shortcode/Elementor — both are normalised internally).
+	 *
+	 * @param array $atts Render options (see render_archive defaults for keys).
+	 * @return string HTML output.
+	 */
+	public function render( array $atts = array() ): string {
+		// Normalise camelCase block attribute names to snake_case.
+		$map = array(
+			'perPage'           => 'per_page',
+			'showSearch'        => 'show_search',
+			'showFilters'       => 'show_filters',
+			'showDistanceFilter'=> 'show_distance_filter',
+			'showStats'         => 'show_stats',
+			'showPagination'    => 'show_pagination',
+			'orderBy'           => 'order_by',
+			'filterLevel'       => 'filter_level',
+			'filterRoute'       => 'filter_route',
+			'colorPrimary'      => 'color_primary',
+		);
+		foreach ( $map as $camel => $snake ) {
+			if ( isset( $atts[ $camel ] ) && ! isset( $atts[ $snake ] ) ) {
+				$atts[ $snake ] = $atts[ $camel ];
+			}
+		}
+
+		$defaults = array(
+			'per_page'             => 20,
+			'columns'              => 3,
+			'show_search'          => true,
+			'show_filters'         => true,
+			'show_distance_filter' => true,
+			'show_stats'           => true,
+			'show_pagination'      => true,
+			'order_by'             => 'closing_date',
+			'order'                => 'ASC',
+			'filter_level'         => '',
+			'filter_route'         => '',
+			'color_primary'        => '#1d70b8',
+			'layout'               => 'grid',
+		);
+		$atts = wp_parse_args( $atts, $defaults );
 
 		$args = $this->parse_query_args( (int) $atts['per_page'] );
 
-		// Geocode postcode for distance search if provided.
+		// Apply default level/route from block/widget config (URL params take precedence).
+		if ( empty( $args['level'] ) && ! empty( $atts['filter_level'] ) ) {
+			$args['level'] = sanitize_text_field( $atts['filter_level'] );
+		}
+		if ( empty( $args['route'] ) && ! empty( $atts['filter_route'] ) ) {
+			$args['route'] = sanitize_text_field( $atts['filter_route'] );
+		}
+		$args['order_by'] = sanitize_key( $atts['order_by'] );
+		$args['order']    = 'DESC' === strtoupper( $atts['order'] ) ? 'DESC' : 'ASC';
+
+		// Geocode postcode for distance search.
 		if ( ! empty( $args['postcode'] ) ) {
-			$geo = $this->geocode_postcode( $args['postcode'] );
+			$geo = Apprco_Geocoder::forward( $args['postcode'] );
 			if ( $geo ) {
 				$args['search_lat'] = $geo['lat'];
 				$args['search_lng'] = $geo['lng'];
@@ -92,9 +162,11 @@ class Apprco_Archive {
 		$filters = $store->get_filters();
 
 		ob_start();
-		$this->print_styles();
-		$this->render_search_form( $args, $filters );
-		$this->render_results( $results, $args );
+		$this->print_styles( $atts['color_primary'] );
+		if ( (bool) $atts['show_search'] || (bool) $atts['show_filters'] ) {
+			$this->render_search_form( $args, $filters, '', $atts );
+		}
+		$this->render_results( $results, $args, $atts );
 		return ob_get_clean();
 	}
 
@@ -165,7 +237,7 @@ class Apprco_Archive {
 	 * @param string $action  Form action URL (empty for current page).
 	 * @return void
 	 */
-	private function render_search_form( array $args, array $filters, string $action = '' ): void {
+	private function render_search_form( array $args, array $filters, string $action = '', array $atts = array() ): void {
 		$action_attr = $action ? ' action="' . esc_url( $action ) . '"' : '';
 		?>
 		<div class="apprco-archive">
@@ -283,7 +355,7 @@ class Apprco_Archive {
 	 * @param array $args    Current search args.
 	 * @return void
 	 */
-	private function render_results( array $results, array $args ): void {
+	private function render_results( array $results, array $args, array $atts = array() ): void {
 		$total    = $results['total'];
 		$items    = $results['items'];
 		$pages    = $results['pages'];
@@ -548,11 +620,15 @@ class Apprco_Archive {
 	 *
 	 * @return void
 	 */
-	private function print_styles(): void {
+	private function print_styles( string $color_primary = '#1d70b8' ): void {
 		if ( self::$css_printed ) {
 			return;
 		}
 		self::$css_printed = true;
+		// Ensure color is a valid hex value before injecting into CSS.
+		if ( ! preg_match( '/^#[0-9a-fA-F]{3,6}$/', $color_primary ) ) {
+			$color_primary = '#1d70b8';
+		}
 		?>
 		<style id="apprco-archive-styles">
 		/* =====================================================================
@@ -560,7 +636,7 @@ class Apprco_Archive {
 		   ===================================================================== */
 
 		:root {
-			--apprco-primary: #1d70b8;
+			--apprco-primary: <?php echo esc_attr( $color_primary ); ?>;
 			--apprco-primary-dark: #144e87;
 			--apprco-primary-light: #e8f1fb;
 			--apprco-text: #0b0c0c;

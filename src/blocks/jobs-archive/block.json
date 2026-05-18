@@ -1,0 +1,75 @@
+{
+	"$schema": "https://schemas.wp.org/trunk/block.json",
+	"apiVersion": 3,
+	"name": "apprco/jobs-archive",
+	"version": "1.0.0",
+	"title": "Apprenticeship Jobs Archive",
+	"category": "widgets",
+	"icon": "portfolio",
+	"description": "Self-hosted apprenticeship vacancy archive with search, filters, and responsive card grid. Powered by the local dataset.",
+	"keywords": [ "apprenticeship", "jobs", "vacancies", "archive", "search" ],
+	"textdomain": "apprenticeship-connect",
+	"supports": {
+		"html": false,
+		"align": [ "wide", "full" ],
+		"spacing": { "margin": true, "padding": true },
+		"color": { "background": true, "text": false }
+	},
+	"attributes": {
+		"perPage": {
+			"type": "number",
+			"default": 20
+		},
+		"columns": {
+			"type": "number",
+			"default": 3
+		},
+		"showSearch": {
+			"type": "boolean",
+			"default": true
+		},
+		"showFilters": {
+			"type": "boolean",
+			"default": true
+		},
+		"showDistanceFilter": {
+			"type": "boolean",
+			"default": true
+		},
+		"showStats": {
+			"type": "boolean",
+			"default": true
+		},
+		"showPagination": {
+			"type": "boolean",
+			"default": true
+		},
+		"orderBy": {
+			"type": "string",
+			"default": "closing_date"
+		},
+		"order": {
+			"type": "string",
+			"default": "ASC"
+		},
+		"filterLevel": {
+			"type": "string",
+			"default": ""
+		},
+		"filterRoute": {
+			"type": "string",
+			"default": ""
+		},
+		"colorPrimary": {
+			"type": "string",
+			"default": "#1d70b8"
+		},
+		"layout": {
+			"type": "string",
+			"default": "grid"
+		}
+	},
+	"render": "file:./render.php",
+	"editorScript": "file:./index.js",
+	"style": "file:./style-index.css"
+}

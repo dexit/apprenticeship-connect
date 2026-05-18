@@ -81,6 +81,8 @@ class Apprco_Connector {
 		// Initialize Core Components.
 		Apprco_Database::get_instance()->init();
 		Apprco_Vacancy_Store::get_instance();
+		Apprco_Geocoder::get_instance();
+		Apprco_Provider::get_instance();
 		Apprco_Post_Types::get_instance();
 		Apprco_Task_Scheduler::get_instance()->init();
 
